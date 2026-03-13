@@ -1,54 +1,97 @@
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
+@import '@fontsource/syne/400.css';
+@import '@fontsource/syne/700.css';
+@import '@fontsource/plus-jakarta-sans/400.css';
+@import '@fontsource/plus-jakarta-sans/500.css';
 @import '@fontsource/plus-jakarta-sans/600.css';
-@import '@fontsource/plus-jakarta-sans/700.css';
-@import '@fontsource/plus-jakarta-sans/800.css';
 @import '@fontsource/jetbrains-mono/400.css';
-@import '@fontsource/jetbrains-mono/600.css';
+@import '@fontsource/jetbrains-mono/500.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root,
+  [data-theme='dark'] {
+    --bg: #0c0c11;
+    --surface: #14141c;
+    --surface2: #1c1c28;
+    --border: #252535;
+    --text-primary: #f0f0f5;
+    --muted: #606080;
+    --accent: #7c6aff;
+    --pink: #ff6b9d;
+    --green: #34d399;
+    --amber: #fbbf24;
+  }
+
+  [data-theme='light'] {
+    --bg: #f6f5f2;
+    --surface: #ffffff;
+    --surface2: #eeedf8;
+    --border: #dddcef;
+    --text-primary: #1a1a2e;
+    --muted: #8080a8;
+    --accent: #7c6aff;
+    --pink: #ff6b9d;
+    --green: #34d399;
+    --amber: #fbbf24;
+  }
+
   * {
-    @apply box-border;
+    box-sizing: border-box;
+    transition: background-color 200ms, color 200ms, border-color 200ms;
   }
 
   html {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply m-0 bg-dark text-text-primary;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100dvh;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23a)' opacity='1'/%3E%3C/svg%3E");
   }
 
   #root {
-    @apply min-h-screen;
+    min-height: 100dvh;
   }
 
   ::selection {
-    @apply bg-accent/30 text-text-primary;
+    background: var(--accent);
+    color: white;
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
   }
-
   ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background: transparent;
   }
-
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
+    background: var(--border);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
   }
 
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-text-secondary/30;
+  html {
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
   }
 
   input[type='number']::-webkit-inner-spin-button,
@@ -56,18 +99,29 @@
     -webkit-appearance: none;
     margin: 0;
   }
-
   input[type='number'] {
     -moz-appearance: textfield;
   }
 }
 
 @layer utilities {
-  .safe-area-bottom {
+  .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  .font-heading {
+    font-family: 'Syne', sans-serif;
+  }
+}
 
-  .font-display {
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  body::after {
+    display: none;
   }
 }

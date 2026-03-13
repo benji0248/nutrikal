@@ -1,8 +1,9 @@
 import { useRef, useCallback } from 'react';
 
-interface SwipeHandlers {
+interface SwipeConfig {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  threshold?: number;
 }
 
 interface SwipeBindings {
@@ -11,47 +12,39 @@ interface SwipeBindings {
   onTouchEnd: () => void;
 }
 
-const SWIPE_THRESHOLD = 50;
-const SWIPE_VELOCITY_THRESHOLD = 0.3;
-
-export function useSwipe({ onSwipeLeft, onSwipeRight }: SwipeHandlers): SwipeBindings {
-  const touchStart = useRef<{ x: number; y: number; time: number } | null>(null);
-  const touchCurrent = useRef<{ x: number; y: number } | null>(null);
+export function useSwipe({
+  onSwipeLeft,
+  onSwipeRight,
+  threshold = 50,
+}: SwipeConfig): SwipeBindings {
+  const start = useRef<{ x: number; y: number; t: number } | null>(null);
+  const current = useRef<{ x: number; y: number } | null>(null);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-    touchCurrent.current = { x: touch.clientX, y: touch.clientY };
+    start.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+    current.current = { x: touch.clientX, y: touch.clientY };
   }, []);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
-    touchCurrent.current = { x: touch.clientX, y: touch.clientY };
+    current.current = { x: touch.clientX, y: touch.clientY };
   }, []);
 
   const onTouchEnd = useCallback(() => {
-    if (!touchStart.current || !touchCurrent.current) return;
+    if (!start.current || !current.current) return;
+    const dx = current.current.x - start.current.x;
+    const dy = current.current.y - start.current.y;
+    const elapsed = Date.now() - start.current.t;
+    const velocity = Math.abs(dx) / Math.max(elapsed, 1);
 
-    const deltaX = touchCurrent.current.x - touchStart.current.x;
-    const deltaY = touchCurrent.current.y - touchStart.current.y;
-    const elapsed = Date.now() - touchStart.current.time;
-    const velocity = Math.abs(deltaX) / elapsed;
-
-    if (
-      Math.abs(deltaX) > SWIPE_THRESHOLD &&
-      Math.abs(deltaX) > Math.abs(deltaY) &&
-      velocity > SWIPE_VELOCITY_THRESHOLD
-    ) {
-      if (deltaX < 0) {
-        onSwipeLeft?.();
-      } else {
-        onSwipeRight?.();
-      }
+    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) && velocity > 0.25) {
+      if (dx < 0) onSwipeLeft?.();
+      else onSwipeRight?.();
     }
-
-    touchStart.current = null;
-    touchCurrent.current = null;
-  }, [onSwipeLeft, onSwipeRight]);
+    start.current = null;
+    current.current = null;
+  }, [onSwipeLeft, onSwipeRight, threshold]);
 
   return { onTouchStart, onTouchMove, onTouchEnd };
 }

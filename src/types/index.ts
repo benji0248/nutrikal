@@ -1,72 +1,115 @@
-export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type MealType = 'desayuno' | 'almuerzo' | 'cena' | 'snack';
+export type Theme = 'dark' | 'light';
+export type ViewMode = 'day' | 'week' | 'month';
+export type AppTab = 'calendar' | 'calculator' | 'recipes' | 'settings';
+
+export type IngredientCategory =
+  | 'carnes'
+  | 'verduras'
+  | 'frutas'
+  | 'lacteos'
+  | 'cereales'
+  | 'legumbres'
+  | 'grasas'
+  | 'bebidas'
+  | 'ultraprocesados'
+  | 'comidas_preparadas'
+  | 'otros';
 
 export const MEAL_TYPE_LABELS: Record<MealType, string> = {
-  breakfast: 'Desayuno',
-  lunch: 'Almuerzo',
-  dinner: 'Cena',
+  desayuno: 'Desayuno',
+  almuerzo: 'Almuerzo',
+  cena: 'Cena',
   snack: 'Snack',
 };
 
-export const MEAL_TYPE_ORDER: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+export const MEAL_TYPE_ORDER: MealType[] = ['desayuno', 'almuerzo', 'cena', 'snack'];
+
+export const CATEGORY_LABELS: Record<IngredientCategory, string> = {
+  carnes: 'Carnes',
+  verduras: 'Verduras',
+  frutas: 'Frutas',
+  lacteos: 'Lácteos',
+  cereales: 'Cereales',
+  legumbres: 'Legumbres',
+  grasas: 'Grasas',
+  bebidas: 'Bebidas',
+  ultraprocesados: 'Ultraprocesados',
+  comidas_preparadas: 'Comidas preparadas',
+  otros: 'Otros',
+};
+
+export const ALL_CATEGORIES: IngredientCategory[] = [
+  'carnes',
+  'verduras',
+  'frutas',
+  'lacteos',
+  'cereales',
+  'legumbres',
+  'grasas',
+  'bebidas',
+  'ultraprocesados',
+  'comidas_preparadas',
+  'otros',
+];
+
+export interface Macros {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface Ingredient extends Macros {
+  id: string;
+  name: string;
+  category: IngredientCategory;
+  isCustom?: boolean;
+}
+
+export interface CalculatorEntry {
+  ingredientId: string;
+  grams: number;
+}
+
+export interface CalculatorRecipe {
+  id: string;
+  name: string;
+  entries: CalculatorEntry[];
+  totalMacros: Macros;
+  savedAt: string;
+}
 
 export interface Meal {
   id: string;
   name: string;
   calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
   notes?: string;
-  tags?: string[];
+  linkedRecipeId?: string;
+  entries?: CalculatorEntry[];
+  completed?: boolean;
 }
 
 export interface DayPlan {
   date: string;
   meals: Record<MealType, Meal[]>;
   water: number;
+  waterGoal: number;
   notes: string;
 }
 
 export interface WeekTemplate {
   id: string;
   name: string;
-  days: Partial<Record<string, DayPlan>>;
+  createdAt: string;
+  days: Partial<Record<string, Pick<DayPlan, 'meals' | 'notes'>>>;
 }
 
-export interface RecipeBankData {
-  meals: Meal[];
-  favorites: string[];
-}
-
-export type ViewMode = 'week' | 'month';
-
-export type AppTab = 'calendar' | 'recipes' | 'templates';
-
-export interface CalendarState {
-  currentDate: string;
-  viewMode: ViewMode;
-  activeTab: AppTab;
-  dayPlans: Record<string, DayPlan>;
-  recipeBank: RecipeBankData;
-  weekTemplates: WeekTemplate[];
-  waterGoal: number;
-  darkMode: boolean;
-  setCurrentDate: (date: string) => void;
-  setViewMode: (mode: ViewMode) => void;
-  setActiveTab: (tab: AppTab) => void;
-  setDarkMode: (dark: boolean) => void;
-  getDayPlan: (date: string) => DayPlan;
-  addMealToDay: (date: string, mealType: MealType, meal: Meal) => void;
-  updateMealInDay: (date: string, mealType: MealType, mealId: string, meal: Partial<Meal>) => void;
-  removeMealFromDay: (date: string, mealType: MealType, mealId: string) => void;
-  setWater: (date: string, count: number) => void;
-  setDayNotes: (date: string, notes: string) => void;
-  addRecipe: (meal: Meal) => void;
-  removeRecipe: (id: string) => void;
-  updateRecipe: (id: string, meal: Partial<Meal>) => void;
-  toggleFavorite: (id: string) => void;
-  saveWeekTemplate: (name: string, startDate: string) => void;
-  applyWeekTemplate: (templateId: string, startDate: string, mode: 'merge' | 'replace') => void;
-  deleteWeekTemplate: (id: string) => void;
-  setWaterGoal: (goal: number) => void;
+export interface Notification {
+  id: string;
+  label: string;
+  time: string;
+  enabled: boolean;
+  type: 'water' | 'meal' | 'custom';
+  mealType?: MealType;
 }

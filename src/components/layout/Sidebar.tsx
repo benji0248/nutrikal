@@ -1,62 +1,59 @@
-import { Calendar, UtensilsCrossed, BookTemplate } from 'lucide-react';
+import { Calendar, Calculator, BookOpen, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useCalendarStore } from '../../store/useCalendarStore';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import type { AppTab } from '../../types';
 
-interface SidebarItem {
-  tab: AppTab;
-  label: string;
-  icon: typeof Calendar;
+interface SidebarProps {
+  activeTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
 }
 
-const SIDEBAR_ITEMS: SidebarItem[] = [
+const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
-  { tab: 'recipes', label: 'Recetas', icon: UtensilsCrossed },
-  { tab: 'templates', label: 'Plantillas', icon: BookTemplate },
+  { tab: 'calculator', label: 'Calculadora', icon: Calculator },
+  { tab: 'recipes', label: 'Recetas', icon: BookOpen },
+  { tab: 'settings', label: 'Ajustes', icon: Settings },
 ];
 
-export function Sidebar() {
-  const activeTab = useCalendarStore((s) => s.activeTab);
-  const setActiveTab = useCalendarStore((s) => s.setActiveTab);
-
+export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen bg-surface border-r border-border p-4 gap-2 fixed left-0 top-0">
+    <aside className="hidden md:flex flex-col w-60 h-dvh bg-surface border-r border-border fixed left-0 top-0 p-4 gap-1 no-print">
       <div className="flex items-center gap-3 px-3 py-4 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
-          <span className="text-accent font-display font-bold text-lg">N</span>
+        <div className="w-10 h-10 rounded-2xl bg-accent/20 flex items-center justify-center">
+          <span className="text-accent font-heading font-bold text-lg">N</span>
         </div>
         <div>
-          <h1 className="font-display font-bold text-text-primary text-lg leading-tight">NutriKal</h1>
-          <p className="text-text-secondary text-xs">Tu calendario nutricional</p>
+          <h1 className="font-heading font-bold text-text-primary leading-tight">NutriKal</h1>
+          <p className="text-muted text-[11px] font-body">Tu nutrición, organizada</p>
         </div>
       </div>
 
-      <nav className="flex flex-col gap-1 flex-1">
-        {SIDEBAR_ITEMS.map(({ tab, label, icon: Icon }) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={clsx(
-              'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left min-h-[48px]',
-              activeTab === tab
-                ? 'bg-accent/10 text-accent font-medium'
-                : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated/50',
-            )}
-            aria-label={label}
-            aria-current={activeTab === tab ? 'page' : undefined}
-          >
-            <Icon size={20} />
-            <span className="text-sm">{label}</span>
-          </button>
-        ))}
+      <nav className="flex flex-col gap-0.5 flex-1">
+        {TABS.map(({ tab, label, icon: Icon }) => {
+          const active = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => onTabChange(tab)}
+              className={clsx(
+                'flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left min-h-[48px] font-body text-sm',
+                active
+                  ? 'bg-accent/10 text-accent font-medium'
+                  : 'text-muted hover:text-text-primary hover:bg-surface2/50',
+              )}
+              aria-label={label}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </nav>
 
-      <div className="pt-4 border-t border-border">
-        <div className="flex items-center justify-between px-3">
-          <span className="text-xs text-text-secondary">Tema</span>
-          <ThemeToggle />
-        </div>
+      <div className="pt-4 border-t border-border flex items-center justify-between px-3">
+        <span className="text-xs text-muted font-body">Tema</span>
+        <ThemeToggle />
       </div>
     </aside>
   );

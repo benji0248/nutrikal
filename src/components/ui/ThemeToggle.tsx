@@ -1,20 +1,19 @@
 import { Sun, Moon } from 'lucide-react';
-import { useCalendarStore } from '../../store/useCalendarStore';
+import { useTheme } from '../../hooks/useTheme';
 
 export function ThemeToggle() {
-  const darkMode = useCalendarStore((s) => s.darkMode);
-  const setDarkMode = useCalendarStore((s) => s.setDarkMode);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <button
-      onClick={() => setDarkMode(!darkMode)}
-      className="p-2.5 rounded-xl bg-surface-elevated hover:bg-surface-elevated/80 transition-all duration-300 min-w-[48px] min-h-[48px] flex items-center justify-center"
-      aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      onClick={toggleTheme}
+      className="p-2.5 rounded-2xl bg-surface2 hover:bg-surface2/70 transition-all min-w-[48px] min-h-[48px] flex items-center justify-center"
+      aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
     >
-      {darkMode ? (
-        <Sun size={20} className="text-warning transition-transform duration-300 rotate-0 hover:rotate-45" />
+      {theme === 'dark' ? (
+        <Sun size={18} className="text-amber" />
       ) : (
-        <Moon size={20} className="text-accent transition-transform duration-300" />
+        <Moon size={18} className="text-accent" />
       )}
     </button>
   );

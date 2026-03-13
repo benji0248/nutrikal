@@ -1,34 +1,35 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        dark: '#0f0f13',
-        surface: '#1a1a24',
-        'surface-elevated': '#242432',
+        bg: 'var(--bg)',
+        surface: 'var(--surface)',
+        surface2: 'var(--surface2)',
+        border: 'var(--border)',
         accent: '#7c6aff',
-        'accent-secondary': '#ff6b9d',
-        success: '#4ade80',
-        warning: '#fbbf24',
-        'text-primary': '#f0f0f5',
-        'text-secondary': '#8b8ba0',
-        border: '#2e2e3e',
+        pink: '#ff6b9d',
+        green: '#34d399',
+        amber: '#fbbf24',
+        muted: 'var(--muted)',
+        'text-primary': 'var(--text-primary)',
+        'text-muted': 'var(--muted)',
       },
       fontFamily: {
-        display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        body: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Syne', 'sans-serif'],
+        body: ['"Plus Jakarta Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       borderRadius: {
-        xl: '0.75rem',
-        '2xl': '1rem',
-        '3xl': '1.5rem',
+        '4xl': '2rem',
+        '5xl': '2.5rem',
       },
       animation: {
-        'slide-up': 'slideUp 0.3s ease-out',
-        'fade-in': 'fadeIn 0.2s ease-out',
+        'slide-up': 'slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+        'fade-in': 'fadeIn 0.18s ease-out',
+        'scale-tap': 'scaleTap 0.12s ease-out',
+        shimmer: 'shimmer 1.5s infinite',
       },
       keyframes: {
         slideUp: {
@@ -36,8 +37,17 @@ export default {
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
         fadeIn: {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        scaleTap: {
+          '0%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(0.96)' },
+          '100%': { transform: 'scale(1)' },
+        },
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
         },
       },
     },

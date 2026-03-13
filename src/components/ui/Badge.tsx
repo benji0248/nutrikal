@@ -1,39 +1,37 @@
 import { clsx } from 'clsx';
 
-type BadgeVariant = 'default' | 'accent' | 'pink' | 'success' | 'warning';
+type BadgeVariant = 'accent' | 'success' | 'warning' | 'danger' | 'neutral';
+type BadgeSize = 'sm' | 'md';
 
 interface BadgeProps {
   children: string;
   variant?: BadgeVariant;
-  onRemove?: () => void;
+  size?: BadgeSize;
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'bg-surface-elevated text-text-secondary',
   accent: 'bg-accent/15 text-accent',
-  pink: 'bg-accent-secondary/15 text-accent-secondary',
-  success: 'bg-success/15 text-success',
-  warning: 'bg-warning/15 text-warning',
+  success: 'bg-green/15 text-green',
+  warning: 'bg-amber/15 text-amber',
+  danger: 'bg-red-500/15 text-red-400',
+  neutral: 'bg-surface2 text-muted',
 };
 
-export function Badge({ children, variant = 'default', onRemove }: BadgeProps) {
+const sizeStyles: Record<BadgeSize, string> = {
+  sm: 'px-1.5 py-0.5 text-[10px]',
+  md: 'px-2.5 py-1 text-xs',
+};
+
+export function Badge({ children, variant = 'neutral', size = 'md' }: BadgeProps) {
   return (
     <span
       className={clsx(
-        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors',
+        'inline-flex items-center rounded-lg font-medium font-body whitespace-nowrap',
         variantStyles[variant],
+        sizeStyles[size],
       )}
     >
       {children}
-      {onRemove && (
-        <button
-          onClick={onRemove}
-          className="ml-0.5 hover:opacity-70 transition-opacity"
-          aria-label={`Eliminar etiqueta ${children}`}
-        >
-          &times;
-        </button>
-      )}
     </span>
   );
 }
