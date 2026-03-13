@@ -4,6 +4,12 @@ import type { CalculatorEntry, CalculatorRecipe, Ingredient, Macros } from '../t
 import { computeTotalMacros } from '../utils/macroHelpers';
 import { generateId } from '../utils/dateHelpers';
 
+const sync = () => {
+  import('./useGistSyncStore').then(({ useGistSyncStore }) =>
+    useGistSyncStore.getState().schedulePush(),
+  );
+};
+
 interface CalculatorState {
   entries: CalculatorEntry[];
   savedRecipes: CalculatorRecipe[];
@@ -64,7 +70,7 @@ export const useCalculatorStore = create<CalculatorState>()(
       setMode: (mode) => set({ calculatorMode: mode }),
       setRecipeName: (name) => set({ recipeName: name }),
 
-      saveCurrentAsRecipe: (name, allIngredients) =>
+      saveCurrentAsRecipe: (name, allIngredients) => {
         set((state) => {
           const totalMacros = computeTotalMacros(state.entries, allIngredients);
           const recipe: CalculatorRecipe = {
@@ -78,7 +84,9 @@ export const useCalculatorStore = create<CalculatorState>()(
             savedRecipes: [...state.savedRecipes, recipe],
             activeRecipeId: recipe.id,
           };
-        }),
+        });
+        sync();
+      },
 
       loadRecipe: (id) =>
         set((state) => {
@@ -92,11 +100,13 @@ export const useCalculatorStore = create<CalculatorState>()(
           };
         }),
 
-      deleteRecipe: (id) =>
+      deleteRecipe: (id) => {
         set((state) => ({
           savedRecipes: state.savedRecipes.filter((r) => r.id !== id),
           activeRecipeId: state.activeRecipeId === id ? null : state.activeRecipeId,
-        })),
+        }));
+        sync();
+      },
 
       getTotals: (allIngredients) => {
         const state = get();

@@ -11,6 +11,12 @@ export const createEmptyDayPlan = (date: string): DayPlan => ({
   notes: '',
 });
 
+const sync = () => {
+  import('./useGistSyncStore').then(({ useGistSyncStore }) =>
+    useGistSyncStore.getState().schedulePush(),
+  );
+};
+
 interface CalendarState {
   currentDate: string;
   view: ViewMode;
@@ -60,7 +66,7 @@ export const useCalendarStore = create<CalendarState>()(
 
       goToToday: () => set({ currentDate: todayKey() }),
 
-      upsertMeal: (date, mealType, meal) =>
+      upsertMeal: (date, mealType, meal) => {
         set((s) => {
           const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
           const slotMeals = existing.meals[mealType];
@@ -77,9 +83,11 @@ export const useCalendarStore = create<CalendarState>()(
               },
             },
           };
-        }),
+        });
+        sync();
+      },
 
-      deleteMeal: (date, mealType, mealId) =>
+      deleteMeal: (date, mealType, mealId) => {
         set((s) => {
           const existing = s.dayPlans[date];
           if (!existing) return s;
@@ -95,9 +103,11 @@ export const useCalendarStore = create<CalendarState>()(
               },
             },
           };
-        }),
+        });
+        sync();
+      },
 
-      toggleMealCompleted: (date, mealType, mealId) =>
+      toggleMealCompleted: (date, mealType, mealId) => {
         set((s) => {
           const existing = s.dayPlans[date];
           if (!existing) return s;
@@ -115,25 +125,31 @@ export const useCalendarStore = create<CalendarState>()(
               },
             },
           };
-        }),
+        });
+        sync();
+      },
 
-      setWater: (date, glasses) =>
+      setWater: (date, glasses) => {
         set((s) => {
           const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
           return {
             dayPlans: { ...s.dayPlans, [date]: { ...existing, water: glasses } },
           };
-        }),
+        });
+        sync();
+      },
 
-      setNotes: (date, notes) =>
+      setNotes: (date, notes) => {
         set((s) => {
           const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
           return {
             dayPlans: { ...s.dayPlans, [date]: { ...existing, notes } },
           };
-        }),
+        });
+        sync();
+      },
 
-      saveWeekAsTemplate: (name) =>
+      saveWeekAsTemplate: (name) => {
         set((s) => {
           const keys = getWeekDayKeys(s.currentDate);
           const days: WeekTemplate['days'] = {};
@@ -149,9 +165,11 @@ export const useCalendarStore = create<CalendarState>()(
               { id: generateId(), name, createdAt: new Date().toISOString(), days },
             ],
           };
-        }),
+        });
+        sync();
+      },
 
-      applyTemplate: (templateId, targetMonday, mode) =>
+      applyTemplate: (templateId, targetMonday, mode) => {
         set((s) => {
           const tpl = s.weekTemplates.find((t) => t.id === templateId);
           if (!tpl) return s;
@@ -175,29 +193,39 @@ export const useCalendarStore = create<CalendarState>()(
             }
           });
           return { dayPlans: newPlans };
-        }),
+        });
+        sync();
+      },
 
-      deleteTemplate: (id) =>
+      deleteTemplate: (id) => {
         set((s) => ({
           weekTemplates: s.weekTemplates.filter((t) => t.id !== id),
-        })),
+        }));
+        sync();
+      },
 
-      addNotification: (n) =>
+      addNotification: (n) => {
         set((s) => ({
           notifications: [...s.notifications, { ...n, id: generateId() }],
-        })),
+        }));
+        sync();
+      },
 
-      toggleNotification: (id) =>
+      toggleNotification: (id) => {
         set((s) => ({
           notifications: s.notifications.map((n) =>
             n.id === id ? { ...n, enabled: !n.enabled } : n,
           ),
-        })),
+        }));
+        sync();
+      },
 
-      deleteNotification: (id) =>
+      deleteNotification: (id) => {
         set((s) => ({
           notifications: s.notifications.filter((n) => n.id !== id),
-        })),
+        }));
+        sync();
+      },
     }),
     { name: 'nutrikal-calendar' },
   ),

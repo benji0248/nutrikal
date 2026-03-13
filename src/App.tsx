@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Sun, CalendarDays, LayoutGrid, Download, Printer } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sun, CalendarDays, LayoutGrid, Download, Printer, Copy, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
+import { useAuthStore } from './store/useAuthStore';
+import { useGistSyncStore } from './store/useGistSyncStore';
 import { useCalendarStore } from './store/useCalendarStore';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
@@ -11,14 +13,38 @@ import { DayView } from './components/calendar/DayView';
 import { CalorieCalculator } from './components/calculator/CalorieCalculator';
 import { RecipeBank } from './components/meals/RecipeBank';
 import { ThemeToggle } from './components/ui/ThemeToggle';
+import { SyncIndicator } from './components/ui/SyncIndicator';
 import { Button } from './components/ui/Button';
 import { BottomSheet } from './components/ui/BottomSheet';
 import { Modal } from './components/ui/Modal';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { LoadingScreen } from './components/auth/LoadingScreen';
+import { UserMenu } from './components/auth/UserMenu';
 import { getWeekRange, getMonthLabel } from './utils/dateHelpers';
 import type { AppTab } from './types';
 
 function App() {
   useTheme();
+  const authState = useAuthStore((s) => s.authState);
+  const restoreSession = useAuthStore((s) => s.restoreSession);
+
+  useEffect(() => {
+    restoreSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (authState === 'authenticating') {
+    return <LoadingScreen />;
+  }
+
+  if (authState !== 'authenticated') {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState<AppTab>('calendar');
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
@@ -31,23 +57,6 @@ function App() {
   const [showTemplates, setShowTemplates] = useState(false);
 
   const headerLabel = view === 'day' ? '' : view === 'week' ? getWeekRange(currentDate) : getMonthLabel(currentDate);
-
-  const handleExportJSON = () => {
-    const data: Record<string, string | null> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('nutrikal')) {
-        data[key] = localStorage.getItem(key);
-      }
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `nutrikal-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const templatesContent = (
     <div className="space-y-3">
@@ -155,9 +164,11 @@ function App() {
                   </button>
                 </>
               )}
+              <SyncIndicator />
               <div className="md:hidden">
                 <ThemeToggle />
               </div>
+              <UserMenu />
             </div>
           </div>
         </header>
@@ -170,9 +181,7 @@ function App() {
           {activeTab === 'recipes' && (
             <RecipeBank onNavigateToCalculator={() => setActiveTab('calculator')} />
           )}
-          {activeTab === 'settings' && (
-            <SettingsView onExportJSON={handleExportJSON} />
-          )}
+          {activeTab === 'settings' && <SettingsView />}
         </div>
       </main>
 
@@ -188,10 +197,128 @@ function App() {
   );
 }
 
-function SettingsView({ onExportJSON }: { onExportJSON: () => void }) {
+function SettingsView() {
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const lastSyncedAt = useGistSyncStore((s) => s.lastSyncedAt);
+  const buildPayload = useGistSyncStore((s) => s.buildPayload);
+  const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
+  const push = useGistSyncStore((s) => s.push);
+  const [copiedGist, setCopiedGist] = useState(false);
+
+  const handleExportJSON = () => {
+    const payload = buildPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nutrikal-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const raw = JSON.parse(reader.result as string);
+        const { migratePayload } = await import('./services/gistService');
+        const payload = migratePayload(raw);
+        if (confirm('¿Reemplazar todos tus datos actuales?')) {
+          hydrateAllStores(payload);
+          push();
+        }
+      } catch {
+        alert('Archivo JSON inválido');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const copyGistId = () => {
+    if (user?.gistId) {
+      navigator.clipboard.writeText(user.gistId);
+      setCopiedGist(true);
+      setTimeout(() => setCopiedGist(false), 2000);
+    }
+  };
+
+  const formatRelativeTime = (iso: string): string => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return 'justo ahora';
+    if (mins < 60) return `hace ${mins} minutos`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `hace ${hours} horas`;
+    return `hace ${Math.floor(hours / 24)} días`;
+  };
+
   return (
     <div className="space-y-6 max-w-lg">
       <h2 className="text-xl font-heading font-bold text-text-primary">Ajustes</h2>
+
+      {/* Account & sync section */}
+      {user && (
+        <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
+          <h3 className="text-sm font-heading font-bold text-text-primary">Cuenta y sincronización</h3>
+
+          <div className="flex items-center gap-3">
+            <img src={user.avatarUrl} alt={user.login} className="w-10 h-10 rounded-full" />
+            <div>
+              <p className="text-sm font-body font-medium text-text-primary">@{user.login}</p>
+              <p className="text-[10px] font-body text-accent">Sincronización activa vía GitHub Gist</p>
+            </div>
+          </div>
+
+          {lastSyncedAt && (
+            <p className="text-xs font-body text-muted">
+              Último guardado: {formatRelativeTime(lastSyncedAt)}
+            </p>
+          )}
+
+          {user.gistId && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-body text-muted">Gist ID:</span>
+              <code className="text-xs font-mono text-muted">{user.gistId.slice(0, 8)}...</code>
+              <button
+                onClick={copyGistId}
+                className="p-1 rounded-lg hover:bg-surface2 transition-colors"
+                aria-label="Copiar Gist ID"
+              >
+                {copiedGist ? (
+                  <Check size={12} className="text-green-400" />
+                ) : (
+                  <Copy size={12} className="text-muted" />
+                )}
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
+              Exportar backup JSON
+            </Button>
+            <label className="w-full">
+              <Button variant="secondary" icon={<Printer size={16} />} onClick={() => document.getElementById('import-input')?.click()} fullWidth>
+                Importar backup JSON
+              </Button>
+              <input
+                id="import-input"
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+            <Button variant="danger" onClick={() => { if (confirm('¿Cerrar sesión? Tus datos están guardados en GitHub.')) logout(); }} fullWidth>
+              Cerrar sesión
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Apariencia</h3>
@@ -204,7 +331,7 @@ function SettingsView({ onExportJSON }: { onExportJSON: () => void }) {
       <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Datos</h3>
         <div className="flex flex-col gap-2">
-          <Button variant="secondary" icon={<Download size={16} />} onClick={onExportJSON} fullWidth>
+          <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
             Exportar datos (JSON)
           </Button>
           <Button variant="secondary" icon={<Printer size={16} />} onClick={() => window.print()} fullWidth>
@@ -214,9 +341,9 @@ function SettingsView({ onExportJSON }: { onExportJSON: () => void }) {
       </div>
 
       <div className="text-center pt-4">
-        <p className="text-xs text-muted font-body">NutriKal v1.0</p>
+        <p className="text-xs text-muted font-body">NutriKal v2.0</p>
         <p className="text-[10px] text-muted/60 font-body mt-1">
-          Todos los datos se guardan localmente en tu navegador
+          Datos sincronizados con GitHub Gist
         </p>
       </div>
     </div>

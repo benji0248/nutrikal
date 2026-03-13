@@ -113,3 +113,38 @@ export interface Notification {
   type: 'water' | 'meal' | 'custom';
   mealType?: MealType;
 }
+
+export interface GistUser {
+  login: string;
+  name: string;
+  avatarUrl: string;
+  token: string;
+  gistId: string | null;
+}
+
+export type SyncStatus =
+  | 'idle'
+  | 'syncing'
+  | 'success'
+  | 'error'
+  | 'offline';
+
+export interface GistPayload {
+  version: number;
+  lastModified: string;
+  dayPlans: Record<string, DayPlan>;
+  weekTemplates: WeekTemplate[];
+  savedRecipes: CalculatorRecipe[];
+  customIngredients: Ingredient[];
+  notifications: Notification[];
+  settings: {
+    waterGoalDefault: number;
+    theme: Theme;
+  };
+}
+
+export type AuthState =
+  | 'unauthenticated'
+  | 'authenticating'
+  | 'authenticated'
+  | 'error';

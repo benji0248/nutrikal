@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Ingredient } from '../types';
 
+const sync = () => {
+  import('./useGistSyncStore').then(({ useGistSyncStore }) =>
+    useGistSyncStore.getState().schedulePush(),
+  );
+};
+
 interface IngredientsState {
   customIngredients: Ingredient[];
   addCustomIngredient: (data: Omit<Ingredient, 'id' | 'isCustom'>) => void;
@@ -14,7 +20,7 @@ export const useIngredientsStore = create<IngredientsState>()(
     (set) => ({
       customIngredients: [],
 
-      addCustomIngredient: (data) =>
+      addCustomIngredient: (data) => {
         set((state) => ({
           customIngredients: [
             ...state.customIngredients,
@@ -24,19 +30,25 @@ export const useIngredientsStore = create<IngredientsState>()(
               isCustom: true,
             },
           ],
-        })),
+        }));
+        sync();
+      },
 
-      updateCustomIngredient: (id, partial) =>
+      updateCustomIngredient: (id, partial) => {
         set((state) => ({
           customIngredients: state.customIngredients.map((ing) =>
             ing.id === id ? { ...ing, ...partial } : ing,
           ),
-        })),
+        }));
+        sync();
+      },
 
-      deleteCustomIngredient: (id) =>
+      deleteCustomIngredient: (id) => {
         set((state) => ({
           customIngredients: state.customIngredients.filter((ing) => ing.id !== id),
-        })),
+        }));
+        sync();
+      },
     }),
     { name: 'nutrikal-ingredients' },
   ),
