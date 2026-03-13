@@ -49,6 +49,9 @@ function emptyPayload(): GistPayload {
       waterGoalDefault: 8,
       theme: 'dark',
     },
+    profile: undefined,
+    shoppingLists: [],
+    activityLog: [],
   };
 }
 
@@ -191,5 +194,15 @@ export function migratePayload(data: unknown): GistPayload {
           ? (raw.settings as GistPayload['settings']).theme
           : base.settings.theme,
     },
+    profile:
+      raw.profile && typeof raw.profile === 'object'
+        ? (raw.profile as GistPayload['profile'])
+        : base.profile,
+    shoppingLists: Array.isArray(raw.shoppingLists)
+      ? (raw.shoppingLists as GistPayload['shoppingLists'])
+      : base.shoppingLists,
+    activityLog: Array.isArray(raw.activityLog)
+      ? (raw.activityLog as GistPayload['activityLog'])
+      : base.activityLog,
   } as GistPayload;
 }

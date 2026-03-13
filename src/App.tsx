@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Sun, CalendarDays, LayoutGrid, Download, Printer, Copy, Check } from 'lucide-react';
+import { Sun, CalendarDays, LayoutGrid, Download, Printer, Copy, Check, UserCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
 import { useGistSyncStore } from './store/useGistSyncStore';
 import { useCalendarStore } from './store/useCalendarStore';
+import { useProfileStore } from './store/useProfileStore';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
@@ -12,6 +13,10 @@ import { MonthView } from './components/calendar/MonthView';
 import { DayView } from './components/calendar/DayView';
 import { CalorieCalculator } from './components/calculator/CalorieCalculator';
 import { RecipeBank } from './components/meals/RecipeBank';
+import { WhatShouldIEat } from './components/assistant/WhatShouldIEat';
+import { ShoppingListView } from './components/shopping/ShoppingList';
+import { ProfileSetup } from './components/profile/ProfileSetup';
+import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
 import { ThemeToggle } from './components/ui/ThemeToggle';
 import { SyncIndicator } from './components/ui/SyncIndicator';
 import { Button } from './components/ui/Button';
@@ -54,7 +59,19 @@ function AuthenticatedApp() {
   const applyTemplate = useCalendarStore((s) => s.applyTemplate);
   const deleteTemplate = useCalendarStore((s) => s.deleteTemplate);
 
+  const profile = useProfileStore((s) => s.profile);
+  const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
+
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showRecalibrate, setShowRecalibrate] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+
+  // Check recalibration on mount
+  useEffect(() => {
+    if (profile && needsRecalibration()) {
+      setShowRecalibrate(true);
+    }
+  }, [profile, needsRecalibration]);
 
   const headerLabel = view === 'day' ? '' : view === 'week' ? getWeekRange(currentDate) : getMonthLabel(currentDate);
 
@@ -177,11 +194,13 @@ function AuthenticatedApp() {
           {activeTab === 'calendar' && view === 'day' && <DayView />}
           {activeTab === 'calendar' && view === 'week' && <WeekView />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
+          {activeTab === 'assistant' && <WhatShouldIEat />}
           {activeTab === 'calculator' && <CalorieCalculator />}
           {activeTab === 'recipes' && (
             <RecipeBank onNavigateToCalculator={() => setActiveTab('calculator')} />
           )}
-          {activeTab === 'settings' && <SettingsView />}
+          {activeTab === 'shopping' && <ShoppingListView />}
+          {activeTab === 'settings' && <SettingsView onEditProfile={() => setShowProfileEdit(true)} />}
         </div>
       </main>
 
@@ -193,12 +212,24 @@ function AuthenticatedApp() {
       <Modal isOpen={showTemplates} onClose={() => setShowTemplates(false)} title="Plantillas de semana">
         {templatesContent}
       </Modal>
+
+      <ProfileRecalibrate
+        isOpen={showRecalibrate}
+        onClose={() => setShowRecalibrate(false)}
+        onEditProfile={() => { setShowRecalibrate(false); setShowProfileEdit(true); }}
+      />
+      <ProfileSetup
+        isOpen={showProfileEdit}
+        onClose={() => setShowProfileEdit(false)}
+        existingProfile={profile}
+      />
     </div>
   );
 }
 
-function SettingsView() {
+function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
+  const settingsProfile = useProfileStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
   const lastSyncedAt = useGistSyncStore((s) => s.lastSyncedAt);
   const buildPayload = useGistSyncStore((s) => s.buildPayload);
@@ -321,6 +352,25 @@ function SettingsView() {
       )}
 
       <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
+        <h3 className="text-sm font-heading font-bold text-text-primary">Perfil nutricional</h3>
+        {settingsProfile ? (
+          <div className="space-y-2">
+            <p className="text-sm font-body text-text-primary">{settingsProfile.name}</p>
+            <p className="text-xs font-body text-muted">
+              {settingsProfile.heightCm} cm · {settingsProfile.weightKg} kg
+            </p>
+            <Button variant="secondary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
+              Editar perfil
+            </Button>
+          </div>
+        ) : (
+          <Button variant="primary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
+            Crear perfil
+          </Button>
+        )}
+      </div>
+
+      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Apariencia</h3>
         <div className="flex items-center justify-between">
           <span className="text-sm font-body text-muted">Tema</span>
@@ -341,7 +391,7 @@ function SettingsView() {
       </div>
 
       <div className="text-center pt-4">
-        <p className="text-xs text-muted font-body">NutriKal v2.0</p>
+        <p className="text-xs text-muted font-body">NutriKal v4.0</p>
         <p className="text-[10px] text-muted/60 font-body mt-1">
           Datos sincronizados con GitHub Gist
         </p>

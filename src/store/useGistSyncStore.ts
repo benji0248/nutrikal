@@ -118,6 +118,26 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
     const themeRaw = localStorage.getItem('nutrikal-theme');
     const theme = themeRaw === '"light"' || themeRaw === 'light' ? 'light' : 'dark';
 
+    // Read new stores from localStorage directly to avoid circular imports
+    let profile: GistPayload['profile'];
+    let shoppingLists: GistPayload['shoppingLists'] = [];
+    let activityLog: GistPayload['activityLog'] = [];
+    try {
+      const profileRaw = localStorage.getItem('nutrikal-profile');
+      if (profileRaw) {
+        const parsed = JSON.parse(profileRaw);
+        profile = parsed?.state?.profile ?? undefined;
+        activityLog = parsed?.state?.activityLog ?? [];
+      }
+    } catch { /* ignore */ }
+    try {
+      const shoppingRaw = localStorage.getItem('nutrikal-shopping');
+      if (shoppingRaw) {
+        const parsed = JSON.parse(shoppingRaw);
+        shoppingLists = parsed?.state?.lists ?? [];
+      }
+    } catch { /* ignore */ }
+
     return {
       version: 1,
       lastModified: new Date().toISOString(),
@@ -130,6 +150,9 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
         waterGoalDefault: 8,
         theme: theme as 'dark' | 'light',
       },
+      profile,
+      shoppingLists,
+      activityLog,
     };
   },
 
@@ -144,6 +167,19 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
     });
     useIngredientsStore.setState({
       customIngredients: payload.customIngredients,
+    });
+
+    // Hydrate new stores
+    import('./useProfileStore').then(({ useProfileStore }) => {
+      useProfileStore.setState({
+        profile: payload.profile ?? null,
+        activityLog: payload.activityLog ?? [],
+      });
+    });
+    import('./useShoppingStore').then(({ useShoppingStore }) => {
+      useShoppingStore.setState({
+        lists: payload.shoppingLists ?? [],
+      });
     });
 
     // Apply theme

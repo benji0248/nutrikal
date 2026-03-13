@@ -12,6 +12,7 @@ export default {
         pink: '#ff6b9d',
         green: '#34d399',
         amber: '#fbbf24',
+        'warm-orange': '#f97316',
         muted: 'var(--muted)',
         'text-primary': 'var(--text-primary)',
         'text-muted': 'var(--muted)',

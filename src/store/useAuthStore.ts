@@ -60,6 +60,8 @@ export const useAuthStore = create<AuthStoreState>()(
         localStorage.removeItem('nutrikal-calendar');
         localStorage.removeItem('nutrikal-calculator');
         localStorage.removeItem('nutrikal-ingredients');
+        localStorage.removeItem('nutrikal-profile');
+        localStorage.removeItem('nutrikal-shopping');
         set({ user: null, authState: 'unauthenticated', error: null });
         // Reset data stores
         import('./useCalendarStore').then(({ useCalendarStore }) =>
@@ -70,6 +72,12 @@ export const useAuthStore = create<AuthStoreState>()(
         );
         import('./useIngredientsStore').then(({ useIngredientsStore }) =>
           useIngredientsStore.setState({ customIngredients: [] }),
+        );
+        import('./useProfileStore').then(({ useProfileStore }) =>
+          useProfileStore.setState({ profile: null, activityLog: [] }),
+        );
+        import('./useShoppingStore').then(({ useShoppingStore }) =>
+          useShoppingStore.setState({ lists: [] }),
         );
       },
 
