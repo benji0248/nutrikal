@@ -48,6 +48,7 @@ function emptyPayload(): GistPayload {
     settings: {
       waterGoalDefault: 8,
       theme: 'dark',
+      showCalories: false,
     },
     profile: undefined,
     shoppingLists: [],
@@ -193,6 +194,11 @@ export function migratePayload(data: unknown): GistPayload {
           (raw.settings as Record<string, unknown>).theme === 'light')
           ? (raw.settings as GistPayload['settings']).theme
           : base.settings.theme,
+      showCalories:
+        raw.settings &&
+        typeof (raw.settings as Record<string, unknown>).showCalories === 'boolean'
+          ? (raw.settings as GistPayload['settings']).showCalories
+          : base.settings.showCalories,
     },
     profile:
       raw.profile && typeof raw.profile === 'object'

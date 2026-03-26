@@ -6,6 +6,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useGistSyncStore } from './store/useGistSyncStore';
 import { useCalendarStore } from './store/useCalendarStore';
 import { useProfileStore } from './store/useProfileStore';
+import { useSettingsStore } from './store/useSettingsStore';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
@@ -13,7 +14,7 @@ import { MonthView } from './components/calendar/MonthView';
 import { DayView } from './components/calendar/DayView';
 import { CalorieCalculator } from './components/calculator/CalorieCalculator';
 import { RecipeBank } from './components/meals/RecipeBank';
-import { WhatShouldIEat } from './components/assistant/WhatShouldIEat';
+import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
@@ -194,7 +195,7 @@ function AuthenticatedApp() {
           {activeTab === 'calendar' && view === 'day' && <DayView />}
           {activeTab === 'calendar' && view === 'week' && <WeekView />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
-          {activeTab === 'assistant' && <WhatShouldIEat />}
+          {activeTab === 'assistant' && <ChatAssistant />}
           {activeTab === 'calculator' && <CalorieCalculator />}
           {activeTab === 'recipes' && (
             <RecipeBank onNavigateToCalculator={() => setActiveTab('calculator')} />
@@ -223,6 +224,41 @@ function AuthenticatedApp() {
         onClose={() => setShowProfileEdit(false)}
         existingProfile={profile}
       />
+    </div>
+  );
+}
+
+function CaloriesToggle() {
+  const showCalories = useSettingsStore((s) => s.showCalories);
+  const setShowCalories = useSettingsStore((s) => s.setShowCalories);
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex-1 min-w-0 mr-3">
+        <span className="text-sm font-body text-muted block">Mostrar calorías</span>
+        <span className="text-[11px] font-body text-muted/60">
+          Ver las calorías de cada comida y el total del día
+        </span>
+      </div>
+      <button
+        role="switch"
+        aria-checked={showCalories}
+        onClick={() => setShowCalories(!showCalories)}
+        className="relative shrink-0 min-w-[48px] min-h-[48px] flex items-center justify-center"
+      >
+        <span
+          className={clsx(
+            'block h-7 w-12 rounded-full transition-colors',
+            showCalories ? 'bg-accent' : 'bg-border',
+          )}
+        />
+        <span
+          className={clsx(
+            'absolute block h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
+            showCalories ? 'translate-x-[10px]' : '-translate-x-[10px]',
+          )}
+        />
+      </button>
     </div>
   );
 }
@@ -376,6 +412,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
           <span className="text-sm font-body text-muted">Tema</span>
           <ThemeToggle />
         </div>
+        <CaloriesToggle />
       </div>
 
       <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">

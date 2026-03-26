@@ -140,6 +140,7 @@ export interface GistPayload {
   settings: {
     waterGoalDefault: number;
     theme: Theme;
+    showCalories?: boolean;
   };
   profile?: UserProfile;
   shoppingLists?: ShoppingList[];
@@ -264,6 +265,60 @@ export interface ActivityEntry {
   description: string;
   durationMinutes: number;
   caloriesBurned: number; // internal only, never displayed
+}
+
+// ── Ingredient portion types ──
+
+export interface IngredientPortion {
+  unit: string;
+  unitPlural: string;
+  gramsPerUnit: number;
+}
+
+// ── Chat types ──
+
+export type ChatStep =
+  | 'welcome'
+  | 'meal_selected'
+  | 'dish_selected'
+  | 'confirmed'
+  | 'day_summary'
+  | 'water_tracking';
+
+export type ChatMessageType =
+  | 'assistant-text'
+  | 'assistant-options'
+  | 'assistant-dishes'
+  | 'assistant-recipe'
+  | 'assistant-summary'
+  | 'assistant-water'
+  | 'assistant-energy'
+  | 'user-choice';
+
+export interface ChatOption {
+  id: string;
+  label: string;
+  icon?: string;
+  action: string;
+  payload?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  type: ChatMessageType;
+  text?: string;
+  options?: ChatOption[];
+  dishSuggestions?: Dish[];
+  selectedDish?: Dish;
+  servings?: number;
+  humanIngredients?: Array<{ name: string; humanPortion: string }>;
+  daySummary?: {
+    meals: Array<{ mealType: MealType; name: string }>;
+    energyLevel: EnergyLevel;
+    water: number;
+    waterGoal: number;
+  };
+  timestamp: string;
 }
 
 // ── Label maps ──

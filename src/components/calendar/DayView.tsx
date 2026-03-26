@@ -6,6 +6,10 @@ import { parseDate, isToday, formatDayFull, todayKey } from '../../utils/dateHel
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
 import type { MealType } from '../../types';
+import { useSettingsStore } from '../../store/useSettingsStore';
+import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { INGREDIENTS_DB } from '../../data/ingredients';
+import { getMealCalories } from '../../utils/macroHelpers';
 import { Droplets, Plus, Minus } from 'lucide-react';
 
 const MEAL_ICONS: Record<MealType, string> = {
@@ -43,6 +47,9 @@ export function DayView() {
   const date = useMemo(() => parseDate(currentDate), [currentDate]);
   const today = isToday(date);
 
+  const showCalories = useSettingsStore((s) => s.showCalories);
+  const customIngredients = useIngredientsStore((s) => s.customIngredients);
+  const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
   const [activeMealType, setActiveMealType] = useState<MealType | null>(getCurrentMealType);
   const [notesValue, setNotesValue] = useState(dayPlan.notes);
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -66,7 +73,7 @@ export function DayView() {
   }, [dayPlan.notes]);
 
   const totalCals = MEAL_TYPE_ORDER.reduce(
-    (sum, mt) => sum + dayPlan.meals[mt].reduce((s, m) => s + (m.calories ?? 0), 0),
+    (sum, mt) => sum + dayPlan.meals[mt].reduce((s, m) => s + (getMealCalories(m, allIngredients) ?? 0), 0),
     0,
   );
 
@@ -116,7 +123,7 @@ export function DayView() {
             Hoy
           </button>
         )}
-        {totalCals > 0 && (
+        {showCalories && totalCals > 0 && (
           <span className="text-xs font-mono text-accent">{totalCals} kcal</span>
         )}
       </div>
@@ -213,8 +220,8 @@ export function DayView() {
                         )}
                       >
                         {meal.name}
-                        {meal.calories !== undefined && (
-                          <span className="text-muted ml-1">({meal.calories} kcal)</span>
+                        {showCalories && getMealCalories(meal, allIngredients) !== undefined && (
+                          <span className="text-muted ml-1">({getMealCalories(meal, allIngredients)} kcal)</span>
                         )}
                       </span>
                     </button>

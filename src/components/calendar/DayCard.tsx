@@ -5,6 +5,10 @@ import { useCalendarStore, createEmptyDayPlan } from '../../store/useCalendarSto
 import { isToday, formatDayFull, formatDateKey } from '../../utils/dateHelpers';
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER } from '../../types';
+import { useSettingsStore } from '../../store/useSettingsStore';
+import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { INGREDIENTS_DB } from '../../data/ingredients';
+import { getMealCalories } from '../../utils/macroHelpers';
 
 interface DayCardProps {
   date: Date;
@@ -20,9 +24,12 @@ export function DayCard({ date }: DayCardProps) {
   const [notesValue, setNotesValue] = useState(dayPlan.notes);
   const [notesExpanded, setNotesExpanded] = useState(false);
 
+  const showCalories = useSettingsStore((s) => s.showCalories);
+  const customIngredients = useIngredientsStore((s) => s.customIngredients);
+  const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
   const today = isToday(date);
   const totalCals = MEAL_TYPE_ORDER.reduce(
-    (sum, mt) => sum + dayPlan.meals[mt].reduce((s, m) => s + (m.calories ?? 0), 0),
+    (sum, mt) => sum + dayPlan.meals[mt].reduce((s, m) => s + (getMealCalories(m, allIngredients) ?? 0), 0),
     0,
   );
   const waterGoal = dayPlan.waterGoal || 8;
@@ -49,7 +56,7 @@ export function DayCard({ date }: DayCardProps) {
             </span>
           )}
         </h3>
-        {totalCals > 0 && (
+        {showCalories && totalCals > 0 && (
           <span className="text-xs font-mono text-accent">{totalCals} kcal</span>
         )}
       </div>

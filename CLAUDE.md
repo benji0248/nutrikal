@@ -1,0 +1,366 @@
+# NutriKal — CLAUDE.md
+# Context file for Claude Code terminal sessions.
+# This file is read automatically at the start of every session.
+
+## What is NutriKal
+Personal nutrition calendar + food decision assistant for a small family group (2-5 people).
+Deployed on GitHub Pages. Zero backend. All computation runs in the browser.
+Each user has their own private GitHub Gist as cloud storage.
+
+Core philosophy: the app manages nutritional complexity silently.
+Users never see calorie numbers. They see colors, suggestions, and human-language portions.
+
+---
+
+## Stack
+- React 19 + TypeScript (strict)
+- Vite (bundler)
+- Tailwind CSS (styling — no inline styles, except dynamic width% for progress bars)
+- Zustand (state — with persist middleware)
+- date-fns (all date operations — never use native Date arithmetic directly)
+- lucide-react (icons)
+- @octokit/rest (GitHub API — ONLY imported in src/services/gistService.ts)
+- Fonts: @fontsource/syne, @fontsource/plus-jakarta-sans, @fontsource/jetbrains-mono, @fontsource/inter
+
+---
+
+## Commands
+
+```bash
+npm run dev          # local dev server
+npm run build        # production build → dist/
+npm run preview      # preview production build locally
+npx tsc --noEmit     # type check without building (run before every commit)
+npm run deploy       # build + push to gh-pages branch (requires git remote)
+```
+
+---
+
+## Project Structure
+
+```
+~/Proyectos/nutrikal/
+├── CLAUDE.md                     ← you are here
+├── public/
+│   └── 404.html                  ← copy of index.html for GH Pages SPA routing
+├── src/
+│   ├── components/
+│   │   ├── assistant/            ChatAssistant, ChatHeader, ChatMessageBubble,
+│   │   │                         OptionChips, RecipeCard, DishCard, DishSearch,
+│   │   │                         DayEnergyBar, PortionAdjuster, ActivityLog,
+│   │   │                         useChatEngine (hook)
+│   │   ├── auth/                 LoginScreen, LoadingScreen, UserMenu
+│   │   ├── calculator/           CalorieCalculator, IngredientSearch,
+│   │   │                         IngredientRow, MacroSummary, AddCustomIngredient
+│   │   ├── calendar/             WeekView, MonthView, DayCard, DayView
+│   │   ├── layout/               BottomNav, Sidebar
+│   │   ├── meals/                MealSlot, MealForm, RecipeBank
+│   │   ├── profile/              ProfileSetup, ActivityLevel,
+│   │   │                         DietaryPrefs, ProfileRecalibrate
+│   │   ├── shopping/             ShoppingList, ShoppingItem, ShoppingExport
+│   │   └── ui/                   Button, Input, Badge, Modal, BottomSheet,
+│   │                             SyncIndicator, ThemeToggle
+│   ├── data/
+│   │   ├── ingredients.ts        ~270 Argentine ingredients, per 100g macros
+│   │   ├── dishes.ts             ~80 Argentine dishes with aliases + instructions
+│   │   └── ingredientPortions.ts human-readable portion lookup table
+│   ├── hooks/
+│   │   ├── useLocalStorage.ts    generic key-value with JSON parse safety
+│   │   ├── useSwipe.ts           touch swipe detection, returns ref
+│   │   └── useTheme.ts           system pref + localStorage persist
+│   ├── services/
+│   │   ├── gistService.ts        ALL GitHub API calls live here and ONLY here
+│   │   ├── metabolicService.ts   TMB, TDEE, budget — pure functions
+│   │   ├── dishMatchService.ts   fuzzy search + suggestion scoring
+│   │   └── shoppingService.ts    list generation + unit consolidation
+│   ├── store/
+│   │   ├── useAuthStore.ts       GistUser, AuthState, login/logout/restore
+│   │   ├── useGistSyncStore.ts   sync lifecycle, push/pull/hydrate (no persist)
+│   │   ├── useCalendarStore.ts   DayPlan CRUD, templates, notifications
+│   │   ├── useCalculatorStore.ts entries, saved recipes, sendToMeal
+│   │   ├── useIngredientsStore.ts custom ingredients CRUD
+│   │   ├── useProfileStore.ts    metabolic profile, TMB/TDEE (never shown)
+│   │   ├── useShoppingStore.ts   shopping list management
+│   │   └── useSettingsStore.ts   showCalories toggle
+│   ├── types/
+│   │   └── index.ts              SINGLE source of truth — all types live here
+│   └── utils/
+│       ├── dateHelpers.ts        date-fns wrappers (getWeekDays, formatDateKey, etc.)
+│       ├── portionHelpers.ts    gramsToHumanPortion, getDishHumanIngredients
+│       └── macroHelpers.ts       computeMacros, formatMacro, percentages
+├── vite.config.ts                base: '/nutrikal/' — required for GH Pages
+└── tailwind.config.js            custom colors, fonts, animations
+```
+
+---
+
+## Build Status
+
+All features listed in the project structure above are **built and working**.
+
+Not yet implemented:
+- **Companion system** (v3) — streaks, intents, milestones, motivational messages.
+  Would require: `components/companion/`, `store/useCompanionStore.ts`, `CompanionData` in GistPayload.
+
+---
+
+## Non-Negotiable Rules
+
+### Code rules
+1. **No `any`** — strict TypeScript always. No non-null assertions without a guard.
+2. **No inline styles** — Tailwind classes only. No `style={{}}` props.
+   Exception: dynamic `style={{ width: '…%' }}` for progress bars is acceptable.
+3. **No raw Date arithmetic** — always use date-fns (addDays, subDays, format, etc.)
+4. **Named exports only** — every component: `export const Foo = ...` + props interface above it.
+5. **All types in `src/types/index.ts`** — never define types inside component files.
+6. **gistService isolation** — `@octokit/rest` is imported ONLY in `src/services/gistService.ts`.
+   Components and stores never call GitHub API directly.
+7. **schedulePush debounced** — never call `push()` directly from stores.
+   Always `useGistSyncStore.getState().schedulePush()`. Debounce is 1500ms.
+8. **Mobile-first** — write mobile styles first, add `md:` and `lg:` prefixes for desktop.
+9. **No horizontal scroll** — ever, at any viewport width.
+10. **48px minimum touch targets** — all interactive elements, no exceptions.
+
+### Product rules (equally non-negotiable)
+11. **Calories never shown to user** — no kcal numbers in any label, tooltip, message, or UI.
+    All calorie data is internal to stores and services only.
+12. **No red in nutritional feedback** — the app never scolds. Use amber → warm orange.
+13. **No blocking** — warnings are toasts, never modals. Always include "Dejalo así" option.
+14. **Human portions only** — "2 papas medianas", never "300g de papa".
+15. **No "diet" language** — never: dieta, restricción, prohibido, malo, culpa.
+16. **Forward-only framing** — never reference past failures in any message copy.
+
+---
+
+## Design System
+
+### Colors (CSS variables, set on `document.documentElement`)
+```css
+/* Applied via data-theme="dark" | "light" on <html> */
+--bg:           #0c0c11  /  #f6f5f2
+--surface:      #14141c  /  #ffffff
+--surface2:     #1c1c28  /  #eeedf8
+--border:       #252535  /  #dddcef
+--text-primary: #f0f0f8  /  #1a1a2e
+--text-muted:   #606080  /  #8080a8
+
+/* Same in both themes */
+--accent:  #7c6aff   /* electric violet — primary actions, active states */
+--pink:    #ff6b9d   /* water tracker, alerts, notifications */
+--green:   #34d399   /* success, goals met, streak bonus */
+--amber:   #fbbf24   /* warnings, snack slot, offline state */
+```
+
+### Tailwind class conventions
+```
+Background:      bg-[var(--bg)], bg-[var(--surface)], bg-[var(--surface2)]
+Text:            text-[var(--text-primary)], text-[var(--text-muted)]
+Border:          border-[var(--border)]
+Accent:          text-[var(--accent)], bg-[var(--accent)], border-[var(--accent)]
+Border radius:   rounded-2xl (cards), rounded-3xl (sheets), rounded-full (pills)
+Padding mobile:  px-4 py-3 (standard), px-6 (generous)
+```
+
+### Typography
+```
+font-sans  = Syne            → headings, nav labels, badges, UI labels
+font-body  = Plus Jakarta Sans → body text, descriptions, meal names, instructions
+font-mono  = JetBrains Mono  → numbers in calculator ONLY (never elsewhere)
+```
+
+### Animation classes (defined in tailwind.config.js)
+```
+animate-slide-up   → BottomSheet entrance (280ms cubic-bezier(0.32,0.72,0,1))
+animate-fade-in    → overlays, modals, messages (180ms ease-out)
+animate-scale-tap  → button press feedback (120ms)
+animate-shimmer    → loading skeleton (1500ms infinite)
+```
+
+---
+
+## Component Patterns
+
+### Standard component shape
+```typescript
+interface FooProps {
+  // props here
+}
+
+export const Foo = ({ prop1, prop2 }: FooProps) => {
+  return (...)
+}
+```
+
+### Mobile vs Desktop UI pattern
+- Modals → only render on `md:` and above. Use `hidden md:block` wrapper.
+- BottomSheets → only render below `md:`. Use `md:hidden` wrapper.
+- Never use both for the same feature — use conditional rendering:
+```typescript
+const isMobile = useMediaQuery('(max-width: 768px)')
+return isMobile ? <BottomSheet ... /> : <Modal ... />
+```
+
+### Store mutation pattern
+Every action that mutates user data must end with:
+```typescript
+useGistSyncStore.getState().schedulePush()
+```
+Exception: read-only selectors and navigation actions (setView, navigateWeek, etc.)
+
+### Adding a new store
+1. Create `src/store/useXxxStore.ts`
+2. Use Zustand `create` with `persist` middleware
+3. Persist key must start with `'nutrikal-'`
+4. Add the store's data to `GistPayload` interface in `types/index.ts`
+5. Add hydration in `useGistSyncStore.hydrateAllStores()`
+6. Add serialization in `useGistSyncStore.push()` payload builder
+
+---
+
+## Key Data Flows
+
+### Write path (any user action)
+```
+Component calls store action
+  → store updates Zustand state (synchronous)
+  → Zustand persist writes to localStorage (automatic)
+  → store calls schedulePush()
+  → debounce 1500ms
+  → useGistSyncStore.push() serializes all stores → PATCH /gists/{id}
+```
+
+### Read path (app mount)
+```
+App.tsx useEffect
+  → useAuthStore.restoreSession()
+    → reads localStorage('nutrikal-token')
+    → if token: silent login → gistService.validateToken()
+      → gistService.findOrCreateGist()
+      → useGistSyncStore.initialLoad()
+        → gistService.loadGist() → GET /gists/{id}
+        → hydrateAllStores(payload)
+          → each store.setState({ ...data })
+```
+
+### Sync indicator states
+```
+idle     → gray dot, "Sincronizado"
+syncing  → spinning ring (accent), "Guardando..."
+success  → green dot, "Guardado" (2s then → idle)
+error    → red dot, "Error al guardar" + tap to retry
+offline  → amber dot, "Sin conexión" + pendingSync flag
+```
+
+---
+
+## GistPayload — What Gets Synced
+
+```typescript
+// Everything in this object is serialized to nutrikal-data.json in user's Gist
+interface GistPayload {
+  version:           number        // increment when shape changes
+  lastModified:      string        // ISO timestamp, updated on every push
+  dayPlans:          Record<string, DayPlan>
+  weekTemplates:     WeekTemplate[]
+  savedRecipes:      CalculatorRecipe[]
+  customIngredients: Ingredient[]
+  notifications:     Notification[]
+  companionData?:    CompanionData    // not yet implemented
+  userProfile?:      UserProfile
+  settings: {
+    waterGoalDefault: number
+    theme:            Theme
+  }
+}
+```
+
+When adding new fields: always optional (`?`) for backward compatibility.
+Always update `migratePayload()` in `gistService.ts` to fill defaults.
+
+---
+
+## Metabolic System — Never Expose to UI
+
+```
+TMB (Mifflin-St Jeor):
+  Male:   (10 × kg) + (6.25 × cm) - (5 × age) + 5
+  Female: (10 × kg) + (6.25 × cm) - (5 × age) - 161
+
+TDEE = TMB × activityFactor
+  sedentary: 1.2 | light: 1.375 | moderate: 1.55 | intense: 1.725
+
+dailyBudget = TDEE + goalAdjustment
+  lose_weight: -300 | maintain: 0 | gain_muscle: +250 | organize: 0
+
+Meal split (internal):
+  desayuno: 25% | almuerzo: 35% | cena: 30% | snack: 10%
+
+Activity calorie offset:
+  burned = MET × weightKg × (durationMin / 60)
+  → added to dailyBudget for that day only
+```
+
+**None of these numbers ever appear in the UI.** The DayEnergyBar shows
+color states only. PortionAdjuster warnings use natural language only.
+
+---
+
+## DayEnergyBar Color States
+
+```
+consumed / budget ≤ 0.70  → --green    "Vas bien hoy"
+consumed / budget ≤ 0.90  → green+amber mix  "Casi completaste el día"
+consumed / budget ≤ 1.05  → --amber    "Llegaste al límite de hoy"
+consumed / budget > 1.05  → warm orange (NOT red)  "Hoy comiste un poco más..."
+```
+
+---
+
+## Deployment
+
+```bash
+# vite.config.ts must have: base: '/nutrikal/'
+# public/404.html must be a copy of index.html (SPA routing on GH Pages)
+
+npm run deploy
+# runs: npm run build → gh-pages -d dist
+# pushes dist/ to gh-pages branch
+# live at: https://benji0248.github.io/nutrikal/
+```
+
+---
+
+## Common Mistakes to Avoid
+
+| Mistake | Correct approach |
+|---|---|
+| `import { Octokit } from '@octokit/rest'` in a component | Only in gistService.ts |
+| `style={{ color: '#7c6aff' }}` | `className="text-[var(--accent)]"` |
+| `new Date() + 86400000` | `addDays(new Date(), 1)` from date-fns |
+| Showing `meal.calories` to user | Only use internally for budget calculation |
+| `push()` called directly | `schedulePush()` always |
+| Type defined inside component file | Add to `src/types/index.ts` |
+| `border-red-500` for nutrition warning | `border-amber-400` or warm orange |
+| Modal on mobile | BottomSheet on mobile, Modal on desktop |
+| `any` type | Proper type or `unknown` with guard |
+| localStorage key without prefix | Always `'nutrikal-'` prefix |
+
+---
+
+## When Starting a New Feature — Checklist
+
+Before writing any code:
+- [ ] Does it need new types? → `src/types/index.ts` first
+- [ ] Does it need a new store? → follow store pattern above
+- [ ] Does it show nutrition numbers? → redesign to hide them
+- [ ] Does it touch GitHub API? → only via `gistService.ts`
+- [ ] Does it add to GistPayload? → update `migratePayload()` too
+- [ ] Is it mobile-first? → 375px viewport working before touching desktop
+- [ ] Does it mutate data? → `schedulePush()` at end of action
+
+After writing code:
+- [ ] `npx tsc --noEmit` → zero errors
+- [ ] No horizontal scroll at 375px
+- [ ] All touch targets ≥ 48px
+- [ ] No calorie numbers visible in UI
+- [ ] No inline styles

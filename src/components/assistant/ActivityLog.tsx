@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Trash2, Dumbbell } from 'lucide-react';
 import { useProfileStore } from '../../store/useProfileStore';
 import { todayKey } from '../../utils/dateHelpers';
@@ -11,7 +11,8 @@ interface ActivityLogProps {
 
 export function ActivityLog({ date }: ActivityLogProps) {
   const dateKey = date ?? todayKey();
-  const activities = useProfileStore((s) => s.getActivitiesForDate(dateKey));
+  const activityLog = useProfileStore((s) => s.activityLog);
+  const activities = useMemo(() => activityLog.filter((a) => a.date === dateKey), [activityLog, dateKey]);
   const addActivity = useProfileStore((s) => s.addActivity);
   const removeActivity = useProfileStore((s) => s.removeActivity);
 

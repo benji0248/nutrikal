@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, Calculator } from 'lucide-react';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { MealForm } from './MealForm';
@@ -7,6 +7,10 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 import { MEAL_TYPE_LABELS } from '../../types';
 import type { Meal, MealType } from '../../types';
+import { useSettingsStore } from '../../store/useSettingsStore';
+import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { INGREDIENTS_DB } from '../../data/ingredients';
+import { getMealCalories } from '../../utils/macroHelpers';
 
 interface MealSlotProps {
   date: string;
@@ -26,10 +30,13 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
   const [showForm, setShowForm] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const showCalories = useSettingsStore((s) => s.showCalories);
+  const customIngredients = useIngredientsStore((s) => s.customIngredients);
+  const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
   const upsertMeal = useCalendarStore((s) => s.upsertMeal);
   const deleteMeal = useCalendarStore((s) => s.deleteMeal);
 
-  const totalCals = meals.reduce((sum, m) => sum + (m.calories ?? 0), 0);
+  const totalCals = meals.reduce((sum, m) => sum + (getMealCalories(m, allIngredients) ?? 0), 0);
 
   const handleMealSubmit = (meal: Meal) => {
     upsertMeal(date, mealType, meal);
@@ -75,7 +82,7 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {totalCals > 0 && (
+          {showCalories && totalCals > 0 && (
             <span className="text-xs font-mono text-accent">{totalCals} kcal</span>
           )}
           {expanded ? (
@@ -95,8 +102,8 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-body text-text-primary truncate">{meal.name}</p>
-                {meal.calories !== undefined && (
-                  <span className="text-[10px] font-mono text-muted">{meal.calories} kcal</span>
+                {showCalories && getMealCalories(meal, allIngredients) !== undefined && (
+                  <span className="text-[10px] font-mono text-muted">{getMealCalories(meal, allIngredients)} kcal</span>
                 )}
               </div>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

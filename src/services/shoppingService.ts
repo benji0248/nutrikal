@@ -129,6 +129,36 @@ export function generateShoppingList(
 }
 
 /**
+ * Create shopping items from a dish at given servings.
+ */
+export function createShoppingItemsFromDish(
+  dish: Dish,
+  servings: number,
+  allIngredients: Ingredient[],
+): ShoppingItem[] {
+  const items: ShoppingItem[] = [];
+
+  for (const di of dish.ingredients) {
+    const ingredient = allIngredients.find((i) => i.id === di.ingredientId);
+    if (!ingredient) continue;
+
+    const totalGrams = Math.round(di.grams * servings);
+    const section = CATEGORY_TO_SECTION[ingredient.category] || 'otros';
+
+    items.push({
+      id: generateId(),
+      ingredientId: di.ingredientId,
+      name: ingredient.name,
+      quantity: humanizeQuantity(totalGrams),
+      section,
+      checked: false,
+    });
+  }
+
+  return items;
+}
+
+/**
  * Format shopping list for WhatsApp sharing.
  */
 export function formatForWhatsApp(list: ShoppingList): string {

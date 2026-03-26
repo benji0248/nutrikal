@@ -1,4 +1,4 @@
-import type { Macros, Ingredient, CalculatorEntry } from '../types';
+import type { Macros, Ingredient, CalculatorEntry, Meal } from '../types';
 
 export const DAILY_REFERENCE: Macros = {
   calories: 2000,
@@ -37,6 +37,15 @@ export function computeTotalMacros(
     carbs: Math.round(totals.carbs * 10) / 10,
     fat: Math.round(totals.fat * 10) / 10,
   };
+}
+
+export function getMealCalories(meal: Meal, allIngredients: Ingredient[]): number | undefined {
+  if (meal.calories !== undefined) return meal.calories;
+  if (meal.entries && meal.entries.length > 0) {
+    const totals = computeTotalMacros(meal.entries, allIngredients);
+    return Math.round(totals.calories);
+  }
+  return undefined;
 }
 
 export function formatMacro(value: number, unit: string): string {
