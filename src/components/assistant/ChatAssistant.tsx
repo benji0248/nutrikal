@@ -1,9 +1,10 @@
-import { useRef, useEffect, useMemo } from 'react';
-import type { Ingredient } from '../../types';
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import type { ChatOption, Ingredient } from '../../types';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageBubble } from './ChatMessageBubble';
+import { ProfileSetup } from '../profile/ProfileSetup';
 import { useChatEngine } from './useChatEngine';
 
 export const ChatAssistant = () => {
@@ -17,6 +18,16 @@ export const ChatAssistant = () => {
     energyRatio,
     showCalories,
   } = useChatEngine();
+
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+
+  const wrappedHandleOption = useCallback((option: ChatOption) => {
+    if (option.action === 'create_profile') {
+      setShowProfileSetup(true);
+      return;
+    }
+    handleOption(option);
+  }, [handleOption]);
 
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients: Ingredient[] = useMemo(
@@ -51,7 +62,7 @@ export const ChatAssistant = () => {
           <ChatMessageBubble
             key={msg.id}
             message={msg}
-            onOptionSelect={handleOption}
+            onOptionSelect={wrappedHandleOption}
             onDishSelect={handleSelectDish}
             onServingsChange={handleServingsChange}
             onWaterChange={handleWaterChange}
@@ -64,6 +75,11 @@ export const ChatAssistant = () => {
         ))}
         <div ref={bottomRef} />
       </div>
+
+      <ProfileSetup
+        isOpen={showProfileSetup}
+        onClose={() => setShowProfileSetup(false)}
+      />
     </div>
   );
 };
