@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
-import { getSupabase } from '../_lib/supabase';
-import { signToken } from '../_lib/jwt';
+import { getSupabase } from '../_lib/supabase.js';
+import { signToken } from '../_lib/jwt.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
