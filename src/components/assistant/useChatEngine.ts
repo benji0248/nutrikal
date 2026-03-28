@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type {
   ChatMessage,
   ChatStep,
@@ -77,6 +77,17 @@ export function useChatEngine(): ChatEngineResult {
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => buildWelcomeMessages());
   const [, setStep] = useState<ChatStep>('welcome');
+  const prevProfileRef = useRef(profile);
+
+  // Reset chat when profile is created (null → value)
+  useEffect(() => {
+    if (!prevProfileRef.current && profile) {
+      setMessages(buildWelcomeMessages());
+      setStep('welcome');
+    }
+    prevProfileRef.current = profile;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(null);
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
   const [currentServings, setCurrentServings] = useState(1);
