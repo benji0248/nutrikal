@@ -1,59 +1,82 @@
 import { useState, useMemo } from 'react';
-import { Trash2, Download, Send } from 'lucide-react';
-import { useCalculatorStore } from '../../store/useCalculatorStore';
+import { Send, Clock, Users } from 'lucide-react';
+import { clsx } from 'clsx';
 import { useCalendarStore } from '../../store/useCalendarStore';
+import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { INGREDIENTS_DB } from '../../data/ingredients';
+import { DISHES_DB } from '../../data/dishes';
+import { getDishHumanIngredients } from '../../utils/portionHelpers';
 import { generateId } from '../../utils/dateHelpers';
+import { computeDishMacros } from '../../services/dishMatchService';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
-import { MEAL_TYPE_LABELS, MEAL_TYPE_ORDER } from '../../types';
-import type { CalculatorRecipe, MealType } from '../../types';
+import {
+  MEAL_TYPE_LABELS,
+  MEAL_TYPE_ORDER,
+  DISH_CATEGORY_LABELS,
+} from '../../types';
+import type { Dish, DishCategory, MealType, Ingredient } from '../../types';
 
-interface RecipeBankProps {
-  onNavigateToCalculator?: () => void;
-}
+const CATEGORY_FILTERS: { value: DishCategory | 'all'; label: string }[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'desayuno', label: 'Desayuno' },
+  { value: 'almuerzo', label: 'Almuerzo' },
+  { value: 'cena', label: 'Cena' },
+  { value: 'snack', label: 'Snack' },
+  { value: 'postre', label: 'Postre' },
+];
 
-export function RecipeBank({ onNavigateToCalculator }: RecipeBankProps) {
-  const savedRecipes = useCalculatorStore((s) => s.savedRecipes);
-  const loadRecipe = useCalculatorStore((s) => s.loadRecipe);
-  const deleteRecipe = useCalculatorStore((s) => s.deleteRecipe);
+export function RecipeBank() {
   const upsertMeal = useCalendarStore((s) => s.upsertMeal);
   const currentDate = useCalendarStore((s) => s.currentDate);
+  const customIngredients = useIngredientsStore((s) => s.customIngredients);
+
+  const allIngredients: Ingredient[] = useMemo(
+    () => [...INGREDIENTS_DB, ...customIngredients],
+    [customIngredients],
+  );
 
   const [search, setSearch] = useState('');
-  const [sendingRecipe, setSendingRecipe] = useState<CalculatorRecipe | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<DishCategory | 'all'>('all');
+  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
+  const [sendingDish, setSendingDish] = useState<Dish | null>(null);
   const [sendDate, setSendDate] = useState(currentDate);
   const [sendMealType, setSendMealType] = useState<MealType>('almuerzo');
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return savedRecipes;
-    const q = search.toLowerCase();
-    return savedRecipes.filter((r) => r.name.toLowerCase().includes(q));
-  }, [savedRecipes, search]);
+    let dishes = DISHES_DB;
+    if (categoryFilter !== 'all') {
+      dishes = dishes.filter((d) => d.category === categoryFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      dishes = dishes.filter((d) => d.name.toLowerCase().includes(q));
+    }
+    return dishes;
+  }, [search, categoryFilter]);
 
   const handleSend = () => {
-    if (!sendingRecipe) return;
+    if (!sendingDish) return;
+    const macros = computeDishMacros(sendingDish, allIngredients);
     upsertMeal(sendDate, sendMealType, {
       id: generateId(),
-      name: sendingRecipe.name,
-      calories: Math.round(sendingRecipe.totalMacros.calories),
-      linkedRecipeId: sendingRecipe.id,
-      entries: [...sendingRecipe.entries],
+      name: sendingDish.name,
+      calories: Math.round(macros.calories),
+      entries: sendingDish.ingredients.map((ing) => ({
+        ingredientId: ing.ingredientId,
+        grams: ing.grams,
+      })),
     });
-    setSendingRecipe(null);
-  };
-
-  const handleLoadInCalc = (id: string) => {
-    loadRecipe(id);
-    onNavigateToCalculator?.();
+    setSendingDish(null);
   };
 
   const sendForm = (
     <div className="space-y-4">
       <p className="text-sm text-muted font-body">
-        Enviar <strong className="text-text-primary">{sendingRecipe?.name}</strong> ({Math.round(sendingRecipe?.totalMacros.calories ?? 0)} kcal)
+        Agregar <strong className="text-text-primary">{sendingDish?.name}</strong> al calendario
       </p>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-1.5 font-body">Fecha</label>
@@ -72,9 +95,10 @@ export function RecipeBank({ onNavigateToCalculator }: RecipeBankProps) {
             <button
               key={mt}
               onClick={() => setSendMealType(mt)}
-              className={`px-3 py-2.5 rounded-xl text-sm font-body font-medium transition-colors min-h-[48px] ${
-                sendMealType === mt ? 'bg-accent text-white' : 'bg-surface2 text-muted hover:text-text-primary'
-              }`}
+              className={clsx(
+                'px-3 py-2.5 rounded-xl text-sm font-body font-medium transition-colors min-h-[48px]',
+                sendMealType === mt ? 'bg-accent text-white' : 'bg-surface2 text-muted hover:text-text-primary',
+              )}
               aria-label={MEAL_TYPE_LABELS[mt]}
             >
               {MEAL_TYPE_LABELS[mt]}
@@ -83,81 +107,133 @@ export function RecipeBank({ onNavigateToCalculator }: RecipeBankProps) {
         </div>
       </div>
       <div className="flex gap-3">
-        <Button variant="secondary" onClick={() => setSendingRecipe(null)} fullWidth>Cancelar</Button>
-        <Button onClick={handleSend} fullWidth>Enviar</Button>
+        <Button variant="secondary" onClick={() => setSendingDish(null)} fullWidth>Cancelar</Button>
+        <Button onClick={handleSend} fullWidth>Agregar</Button>
       </div>
     </div>
   );
 
-  return (
+  const detailContent = selectedDish ? (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-heading font-bold text-text-primary">Recetas guardadas</h2>
+      <div className="flex items-center gap-3 text-muted">
+        <div className="flex items-center gap-1.5">
+          <Clock size={14} />
+          <span className="text-xs font-body">{selectedDish.prepMinutes} min</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Users size={14} />
+          <span className="text-xs font-body">{selectedDish.defaultServings} {selectedDish.defaultServings === 1 ? 'porción' : 'porciones'}</span>
+        </div>
+        <Badge variant="accent">{DISH_CATEGORY_LABELS[selectedDish.category]}</Badge>
       </div>
 
-      {savedRecipes.length > 0 && (
-        <Input
-          variant="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar receta..."
-          clearable
-          onClear={() => setSearch('')}
-        />
-      )}
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted text-sm font-body">
-            {search ? 'Sin resultados' : 'No hay recetas guardadas aún'}
-          </p>
-          <p className="text-muted/60 text-xs font-body mt-1">
-            Usá la calculadora para crear y guardar recetas
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((recipe) => (
-            <div
-              key={recipe.id}
-              className="bg-surface2/40 backdrop-blur-sm rounded-2xl border border-border/40 p-4 space-y-3 transition-all hover:border-border"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-body font-medium text-text-primary">{recipe.name}</h3>
-                  <p className="text-[10px] text-muted font-body mt-0.5">
-                    {new Date(recipe.savedAt).toLocaleDateString('es-AR')}
-                    {' · '}
-                    {recipe.entries.length} ingredientes
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <Badge variant="accent">{`${Math.round(recipe.totalMacros.calories)} kcal`}</Badge>
-                <Badge variant="success">{`P: ${recipe.totalMacros.protein.toFixed(1)}g`}</Badge>
-                <Badge variant="warning">{`C: ${recipe.totalMacros.carbs.toFixed(1)}g`}</Badge>
-                <Badge variant="danger">{`G: ${recipe.totalMacros.fat.toFixed(1)}g`}</Badge>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => handleLoadInCalc(recipe.id)}>
-                  Cargar
-                </Button>
-                <Button size="sm" variant="ghost" icon={<Send size={14} />} onClick={() => setSendingRecipe(recipe)}>
-                  Enviar
-                </Button>
-                <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} onClick={() => deleteRecipe(recipe.id)}>
-                  Eliminar
-                </Button>
-              </div>
-            </div>
+      {selectedDish.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedDish.tags.map((tag) => (
+            <Badge key={tag} variant="default">{tag.replace('_', ' ')}</Badge>
           ))}
         </div>
       )}
 
-      <BottomSheet isOpen={!!sendingRecipe} onClose={() => setSendingRecipe(null)} title="Enviar a comida">
+      <div>
+        <h4 className="text-sm font-body font-medium text-text-primary mb-2">Ingredientes</h4>
+        <ul className="space-y-1.5">
+          {getDishHumanIngredients(selectedDish, allIngredients).map((item) => (
+            <li key={item.name} className="text-sm font-body text-muted flex justify-between">
+              <span>{item.name}</span>
+              <span className="text-text-primary">{item.humanPortion}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <Button
+        icon={<Send size={16} />}
+        onClick={() => { setSendingDish(selectedDish); setSelectedDish(null); }}
+        fullWidth
+      >
+        Agregar al calendario
+      </Button>
+    </div>
+  ) : null;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-heading font-bold text-text-primary">Recetas</h2>
+
+      <Input
+        variant="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar receta..."
+        clearable
+        onClear={() => setSearch('')}
+      />
+
+      {/* Category filter pills */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
+        {CATEGORY_FILTERS.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setCategoryFilter(value)}
+            className={clsx(
+              'shrink-0 px-3 py-1.5 rounded-full text-xs font-body font-medium transition-colors min-h-[36px]',
+              categoryFilter === value
+                ? 'bg-accent text-white'
+                : 'bg-surface2 text-muted hover:text-text-primary',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Results count */}
+      <p className="text-xs font-body text-muted">{filtered.length} recetas</p>
+
+      {/* Dish cards */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted text-sm font-body">Sin resultados</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {filtered.map((dish) => (
+            <button
+              key={dish.id}
+              onClick={() => setSelectedDish(dish)}
+              className="bg-surface2/40 backdrop-blur-sm rounded-2xl border border-border/40 p-4 text-left transition-all hover:border-accent/30 space-y-2"
+            >
+              <h3 className="text-sm font-body font-medium text-text-primary leading-snug">{dish.name}</h3>
+              <div className="flex items-center gap-2 text-muted">
+                <span className="text-[10px] font-body">{dish.prepMinutes} min</span>
+                <span className="text-[10px] font-body">·</span>
+                <span className="text-[10px] font-body">{dish.humanPortion}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Badge variant="accent">{DISH_CATEGORY_LABELS[dish.category]}</Badge>
+                {dish.tags.slice(0, 2).map((tag) => (
+                  <Badge key={tag} variant="default">{tag.replace('_', ' ')}</Badge>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Dish detail */}
+      <BottomSheet isOpen={!!selectedDish} onClose={() => setSelectedDish(null)} title={selectedDish?.name ?? ''}>
+        {detailContent}
+      </BottomSheet>
+      <Modal isOpen={!!selectedDish} onClose={() => setSelectedDish(null)} title={selectedDish?.name ?? ''}>
+        {detailContent}
+      </Modal>
+
+      {/* Send to calendar */}
+      <BottomSheet isOpen={!!sendingDish} onClose={() => setSendingDish(null)} title="Agregar al calendario">
         {sendForm}
       </BottomSheet>
-      <Modal isOpen={!!sendingRecipe} onClose={() => setSendingRecipe(null)} title="Enviar a comida">
+      <Modal isOpen={!!sendingDish} onClose={() => setSendingDish(null)} title="Agregar al calendario">
         {sendForm}
       </Modal>
     </div>

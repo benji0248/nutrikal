@@ -1,4 +1,4 @@
-import { Calendar, Calculator, BookOpen, Settings, Sparkles, ShoppingCart } from 'lucide-react';
+import { Calendar, BookOpen, Settings, Sparkles, ShoppingCart } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import type { AppTab } from '../../types';
@@ -11,7 +11,6 @@ interface SidebarProps {
 const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
   { tab: 'assistant', label: '¿Qué como?', icon: Sparkles },
-  { tab: 'calculator', label: 'Calculadora', icon: Calculator },
   { tab: 'recipes', label: 'Recetas', icon: BookOpen },
   { tab: 'shopping', label: 'Compras', icon: ShoppingCart },
   { tab: 'settings', label: 'Ajustes', icon: Settings },

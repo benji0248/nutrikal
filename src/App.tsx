@@ -12,7 +12,6 @@ import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
 import { MonthView } from './components/calendar/MonthView';
 import { DayView } from './components/calendar/DayView';
-import { CalorieCalculator } from './components/calculator/CalorieCalculator';
 import { RecipeBank } from './components/meals/RecipeBank';
 import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
@@ -198,10 +197,7 @@ function AuthenticatedApp() {
           {activeTab === 'calendar' && view === 'week' && <WeekView />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
           {activeTab === 'assistant' && <ChatAssistant />}
-          {activeTab === 'calculator' && <CalorieCalculator />}
-          {activeTab === 'recipes' && (
-            <RecipeBank onNavigateToCalculator={() => setActiveTab('calculator')} />
-          )}
+          {activeTab === 'recipes' && <RecipeBank />}
           {activeTab === 'shopping' && <ShoppingListView />}
           {activeTab === 'settings' && <SettingsView onEditProfile={() => setShowProfileEdit(true)} />}
         </div>
