@@ -117,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Call Gemini
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-001',
+      model: 'gemini-2.5-flash',
       systemInstruction: fullSystemPrompt,
     });
 
