@@ -1,14 +1,8 @@
 import { create } from 'zustand';
 import type { GistPayload, SyncStatus } from '../types';
-import { loadGist, saveGist } from '../services/gistService';
-import { useAuthStore } from './useAuthStore';
 import { useCalendarStore } from './useCalendarStore';
 import { useCalculatorStore } from './useCalculatorStore';
 import { useIngredientsStore } from './useIngredientsStore';
-
-const TOKEN_KEY = 'nutrikal-token';
-const DEBOUNCE_MS = 1500;
-const RETRY_MS = 30_000;
 
 interface GistSyncState {
   syncStatus: SyncStatus;
@@ -23,92 +17,23 @@ interface GistSyncState {
   hydrateAllStores: (payload: GistPayload) => void;
 }
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
+export const useGistSyncStore = create<GistSyncState>()(() => ({
   syncStatus: 'idle',
   lastSyncedAt: null,
   pendingSync: false,
   syncError: null,
 
+  // Gist sync disabled — data lives in localStorage only
   initialLoad: async () => {
-    const auth = useAuthStore.getState();
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token || !auth.user?.gistId) return;
-
-    set({ syncStatus: 'syncing', syncError: null });
-    try {
-      const payload = await loadGist(token, auth.user.gistId);
-      get().hydrateAllStores(payload);
-      set({
-        syncStatus: 'success',
-        lastSyncedAt: new Date().toISOString(),
-        syncError: null,
-      });
-      setTimeout(() => {
-        if (get().syncStatus === 'success') set({ syncStatus: 'idle' });
-      }, 2000);
-    } catch (err) {
-      set({
-        syncStatus: 'error',
-        syncError: `Error al cargar datos: ${(err as Error).message}`,
-      });
-      // Fall back to existing localStorage data — don't wipe
-    }
+    // no-op: Gist sync disabled
   },
 
   push: async () => {
-    const auth = useAuthStore.getState();
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token || !auth.user?.gistId) return;
-
-    if (retryTimer) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-
-    set({ syncStatus: 'syncing', pendingSync: false, syncError: null });
-    try {
-      const payload = get().buildPayload();
-      await saveGist(token, auth.user.gistId, payload);
-      set({
-        syncStatus: 'success',
-        lastSyncedAt: new Date().toISOString(),
-        syncError: null,
-      });
-      setTimeout(() => {
-        if (get().syncStatus === 'success') set({ syncStatus: 'idle' });
-      }, 2000);
-    } catch (err) {
-      set({
-        syncStatus: 'error',
-        pendingSync: true,
-        syncError: (err as Error).message,
-      });
-      // Schedule retry
-      retryTimer = setTimeout(() => {
-        if (get().pendingSync) get().push();
-      }, RETRY_MS);
-    }
+    // no-op: Gist sync disabled
   },
 
   schedulePush: () => {
-    // Only sync if authenticated
-    const auth = useAuthStore.getState();
-    if (auth.authState !== 'authenticated') return;
-
-    set({ pendingSync: true });
-
-    if (!navigator.onLine) {
-      set({ syncStatus: 'offline' });
-      return;
-    }
-
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      get().push();
-    }, DEBOUNCE_MS);
+    // no-op: Gist sync disabled
   },
 
   buildPayload: (): GistPayload => {
@@ -205,18 +130,3 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
   },
 }));
 
-// Online/offline handlers
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    const state = useGistSyncStore.getState();
-    if (state.pendingSync) {
-      state.push();
-    } else {
-      useGistSyncStore.setState({ syncStatus: 'idle' });
-    }
-  });
-
-  window.addEventListener('offline', () => {
-    useGistSyncStore.setState({ syncStatus: 'offline' });
-  });
-}

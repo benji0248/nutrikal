@@ -1,17 +1,36 @@
 import { useState, useRef } from 'react';
-import { Download, Upload, ExternalLink, LogOut } from 'lucide-react';
+import { Download, Upload, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
 import { migratePayload } from '../../services/gistService';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 
-export function UserMenu() {
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+function getAvatarColor(username: string): string {
+  const colors = [
+    'bg-accent', 'bg-pink-500', 'bg-emerald-500', 'bg-amber-500',
+    'bg-sky-500', 'bg-violet-500', 'bg-rose-500', 'bg-teal-500',
+  ];
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) {
+    hash = username.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+export const UserMenu = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const buildPayload = useGistSyncStore((s) => s.buildPayload);
   const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
-  const push = useGistSyncStore((s) => s.push);
 
   const [open, setOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -20,6 +39,9 @@ export function UserMenu() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!user) return null;
+
+  const initials = getInitials(user.displayName || user.username);
+  const avatarColor = getAvatarColor(user.username);
 
   const handleExport = () => {
     const payload = buildPayload();
@@ -52,14 +74,12 @@ export function UserMenu() {
       }
     };
     reader.readAsText(file);
-    // Reset input
     e.target.value = '';
   };
 
   const handleConfirmImport = () => {
     if (importPayload) {
       hydrateAllStores(importPayload);
-      push();
     }
     setConfirmImport(false);
     setImportPayload(null);
@@ -76,14 +96,12 @@ export function UserMenu() {
     <div className="space-y-1">
       {/* User info */}
       <div className="flex items-center gap-3 px-3 py-2 mb-2">
-        <img
-          src={user.avatarUrl}
-          alt={user.login}
-          className="w-10 h-10 rounded-full"
-        />
+        <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center`}>
+          <span className="text-white font-heading font-bold text-sm">{initials}</span>
+        </div>
         <div>
-          <p className="text-sm font-body font-medium text-text-primary">@{user.login}</p>
-          <p className="text-[10px] font-body text-muted">github.com/{user.login}</p>
+          <p className="text-sm font-body font-medium text-text-primary">@{user.username}</p>
+          <p className="text-[10px] font-body text-muted">{user.email}</p>
         </div>
       </div>
 
@@ -106,22 +124,6 @@ export function UserMenu() {
         <Upload size={16} className="text-muted" />
         <span className="text-sm font-body text-text-primary">Importar datos (JSON)</span>
       </button>
-
-      <div className="border-t border-border/40 my-2" />
-
-      {/* View Gist */}
-      {user.gistId && (
-        <a
-          href={`https://gist.github.com/${user.gistId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface2/60 transition-colors min-h-[44px]"
-          onClick={() => setOpen(false)}
-        >
-          <ExternalLink size={16} className="text-muted" />
-          <span className="text-sm font-body text-text-primary">Ver mi Gist</span>
-        </a>
-      )}
 
       <div className="border-t border-border/40 my-2" />
 
@@ -152,13 +154,11 @@ export function UserMenu() {
         className="flex items-center gap-2 p-1 rounded-xl hover:bg-surface2/60 transition-colors"
         aria-label="Menú de usuario"
       >
-        <img
-          src={user.avatarUrl}
-          alt={user.login}
-          className="w-7 h-7 rounded-full"
-        />
+        <div className={`w-7 h-7 rounded-full ${avatarColor} flex items-center justify-center`}>
+          <span className="text-white font-heading font-bold text-[10px]">{initials}</span>
+        </div>
         <span className="text-xs font-body text-muted hidden sm:inline">
-          @{user.login}
+          @{user.username}
         </span>
       </button>
 
@@ -177,7 +177,7 @@ export function UserMenu() {
         title="Cerrar sesión"
       >
         <ConfirmDialog
-          message="¿Cerrar sesión? Tus datos están guardados en GitHub."
+          message="Tus datos están guardados en este dispositivo. ¿Cerrar sesión?"
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
         />
@@ -188,7 +188,7 @@ export function UserMenu() {
         title="Cerrar sesión"
       >
         <ConfirmDialog
-          message="¿Cerrar sesión? Tus datos están guardados en GitHub."
+          message="Tus datos están guardados en este dispositivo. ¿Cerrar sesión?"
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
         />
@@ -219,7 +219,7 @@ export function UserMenu() {
       </Modal>
     </>
   );
-}
+};
 
 function ConfirmDialog({
   message,

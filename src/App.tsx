@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sun, CalendarDays, LayoutGrid, Download, Printer, Copy, Check, UserCircle } from 'lucide-react';
+import { Sun, CalendarDays, LayoutGrid, Download, Printer, UserCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
@@ -24,6 +24,7 @@ import { Button } from './components/ui/Button';
 import { BottomSheet } from './components/ui/BottomSheet';
 import { Modal } from './components/ui/Modal';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
 import { UserMenu } from './components/auth/UserMenu';
 import { getWeekRange, getMonthLabel } from './utils/dateHelpers';
@@ -32,6 +33,7 @@ import type { AppTab } from './types';
 function App() {
   useTheme();
   const authState = useAuthStore((s) => s.authState);
+  const authView = useAuthStore((s) => s.authView);
   const restoreSession = useAuthStore((s) => s.restoreSession);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ function App() {
   }
 
   if (authState !== 'authenticated') {
-    return <LoginScreen />;
+    return authView === 'register' ? <RegisterScreen /> : <LoginScreen />;
   }
 
   return <AuthenticatedApp />;
@@ -267,11 +269,8 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
-  const lastSyncedAt = useGistSyncStore((s) => s.lastSyncedAt);
   const buildPayload = useGistSyncStore((s) => s.buildPayload);
   const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
-  const push = useGistSyncStore((s) => s.push);
-  const [copiedGist, setCopiedGist] = useState(false);
 
   const handleExportJSON = () => {
     const payload = buildPayload();
@@ -295,7 +294,6 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
         const payload = migratePayload(raw);
         if (confirm('¿Reemplazar todos tus datos actuales?')) {
           hydrateAllStores(payload);
-          push();
         }
       } catch {
         alert('Archivo JSON inválido');
@@ -305,64 +303,30 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
     e.target.value = '';
   };
 
-  const copyGistId = () => {
-    if (user?.gistId) {
-      navigator.clipboard.writeText(user.gistId);
-      setCopiedGist(true);
-      setTimeout(() => setCopiedGist(false), 2000);
-    }
-  };
-
-  const formatRelativeTime = (iso: string): string => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return 'justo ahora';
-    if (mins < 60) return `hace ${mins} minutos`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `hace ${hours} horas`;
-    return `hace ${Math.floor(hours / 24)} días`;
-  };
-
   return (
     <div className="space-y-6 max-w-lg">
       <h2 className="text-xl font-heading font-bold text-text-primary">Ajustes</h2>
 
-      {/* Account & sync section */}
+      {/* Account section */}
       {user && (
         <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
-          <h3 className="text-sm font-heading font-bold text-text-primary">Cuenta y sincronización</h3>
+          <h3 className="text-sm font-heading font-bold text-text-primary">Cuenta</h3>
 
           <div className="flex items-center gap-3">
-            <img src={user.avatarUrl} alt={user.login} className="w-10 h-10 rounded-full" />
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
+              <span className="text-white font-heading font-bold text-sm">
+                {(user.displayName || user.username).charAt(0).toUpperCase()}
+              </span>
+            </div>
             <div>
-              <p className="text-sm font-body font-medium text-text-primary">@{user.login}</p>
-              <p className="text-[10px] font-body text-accent">Sincronización activa vía GitHub Gist</p>
+              <p className="text-sm font-body font-medium text-text-primary">@{user.username}</p>
+              <p className="text-[10px] font-body text-muted">{user.email}</p>
             </div>
           </div>
 
-          {lastSyncedAt && (
-            <p className="text-xs font-body text-muted">
-              Último guardado: {formatRelativeTime(lastSyncedAt)}
-            </p>
-          )}
-
-          {user.gistId && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-body text-muted">Gist ID:</span>
-              <code className="text-xs font-mono text-muted">{user.gistId.slice(0, 8)}...</code>
-              <button
-                onClick={copyGistId}
-                className="p-1 rounded-lg hover:bg-surface2 transition-colors"
-                aria-label="Copiar Gist ID"
-              >
-                {copiedGist ? (
-                  <Check size={12} className="text-green-400" />
-                ) : (
-                  <Copy size={12} className="text-muted" />
-                )}
-              </button>
-            </div>
-          )}
+          <p className="text-[10px] font-body text-muted/60">
+            Datos guardados localmente en este dispositivo
+          </p>
 
           <div className="flex flex-col gap-2">
             <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
@@ -380,7 +344,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
                 className="hidden"
               />
             </label>
-            <Button variant="danger" onClick={() => { if (confirm('¿Cerrar sesión? Tus datos están guardados en GitHub.')) logout(); }} fullWidth>
+            <Button variant="danger" onClick={() => { if (confirm('Tus datos están guardados en este dispositivo. ¿Cerrar sesión?')) logout(); }} fullWidth>
               Cerrar sesión
             </Button>
           </div>
@@ -428,9 +392,9 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
       </div>
 
       <div className="text-center pt-4">
-        <p className="text-xs text-muted font-body">NutriKal v4.0</p>
+        <p className="text-xs text-muted font-body">NutriKal v5.0</p>
         <p className="text-[10px] text-muted/60 font-body mt-1">
-          Datos sincronizados con GitHub Gist
+          Datos guardados localmente
         </p>
       </div>
     </div>

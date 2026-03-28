@@ -114,6 +114,7 @@ export interface Notification {
   mealType?: MealType;
 }
 
+/** @deprecated Use AppUser instead — GistUser is kept for backward compat */
 export interface GistUser {
   login: string;
   name: string;
@@ -121,6 +122,15 @@ export interface GistUser {
   token: string;
   gistId: string | null;
 }
+
+export interface AppUser {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string;
+}
+
+export type AuthView = 'login' | 'register';
 
 export type SyncStatus =
   | 'idle'

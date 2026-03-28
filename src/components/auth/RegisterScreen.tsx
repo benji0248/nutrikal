@@ -3,14 +3,17 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuthStore } from '../../store/useAuthStore';
 
-export const LoginScreen = () => {
-  const [identifier, setIdentifier] = useState('');
+export const RegisterScreen = () => {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const authState = useAuthStore((s) => s.authState);
   const error = useAuthStore((s) => s.error);
-  const login = useAuthStore((s) => s.login);
+  const errorField = useAuthStore((s) => s.errorField);
+  const register = useAuthStore((s) => s.register);
   const setAuthView = useAuthStore((s) => s.setAuthView);
   const clearError = useAuthStore((s) => s.clearError);
 
@@ -25,8 +28,8 @@ export const LoginScreen = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim() || !password.trim() || isLoading) return;
-    login(identifier.trim(), password);
+    if (!username.trim() || !email.trim() || !password.trim() || isLoading) return;
+    register(username.trim(), email.trim(), password, displayName.trim() || undefined);
   };
 
   return (
@@ -37,20 +40,50 @@ export const LoginScreen = () => {
           <div className="w-16 h-16 rounded-2xl bg-accent/20 flex items-center justify-center mx-auto">
             <span className="text-accent font-heading font-bold text-2xl">N</span>
           </div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">NutriKal</h1>
-          <p className="text-sm font-body text-muted">Tu calendario de nutrición</p>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">Crear cuenta</h1>
+          <p className="text-sm font-body text-muted">Empezá a organizar tu alimentación</p>
         </div>
 
-        {/* Login form */}
+        {/* Register form */}
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
             type="text"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="Usuario o email"
-            className="w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Tu nombre (opcional)"
+            className={clsx(
+              'w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+              errorField === 'displayName' && 'border-amber-400/60',
+            )}
+            disabled={isLoading}
+            autoComplete="name"
+          />
+
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Usuario"
+            className={clsx(
+              'w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+              errorField === 'username' && 'border-amber-400/60',
+            )}
             disabled={isLoading}
             autoComplete="username"
+            autoCapitalize="none"
+          />
+
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className={clsx(
+              'w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+              errorField === 'email' && 'border-amber-400/60',
+            )}
+            disabled={isLoading}
+            autoComplete="email"
             autoCapitalize="none"
           />
 
@@ -60,9 +93,12 @@ export const LoginScreen = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Contraseña"
-              className="w-full px-4 py-3 pr-12 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all"
+              className={clsx(
+                'w-full px-4 py-3 pr-12 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+                errorField === 'password' && 'border-amber-400/60',
+              )}
               disabled={isLoading}
-              autoComplete="current-password"
+              autoComplete="new-password"
             />
             <button
               type="button"
@@ -80,7 +116,7 @@ export const LoginScreen = () => {
 
           <button
             type="submit"
-            disabled={!identifier.trim() || !password.trim() || isLoading}
+            disabled={!username.trim() || !email.trim() || !password.trim() || isLoading}
             className={clsx(
               'w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-body font-medium transition-all min-h-[48px]',
               'bg-accent text-white hover:bg-accent/85 shadow-lg shadow-accent/20',
@@ -90,10 +126,10 @@ export const LoginScreen = () => {
             {isLoading ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                Iniciando sesión...
+                Creando cuenta...
               </>
             ) : (
-              'Iniciar sesión'
+              'Crear cuenta'
             )}
           </button>
 
@@ -105,20 +141,15 @@ export const LoginScreen = () => {
           )}
         </form>
 
-        {/* Switch to register */}
+        {/* Switch to login */}
         <p className="text-sm font-body text-muted text-center">
-          ¿No tenés cuenta?{' '}
+          ¿Ya tenés cuenta?{' '}
           <button
-            onClick={() => setAuthView('register')}
+            onClick={() => setAuthView('login')}
             className="text-accent hover:underline font-medium"
           >
-            Registrate
+            Iniciá sesión
           </button>
-        </p>
-
-        {/* Privacy note */}
-        <p className="text-[11px] font-body text-muted/60 text-center leading-relaxed">
-          Tus datos de nutrición se guardan en este dispositivo.
         </p>
       </div>
     </div>

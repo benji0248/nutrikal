@@ -9,7 +9,7 @@ export function LoadingScreen() {
         </div>
         <div className="flex items-center justify-center gap-2">
           <Loader2 size={16} className="animate-spin text-accent" />
-          <p className="text-sm font-body text-muted">Conectando con GitHub...</p>
+          <p className="text-sm font-body text-muted">Verificando sesión...</p>
         </div>
       </div>
     </div>

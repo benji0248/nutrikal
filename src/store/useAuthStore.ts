@@ -1,68 +1,70 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AuthState, GistUser } from '../types';
+import type { AuthState, AppUser, AuthView } from '../types';
 import {
-  validateToken,
-  findOrCreateGist,
-  GistAuthError,
-} from '../services/gistService';
+  login as apiLogin,
+  register as apiRegister,
+  validateSession,
+  ApiAuthError,
+} from '../services/apiService';
 
-const TOKEN_KEY = 'nutrikal-token';
+const JWT_KEY = 'nutrikal-jwt';
 
 interface AuthStoreState {
-  user: GistUser | null;
+  user: AppUser | null;
   authState: AuthState;
+  authView: AuthView;
   error: string | null;
+  errorField: string | undefined;
 
-  login: (token: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => void;
   restoreSession: () => Promise<void>;
+  setAuthView: (view: AuthView) => void;
   clearError: () => void;
 }
 
 export const useAuthStore = create<AuthStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       authState: 'unauthenticated',
+      authView: 'login',
       error: null,
+      errorField: undefined,
 
-      login: async (token: string) => {
-        set({ authState: 'authenticating', error: null });
+      login: async (identifier: string, password: string) => {
+        set({ authState: 'authenticating', error: null, errorField: undefined });
         try {
-          const validatedUser = await validateToken(token);
-          const gistId = await findOrCreateGist(token);
-          localStorage.setItem(TOKEN_KEY, token);
-          const user: GistUser = { ...validatedUser, gistId };
+          const { token, user } = await apiLogin(identifier, password);
+          localStorage.setItem(JWT_KEY, token);
           set({ user, authState: 'authenticated' });
-
-          // Trigger initial load from gist (lazy import to avoid circular)
-          const { useGistSyncStore } = await import('./useGistSyncStore');
-          await useGistSyncStore.getState().initialLoad();
         } catch (err) {
-          localStorage.removeItem(TOKEN_KEY);
-          let message = 'Error inesperado. Intentá de nuevo';
-          if (err instanceof GistAuthError) {
-            message = err.message;
-          } else if (
-            err instanceof TypeError ||
-            (err as { message?: string }).message?.includes('fetch')
-          ) {
-            message = 'Sin conexión. Verificá tu internet';
-          }
-          set({ authState: 'error', error: message, user: null });
+          handleAuthError(err, set);
+        }
+      },
+
+      register: async (username: string, email: string, password: string, displayName?: string) => {
+        set({ authState: 'authenticating', error: null, errorField: undefined });
+        try {
+          const { token, user } = await apiRegister(username, email, password, displayName);
+          localStorage.setItem(JWT_KEY, token);
+          set({ user, authState: 'authenticated' });
+        } catch (err) {
+          handleAuthError(err, set);
         }
       },
 
       logout: () => {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem('nutrikal-auth');
-        localStorage.removeItem('nutrikal-calendar');
-        localStorage.removeItem('nutrikal-calculator');
-        localStorage.removeItem('nutrikal-ingredients');
-        localStorage.removeItem('nutrikal-profile');
-        localStorage.removeItem('nutrikal-shopping');
-        set({ user: null, authState: 'unauthenticated', error: null });
+        // Clear JWT
+        localStorage.removeItem(JWT_KEY);
+        // Clear all nutrikal keys
+        const keys = Object.keys(localStorage).filter((k) => k.startsWith('nutrikal-'));
+        keys.forEach((k) => localStorage.removeItem(k));
+
+        set({ user: null, authState: 'unauthenticated', error: null, errorField: undefined });
+
         // Reset data stores
         import('./useCalendarStore').then(({ useCalendarStore }) =>
           useCalendarStore.setState({ dayPlans: {}, weekTemplates: [], notifications: [] }),
@@ -82,28 +84,49 @@ export const useAuthStore = create<AuthStoreState>()(
       },
 
       restoreSession: async () => {
-        const token = localStorage.getItem(TOKEN_KEY);
-        if (!token) {
+        const jwt = localStorage.getItem(JWT_KEY);
+        if (!jwt) {
           set({ authState: 'unauthenticated' });
           return;
         }
+        set({ authState: 'authenticating' });
         try {
-          await get().login(token);
+          const user = await validateSession(jwt);
+          set({ user, authState: 'authenticated' });
         } catch {
-          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(JWT_KEY);
           set({ authState: 'unauthenticated', error: null, user: null });
         }
       },
 
-      clearError: () => set({ error: null }),
+      setAuthView: (view: AuthView) => set({ authView: view, error: null, errorField: undefined }),
+
+      clearError: () => set({ error: null, errorField: undefined }),
     }),
     {
       name: 'nutrikal-auth',
       partialize: (state) => ({
-        user: state.user
-          ? { login: state.user.login, name: state.user.name, avatarUrl: state.user.avatarUrl, gistId: state.user.gistId }
-          : null,
+        user: state.user,
       }),
     },
   ),
 );
+
+type SetFn = (partial: Partial<AuthStoreState>) => void;
+
+function handleAuthError(err: unknown, set: SetFn) {
+  let message = 'Error inesperado. Intentá de nuevo.';
+  let field: string | undefined;
+
+  if (err instanceof ApiAuthError) {
+    message = err.message;
+    field = err.field;
+  } else if (
+    err instanceof TypeError ||
+    (err as { message?: string }).message?.includes('fetch')
+  ) {
+    message = 'Sin conexión. Verificá tu internet.';
+  }
+
+  set({ authState: 'error', error: message, errorField: field, user: null });
+}
