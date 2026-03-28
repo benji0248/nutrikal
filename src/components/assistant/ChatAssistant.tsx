@@ -17,9 +17,6 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     messages,
     hasProfile,
     handleOption,
-    handleSelectDish,
-    handleServingsChange,
-    handleWaterChange,
     handleSendMessage,
     handleApplyPlan,
     handleRegeneratePlan,
@@ -46,12 +43,8 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
       onTabChange('shopping');
       return;
     }
-    if (option.action === 'send_text' && option.payload) {
-      handleSendMessage(option.payload);
-      return;
-    }
     handleOption(option);
-  }, [handleOption, handleSendMessage, onTabChange]);
+  }, [handleOption, onTabChange]);
 
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients: Ingredient[] = useMemo(
@@ -61,7 +54,6 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -85,14 +77,11 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4"
       >
-        {messages.map((msg, idx) => (
+        {messages.map((msg) => (
           <ChatMessageBubble
             key={msg.id}
             message={msg}
             onOptionSelect={wrappedHandleOption}
-            onDishSelect={handleSelectDish}
-            onServingsChange={handleServingsChange}
-            onWaterChange={handleWaterChange}
             onApplyPlan={handleApplyPlan}
             onRegeneratePlan={handleRegeneratePlan}
             onSwapMeal={handleSwapMeal}
@@ -100,13 +89,11 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
             energyRatio={energyRatio}
             showCalories={showCalories}
             allIngredients={allIngredients}
-            isLast={idx === messages.length - 1 || isLastOptionsBlock(messages, idx)}
           />
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Text input — only show when user has a profile */}
       {hasProfile && (
         <form
           onSubmit={onSubmit}
@@ -114,7 +101,6 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
         >
           <div className="flex items-center gap-2">
             <input
-              ref={inputRef}
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -141,11 +127,3 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     </div>
   );
 };
-
-function isLastOptionsBlock(messages: Array<{ type: string }>, idx: number): boolean {
-  if (messages[idx].type !== 'assistant-options') return false;
-  for (let i = idx + 1; i < messages.length; i++) {
-    if (messages[i].type === 'assistant-options') return false;
-  }
-  return true;
-}
