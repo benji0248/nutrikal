@@ -99,7 +99,7 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
       {expanded && (
         <div className="px-4 pb-3 space-y-2">
           {meals.map((meal) => {
-            const hasIngredients = !!(meal.entries?.length || meal.linkedRecipeId);
+            const hasIngredients = !!(meal.aiIngredients?.length || meal.entries?.length || meal.linkedRecipeId);
             const isMealExpanded = expandedMealId === meal.id;
 
             return (
@@ -214,6 +214,14 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
 
 function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients: import('../../types').Ingredient[] }) {
   const ingredients = useMemo(() => {
+    // AI-generated ingredients
+    if (meal.aiIngredients?.length) {
+      return meal.aiIngredients.map((ai) => ({
+        name: ai.name,
+        humanPortion: `${ai.grams}g`,
+      }));
+    }
+
     // If linked to a dish, use dish ingredients with human portions
     if (meal.linkedRecipeId) {
       const dish = DISHES_DB.find((d) => d.id === meal.linkedRecipeId);

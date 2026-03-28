@@ -12,8 +12,12 @@ interface ChatRequestBody {
       restrictions: string[];
       dislikedIds: string[];
       dailyBudget: number;
+      nationality?: string;
+      sex?: string;
+      heightCm?: number;
+      weightKg?: number;
+      age?: number;
     };
-    catalog: string;
     todayPlan: unknown | null;
     weekSummary: string | null;
     conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
@@ -67,11 +71,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Profile context
     const { profile } = body.context;
+    const physicalParts = [
+      profile.sex ? `Sexo: ${profile.sex === 'male' ? 'masculino' : 'femenino'}` : '',
+      profile.heightCm ? `Altura: ${profile.heightCm} cm` : '',
+      profile.weightKg ? `Peso: ${profile.weightKg} kg` : '',
+      profile.age ? `Edad: ${profile.age} años` : '',
+    ].filter(Boolean);
+
     contextParts.push(`PERFIL DEL USUARIO:
 - Nombre: ${profile.name}
-- Objetivo: ${profile.goal}
+- Nacionalidad: ${profile.nationality ?? 'Argentina'}
+${physicalParts.length > 0 ? `- ${physicalParts.join(', ')}\n` : ''}- Objetivo: ${profile.goal}
 - Restricciones: ${profile.restrictions.length > 0 ? profile.restrictions.join(', ') : 'ninguna'}
-- Ingredientes que no le gustan (IDs): ${profile.dislikedIds.length > 0 ? profile.dislikedIds.join(', ') : 'ninguno'}
+- Ingredientes que no le gustan: ${profile.dislikedIds.length > 0 ? profile.dislikedIds.join(', ') : 'ninguno'}
 - Presupuesto diario interno (NUNCA mencionar): ${profile.dailyBudget} kcal`);
 
     // Today date
@@ -80,11 +92,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Week dates for planning
     if (body.context.weekDates) {
       contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR: ${body.context.weekDates.join(', ')}`);
-    }
-
-    // Catalog
-    if (body.context.catalog) {
-      contextParts.push(`CATÁLOGO DE PLATOS (formato: id:nombre|categoría|tags|kcalAprox):\n${body.context.catalog}`);
     }
 
     // Today plan

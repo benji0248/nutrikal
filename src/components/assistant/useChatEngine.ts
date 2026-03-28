@@ -3,10 +3,10 @@ import type {
   ChatMessage,
   ChatOption,
   MealType,
-  Dish,
   Ingredient,
   EnergyLevel,
   AiAction,
+  AiMeal,
   WeekPlan,
   PlanPreferences,
 } from '../../types';
@@ -14,17 +14,14 @@ import { MEAL_TYPE_LABELS, MEAL_TYPE_ORDER } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
-import { useRecipesStore } from '../../store/useRecipesStore';
 import { useShoppingStore } from '../../store/useShoppingStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
-import { DISHES_DB } from '../../data/dishes';
 import {
   computeDayConsumed,
-  computeDishMacros,
 } from '../../services/dishMatchService';
 import { getEnergyLevel, getEnergyRatio } from '../../services/metabolicService';
-import { createShoppingItemsFromDish } from '../../services/shoppingService';
+import { createShoppingItemsFromAiMeals } from '../../services/shoppingService';
 import { todayKey, generateId } from '../../utils/dateHelpers';
 import {
   sendMessage,
@@ -54,7 +51,6 @@ export function useChatEngine(): ChatEngineResult {
   const profile = useProfileStore((s) => s.profile);
   const getMetabolicResult = useProfileStore((s) => s.getMetabolicResult);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
-  const customDishes = useRecipesStore((s) => s.customDishes);
   const dayPlans = useCalendarStore((s) => s.dayPlans);
   const upsertMeal = useCalendarStore((s) => s.upsertMeal);
   const addItemsToActiveList = useShoppingStore((s) => s.addItemsToActiveList);
@@ -63,11 +59,6 @@ export function useChatEngine(): ChatEngineResult {
   const allIngredients: Ingredient[] = useMemo(
     () => [...INGREDIENTS_DB, ...customIngredients],
     [customIngredients],
-  );
-
-  const allDishes: Dish[] = useMemo(
-    () => [...DISHES_DB, ...customDishes],
-    [customDishes],
   );
 
   const today = todayKey();
@@ -139,8 +130,13 @@ export function useChatEngine(): ChatEngineResult {
     setMessages((prev) => [...prev, ...msgs]);
   }
 
-  function findDish(dishId: string): Dish | undefined {
-    return allDishes.find((d) => d.id === dishId);
+  function aiMealToCalendarMeal(aiMeal: AiMeal) {
+    return {
+      id: generateId(),
+      name: aiMeal.name,
+      calories: aiMeal.totalKcal,
+      aiIngredients: aiMeal.ingredients,
+    };
   }
 
   function executeActions(actions: AiAction[]) {
@@ -148,16 +144,8 @@ export function useChatEngine(): ChatEngineResult {
       switch (action.type) {
         case 'add_meal':
         case 'swap_meal': {
-          const dish = findDish(action.dishId);
-          if (!dish) break;
-
-          const servings = action.servings || 1;
-          const entries = dish.ingredients.map((di) => ({
-            ingredientId: di.ingredientId,
-            grams: Math.round(di.grams * servings),
-          }));
-          const macros = computeDishMacros(dish, allIngredients);
-          const totalCals = Math.round(macros.calories * servings);
+          const aiMeal = action.meal;
+          if (!aiMeal) break;
 
           if (action.type === 'swap_meal') {
             const currentPlan = useCalendarStore.getState().dayPlans[action.date];
@@ -169,15 +157,9 @@ export function useChatEngine(): ChatEngineResult {
             }
           }
 
-          upsertMeal(action.date, action.mealType, {
-            id: generateId(),
-            name: servings === 1 ? dish.name : `${dish.name} (x${servings})`,
-            entries,
-            calories: totalCals,
-            linkedRecipeId: dish.id,
-          });
+          upsertMeal(action.date, action.mealType, aiMealToCalendarMeal(aiMeal));
 
-          const shoppingItems = createShoppingItemsFromDish(dish, servings, allIngredients);
+          const shoppingItems = createShoppingItemsFromAiMeals([aiMeal]);
           addItemsToActiveList(shoppingItems);
           break;
         }
@@ -193,22 +175,12 @@ export function useChatEngine(): ChatEngineResult {
           break;
         }
 
-        case 'suggest_dishes': {
-          const suggestions = action.dishes
-            .map((s) => findDish(s.dishId))
-            .filter((d): d is Dish => d !== undefined);
-
-          const reasons: Record<string, string> = {};
-          for (const s of action.dishes) {
-            if (s.reason) reasons[s.dishId] = s.reason;
-          }
-
-          if (suggestions.length > 0) {
+        case 'suggest_meals': {
+          if (action.meals && action.meals.length > 0) {
             addMessages({
               id: makeId(),
-              type: 'assistant-dishes',
-              dishSuggestions: suggestions,
-              dishReasons: reasons,
+              type: 'assistant-meals',
+              mealSuggestions: action.meals,
               timestamp: new Date().toISOString(),
             });
           }
@@ -265,11 +237,8 @@ export function useChatEngine(): ChatEngineResult {
 
     try {
       const context = buildContext({
-        message: text,
         profile,
         dailyBudget: budget,
-        allDishes,
-        allIngredients,
         dayPlans: useCalendarStore.getState().dayPlans,
         conversationHistory: conversationRef.current,
         preferences: extraPreferences || planPreferences,
@@ -343,7 +312,7 @@ export function useChatEngine(): ChatEngineResult {
 
     sendToAi(text.trim());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, profile, allDishes, allIngredients, budget, planPreferences]);
+  }, [isLoading, profile, budget, planPreferences]);
 
   const handleOption = useCallback((option: ChatOption) => {
     // Quick reply chips: send the label as a user message
@@ -365,37 +334,24 @@ export function useChatEngine(): ChatEngineResult {
     }
     // create_profile, go_calendar, go_shopping handled in ChatAssistant
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, profile, allDishes, allIngredients, budget, planPreferences]);
+  }, [isLoading, profile, budget, planPreferences]);
 
   const handleApplyPlan = useCallback((plan: WeekPlan) => {
+    const allAiMeals: AiMeal[] = [];
+
     for (const day of plan.days) {
       for (const mt of MEAL_TYPE_ORDER) {
         const planned = day.meals[mt];
         if (!planned) continue;
 
-        const dish = findDish(planned.dishId);
-        if (!dish) continue;
-
-        const servings = planned.servings || 1;
-        const entries = dish.ingredients.map((di) => ({
-          ingredientId: di.ingredientId,
-          grams: Math.round(di.grams * servings),
-        }));
-        const macros = computeDishMacros(dish, allIngredients);
-        const totalCals = Math.round(macros.calories * servings);
-
-        upsertMeal(day.date, mt, {
-          id: generateId(),
-          name: servings === 1 ? dish.name : `${dish.name} (x${servings})`,
-          entries,
-          calories: totalCals,
-          linkedRecipeId: dish.id,
-        });
-
-        const shoppingItems = createShoppingItemsFromDish(dish, servings, allIngredients);
-        addItemsToActiveList(shoppingItems);
+        upsertMeal(day.date, mt, aiMealToCalendarMeal(planned));
+        allAiMeals.push(planned);
       }
     }
+
+    // Add all ingredients to shopping list
+    const shoppingItems = createShoppingItemsFromAiMeals(allAiMeals);
+    addItemsToActiveList(shoppingItems);
 
     setMessages((prev) => {
       const updated = [...prev];
@@ -419,7 +375,7 @@ export function useChatEngine(): ChatEngineResult {
       timestamp: new Date().toISOString(),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allIngredients, allDishes, budget]);
+  }, [budget]);
 
   const handleRegeneratePlan = useCallback(() => {
     setMessages((prev) => prev.filter((m) => m.type !== 'assistant-plan'));
@@ -427,13 +383,13 @@ export function useChatEngine(): ChatEngineResult {
     const msg = lastPlanRequestRef.current || 'Generame opciones distintas a las anteriores.';
     sendToAi(msg, weekDates, planPreferences);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, allDishes, allIngredients, budget, planPreferences]);
+  }, [profile, budget, planPreferences]);
 
   const handleSwapMeal = useCallback((date: string, mealType: MealType) => {
     const msg = `Cambiame el ${MEAL_TYPE_LABELS[mealType].toLowerCase()} del ${date} por otra opción.`;
     sendToAi(msg);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, allDishes, allIngredients, budget]);
+  }, [profile, budget]);
 
   return {
     messages,

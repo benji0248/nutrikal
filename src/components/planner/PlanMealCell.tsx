@@ -1,45 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { RefreshCw, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import type { Dish, Ingredient, MealType } from '../../types';
+import type { PlannedMeal, MealType } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
-import { getDishHumanIngredients } from '../../utils/portionHelpers';
-import { computeDishMacros } from '../../services/dishMatchService';
 
 interface PlanMealCellProps {
-  dish: Dish | undefined;
+  meal: PlannedMeal | undefined;
   mealType: MealType;
   date: string;
-  servings: number;
-  allIngredients: Ingredient[];
   showCalories: boolean;
   onSwap: (date: string, mealType: MealType) => void;
 }
 
-export const PlanMealCell = ({ dish, mealType, date, servings, allIngredients, showCalories, onSwap }: PlanMealCellProps) => {
+export const PlanMealCell = ({ meal, mealType, date, showCalories, onSwap }: PlanMealCellProps) => {
   const [expanded, setExpanded] = useState(false);
 
-  const details = useMemo(() => {
-    if (!dish) return null;
-    const macros = computeDishMacros(dish, allIngredients);
-    const dishKcal = Math.round(macros.calories * servings);
-    const humanIngredients = getDishHumanIngredients(dish, servings, allIngredients);
-
-    // Compute per-ingredient kcal
-    const ingredientDetails = dish.ingredients.map((di, idx) => {
-      const ing = allIngredients.find((i) => i.id === di.ingredientId);
-      const totalGrams = di.grams * servings;
-      const kcal = ing ? Math.round((ing.calories / 100) * totalGrams) : 0;
-      return {
-        name: humanIngredients[idx]?.name ?? di.ingredientId,
-        humanPortion: humanIngredients[idx]?.humanPortion ?? `${totalGrams}g`,
-        kcal,
-      };
-    });
-
-    return { dishKcal, ingredientDetails };
-  }, [dish, servings, allIngredients]);
-
-  if (!dish || !details) {
+  if (!meal) {
     return (
       <div className="bg-surface2/30 rounded-xl p-3 min-h-[56px] flex items-center">
         <span className="text-xs font-body text-muted">
@@ -60,20 +35,22 @@ export const PlanMealCell = ({ dish, mealType, date, servings, allIngredients, s
           >
             <div className="flex-1 min-w-0">
               <p className="text-sm font-body font-medium text-text-primary">
-                {dish.name}
+                {meal.name}
               </p>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs font-body text-muted">
-                  {servings > 1 ? `x${servings} · ` : ''}{dish.humanPortion}
-                </span>
-                {dish.prepMinutes > 0 && (
+                {meal.humanPortion && (
+                  <span className="text-xs font-body text-muted">
+                    {meal.humanPortion}
+                  </span>
+                )}
+                {meal.prepMinutes != null && meal.prepMinutes > 0 && (
                   <span className="flex items-center gap-0.5 text-xs font-body text-muted">
                     <Clock size={11} />
-                    {dish.prepMinutes}′
+                    {meal.prepMinutes}′
                   </span>
                 )}
                 {showCalories && (
-                  <span className="text-xs font-mono text-accent">{details.dishKcal} kcal</span>
+                  <span className="text-xs font-mono text-accent">{meal.totalKcal} kcal</span>
                 )}
               </div>
             </div>
@@ -94,14 +71,14 @@ export const PlanMealCell = ({ dish, mealType, date, servings, allIngredients, s
         </div>
       </div>
 
-      {expanded && details.ingredientDetails.length > 0 && (
+      {expanded && meal.ingredients.length > 0 && (
         <div className="px-3 pb-3 pt-1 border-t border-border/20">
           <ul className="space-y-1">
-            {details.ingredientDetails.map((ing, idx) => (
+            {meal.ingredients.map((ing, idx) => (
               <li key={idx} className="flex items-baseline justify-between gap-2 text-xs font-body">
                 <span className="text-text-primary">{ing.name}</span>
                 <span className="text-muted flex-shrink-0">
-                  {ing.humanPortion}
+                  {ing.grams}g
                   {showCalories && <span className="font-mono ml-1.5 text-muted/70">{ing.kcal}</span>}
                 </span>
               </li>

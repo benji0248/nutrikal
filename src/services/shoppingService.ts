@@ -1,4 +1,5 @@
 import type {
+  AiMeal,
   Dish,
   DayPlan,
   MealType,
@@ -151,6 +152,35 @@ export function createShoppingItemsFromDish(
       name: ingredient.name,
       quantity: humanizeQuantity(totalGrams),
       section,
+      checked: false,
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Create shopping items from AI-generated meals.
+ * Groups ingredients by name (case-insensitive), sums grams.
+ */
+export function createShoppingItemsFromAiMeals(meals: AiMeal[]): ShoppingItem[] {
+  const aggregated = new Map<string, number>();
+
+  for (const meal of meals) {
+    for (const ing of meal.ingredients) {
+      const key = ing.name.toLowerCase().trim();
+      aggregated.set(key, (aggregated.get(key) || 0) + ing.grams);
+    }
+  }
+
+  const items: ShoppingItem[] = [];
+  for (const [name, totalGrams] of aggregated) {
+    items.push({
+      id: generateId(),
+      ingredientId: name,
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      quantity: humanizeQuantity(totalGrams),
+      section: 'otros',
       checked: false,
     });
   }

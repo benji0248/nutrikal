@@ -2,38 +2,18 @@ import type {
   AiChatContext,
   AiChatResponse,
   AiAction,
-  Dish,
-  Ingredient,
   DayPlan,
   UserProfile,
   PlanPreferences,
 } from '../types';
 import { MEAL_TYPE_ORDER } from '../types';
-import { computeDishMacros } from './dishMatchService';
-import { addDays, startOfWeek, format } from 'date-fns';
+import { addDays, startOfWeek, format, differenceInYears, parseISO } from 'date-fns';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
 
 function getToken(): string | null {
   return localStorage.getItem(JWT_KEY);
-}
-
-/**
- * Compress dish catalog into a compact token-efficient string.
- * Format: id:name|category|tags|kcalApprox
- */
-export function compressCatalog(
-  dishes: Dish[],
-  allIngredients: Ingredient[],
-): string {
-  return dishes
-    .map((d) => {
-      const macros = computeDishMacros(d, allIngredients);
-      const kcal = Math.round(macros.calories);
-      return `${d.id}:${d.name}|${d.category}|${d.tags.join(',')}|${kcal}`;
-    })
-    .join('\n');
 }
 
 /**
@@ -44,14 +24,11 @@ function compressTodayPlan(
 ): unknown | null {
   if (!plan) return null;
 
-  const result: Record<string, Array<{ name: string; dishId?: string }>> = {};
+  const result: Record<string, Array<{ name: string }>> = {};
   for (const mt of MEAL_TYPE_ORDER) {
     const meals = plan.meals[mt];
     if (meals.length > 0) {
-      result[mt] = meals.map((m) => ({
-        name: m.name,
-        dishId: m.linkedRecipeId || undefined,
-      }));
+      result[mt] = meals.map((m) => ({ name: m.name }));
     }
   }
 
@@ -84,29 +61,6 @@ function buildWeekSummary(
 }
 
 /**
- * Determine what context to include based on the message content.
- */
-function detectIntent(message: string): {
-  needsCatalog: boolean;
-  needsTodayPlan: boolean;
-  needsWeekSummary: boolean;
-} {
-  const lower = message.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const weekWords = ['semana', 'plan', 'planifica', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'semanal'];
-  const todayWords = ['hoy', 'ahora', 'almuerzo', 'cena', 'desayuno', 'snack', 'como', 'comer', 'cocinar'];
-  const emotionalWords = ['ansiedad', 'antojo', 'hambre', 'ansiosa', 'ansioso', 'dulce', 'necesito'];
-
-  const needsWeek = weekWords.some((w) => lower.includes(w));
-  const needsToday = todayWords.some((w) => lower.includes(w)) || emotionalWords.some((w) => lower.includes(w));
-
-  return {
-    needsCatalog: needsWeek || needsToday,
-    needsTodayPlan: needsToday || emotionalWords.some((w) => lower.includes(w)),
-    needsWeekSummary: needsWeek,
-  };
-}
-
-/**
  * Get the next 7 days starting from next Monday (for week planning).
  */
 export function getNextWeekDates(): string[] {
@@ -129,11 +83,8 @@ export function getCurrentWeekDates(): string[] {
 }
 
 export interface BuildContextParams {
-  message: string;
   profile: UserProfile;
   dailyBudget: number;
-  allDishes: Dish[];
-  allIngredients: Ingredient[];
   dayPlans: Record<string, DayPlan>;
   conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
   preferences?: PlanPreferences | null;
@@ -145,50 +96,37 @@ export interface BuildContextParams {
  */
 export function buildContext(params: BuildContextParams): AiChatContext {
   const {
-    message,
     profile,
     dailyBudget,
-    allDishes,
-    allIngredients,
     dayPlans,
     conversationHistory,
     preferences,
     weekDates,
   } = params;
 
-  const intent = detectIntent(message);
   const todayDate = format(new Date(), 'yyyy-MM-dd');
-
-  // Build profile
-  const profileCtx = {
-    name: profile.name,
-    goal: profile.goal,
-    restrictions: profile.restrictions as string[],
-    dislikedIds: profile.dislikedIngredientIds,
-    dailyBudget,
-  };
-
-  // Build catalog (only when needed)
-  const catalog = intent.needsCatalog
-    ? compressCatalog(allDishes, allIngredients)
-    : '';
-
-  // Today plan
-  const todayPlan = intent.needsTodayPlan
-    ? compressTodayPlan(dayPlans[todayDate])
-    : null;
-
-  // Week summary
   const currentWeekDates = getCurrentWeekDates();
-  const weekSummary = intent.needsWeekSummary
-    ? buildWeekSummary(dayPlans, weekDates || currentWeekDates)
-    : null;
+
+  // Compute age from birthDate
+  const age = profile.birthDate
+    ? differenceInYears(new Date(), parseISO(profile.birthDate))
+    : undefined;
 
   return {
-    profile: profileCtx,
-    catalog,
-    todayPlan,
-    weekSummary,
+    profile: {
+      name: profile.name,
+      goal: profile.goal,
+      restrictions: profile.restrictions as string[],
+      dislikedIds: profile.dislikedIngredientIds,
+      dailyBudget,
+      nationality: profile.nationality,
+      sex: profile.sex,
+      heightCm: profile.heightCm,
+      weightKg: profile.weightKg,
+      age,
+    },
+    todayPlan: compressTodayPlan(dayPlans[todayDate]),
+    weekSummary: buildWeekSummary(dayPlans, weekDates || currentWeekDates),
     conversationHistory: conversationHistory.slice(-10),
     todayDate,
     weekDates: weekDates || null,

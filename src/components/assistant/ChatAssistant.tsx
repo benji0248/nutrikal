@@ -1,8 +1,6 @@
-import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Send, UserCircle } from 'lucide-react';
-import type { ChatOption, Ingredient, AppTab } from '../../types';
-import { useIngredientsStore } from '../../store/useIngredientsStore';
-import { INGREDIENTS_DB } from '../../data/ingredients';
+import type { ChatOption, AppTab } from '../../types';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
@@ -46,12 +44,6 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     }
     handleOption(option);
   }, [handleOption, onTabChange]);
-
-  const customIngredients = useIngredientsStore((s) => s.customIngredients);
-  const allIngredients: Ingredient[] = useMemo(
-    () => [...INGREDIENTS_DB, ...customIngredients],
-    [customIngredients],
-  );
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -124,7 +116,6 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
             energyLevel={energyLevel}
             energyRatio={energyRatio}
             showCalories={showCalories}
-            allIngredients={allIngredients}
           />
         ))}
         <div ref={bottomRef} />

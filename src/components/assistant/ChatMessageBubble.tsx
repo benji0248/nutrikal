@@ -1,5 +1,5 @@
-import { Loader2 } from 'lucide-react';
-import type { ChatMessage, ChatOption, EnergyLevel, Ingredient, MealType, WeekPlan } from '../../types';
+import { Loader2, Clock } from 'lucide-react';
+import type { ChatMessage, ChatOption, EnergyLevel, MealType, WeekPlan } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
 import { OptionChips } from './OptionChips';
 import { DayEnergyBar } from './DayEnergyBar';
@@ -15,7 +15,6 @@ interface ChatMessageBubbleProps {
   energyLevel: EnergyLevel;
   energyRatio: number;
   showCalories: boolean;
-  allIngredients: Ingredient[];
 }
 
 export const ChatMessageBubble = ({
@@ -65,18 +64,26 @@ export const ChatMessageBubble = ({
         </div>
       );
 
-    case 'assistant-dishes':
+    case 'assistant-meals':
       return (
         <div className="space-y-2 animate-fade-in">
-          {message.dishSuggestions?.map((dish) => (
-            <div key={dish.id} className="bg-surface2/40 rounded-2xl px-4 py-3">
-              <p className="text-sm font-body font-medium text-text-primary">{dish.name}</p>
-              <p className="text-xs font-body text-muted mt-0.5">
-                {dish.humanPortion} · {dish.prepMinutes > 0 ? `${dish.prepMinutes} min` : 'Listo'}
-              </p>
-              {message.dishReasons?.[dish.id] && (
+          {message.mealSuggestions?.map((meal, idx) => (
+            <div key={idx} className="bg-surface2/40 rounded-2xl px-4 py-3">
+              <p className="text-sm font-body font-medium text-text-primary">{meal.name}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs font-body text-muted">
+                  {meal.ingredients.length} ingredientes
+                </span>
+                {meal.prepMinutes != null && meal.prepMinutes > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs font-body text-muted">
+                    <Clock size={11} />
+                    {meal.prepMinutes} min
+                  </span>
+                )}
+              </div>
+              {meal.reason && (
                 <p className="text-xs font-body text-muted mt-1 italic">
-                  {message.dishReasons[dish.id]}
+                  {meal.reason}
                 </p>
               )}
             </div>

@@ -80,6 +80,22 @@ export interface CalculatorRecipe {
   savedAt: string;
 }
 
+// ── AI-generated meal types ──
+
+export interface AiIngredient {
+  name: string;
+  grams: number;
+  kcal: number;
+}
+
+export interface AiMeal {
+  name: string;
+  ingredients: AiIngredient[];
+  totalKcal: number;
+  prepMinutes?: number;
+  humanPortion?: string;
+}
+
 export interface Meal {
   id: string;
   name: string;
@@ -87,6 +103,7 @@ export interface Meal {
   notes?: string;
   linkedRecipeId?: string;
   entries?: CalculatorEntry[];
+  aiIngredients?: AiIngredient[];
   completed?: boolean;
 }
 
@@ -179,6 +196,7 @@ export interface UserProfile {
   goal: Goal;
   restrictions: DietaryRestriction[];
   dislikedIngredientIds: string[];
+  nationality?: string;
   createdAt: string;
   updatedAt: string;
   lastRecalibration: string;
@@ -278,7 +296,7 @@ export type ChatStep =
 export type ChatMessageType =
   | 'assistant-text'
   | 'assistant-options'
-  | 'assistant-dishes'
+  | 'assistant-meals'
   | 'assistant-summary'
   | 'assistant-plan'
   | 'assistant-loading'
@@ -299,11 +317,7 @@ export interface ChatMessage {
   type: ChatMessageType;
   text?: string;
   options?: ChatOption[];
-  dishSuggestions?: Dish[];
-  dishReasons?: Record<string, string>;
-  selectedDish?: Dish;
-  servings?: number;
-  humanIngredients?: Array<{ name: string; humanPortion: string }>;
+  mealSuggestions?: Array<AiMeal & { reason: string }>;
   daySummary?: {
     meals: Array<{ mealType: MealType; name: string }>;
     energyLevel: EnergyLevel;
@@ -318,15 +332,14 @@ export type AiAction =
   | AiAddMealAction
   | AiWeekPlanAction
   | AiSwapMealAction
-  | AiSuggestDishesAction
+  | AiSuggestMealsAction
   | AiShowSummaryAction;
 
 export interface AiAddMealAction {
   type: 'add_meal';
   date: string;
   mealType: MealType;
-  dishId: string;
-  servings: number;
+  meal: AiMeal;
 }
 
 export interface AiWeekPlanAction {
@@ -338,23 +351,19 @@ export interface AiSwapMealAction {
   type: 'swap_meal';
   date: string;
   mealType: MealType;
-  dishId: string;
-  servings: number;
+  meal: AiMeal;
 }
 
-export interface AiSuggestDishesAction {
-  type: 'suggest_dishes';
-  dishes: Array<{ dishId: string; reason: string }>;
+export interface AiSuggestMealsAction {
+  type: 'suggest_meals';
+  meals: Array<AiMeal & { reason: string }>;
 }
 
 export interface AiShowSummaryAction {
   type: 'show_summary';
 }
 
-export interface PlannedMeal {
-  dishId: string;
-  servings: number;
-}
+export interface PlannedMeal extends AiMeal {}
 
 export interface PlannedDay {
   date: string;
@@ -379,8 +388,12 @@ export interface AiChatContext {
     restrictions: string[];
     dislikedIds: string[];
     dailyBudget: number;
+    nationality?: string;
+    sex?: string;
+    heightCm?: number;
+    weightKg?: number;
+    age?: number;
   };
-  catalog: string;
   todayPlan: unknown | null;
   weekSummary: string | null;
   conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;

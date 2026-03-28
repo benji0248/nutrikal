@@ -2,14 +2,9 @@ import { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { clsx } from 'clsx';
-import type { WeekPlan, MealType, Dish } from '../../types';
+import type { WeekPlan, MealType } from '../../types';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
-import { DISHES_DB } from '../../data/dishes';
-import { INGREDIENTS_DB } from '../../data/ingredients';
-import { useRecipesStore } from '../../store/useRecipesStore';
-import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
-import { computeDishMacros } from '../../services/dishMatchService';
 import { PlanMealCell } from './PlanMealCell';
 
 interface PlanReviewGridProps {
@@ -18,34 +13,22 @@ interface PlanReviewGridProps {
 }
 
 export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
-  const customDishes = useRecipesStore((s) => s.customDishes);
-  const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const showCalories = useSettingsStore((s) => s.showCalories);
-  const allDishes = useMemo(() => [...DISHES_DB, ...customDishes], [customDishes]);
-  const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
   const [activeDay, setActiveDay] = useState(0);
-
-  function findDish(dishId: string): Dish | undefined {
-    return allDishes.find((d) => d.id === dishId);
-  }
 
   const activeDayData = plan.days[activeDay];
 
-  // Compute daily kcal total
+  // Compute daily kcal total from AiMeal totalKcal
   const dayKcal = useMemo(() => {
     if (!activeDayData) return 0;
     let total = 0;
     for (const mt of MEAL_TYPE_ORDER) {
       const planned = activeDayData.meals[mt];
       if (!planned) continue;
-      const dish = findDish(planned.dishId);
-      if (!dish) continue;
-      const macros = computeDishMacros(dish, allIngredients);
-      total += Math.round(macros.calories * (planned.servings || 1));
+      total += planned.totalKcal;
     }
     return total;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDayData, allDishes, allIngredients]);
+  }, [activeDayData]);
 
   return (
     <div>
@@ -93,11 +76,9 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
                   {MEAL_TYPE_LABELS[mt]}
                 </span>
                 <PlanMealCell
-                  dish={planned ? findDish(planned.dishId) : undefined}
+                  meal={planned}
                   mealType={mt}
                   date={activeDayData.date}
-                  servings={planned?.servings ?? 1}
-                  allIngredients={allIngredients}
                   showCalories={showCalories}
                   onSwap={onSwapMeal}
                 />

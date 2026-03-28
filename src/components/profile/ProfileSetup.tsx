@@ -30,6 +30,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
 
   const [step, setStep] = useState<Step>(0);
   const profileName = existingProfile?.name ?? user?.displayName ?? user?.username ?? '';
+  const [nationality, setNationality] = useState(existingProfile?.nationality ?? 'Argentina');
   const [birthDate, setBirthDate] = useState(existingProfile?.birthDate ?? '');
   const [sex, setSex] = useState<Sex>(existingProfile?.sex ?? 'male');
   const [heightCm, setHeightCm] = useState(existingProfile?.heightCm?.toString() ?? '');
@@ -57,6 +58,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       goal,
       restrictions,
       dislikedIngredientIds: dislikedIds,
+      nationality,
       createdAt: existingProfile?.createdAt ?? now,
       updatedAt: now,
       lastRecalibration: now,
@@ -97,6 +99,18 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       {/* Step 0: Basic data */}
       {step === 0 && (
         <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">País</label>
+            <select
+              value={nationality}
+              onChange={(e) => setNationality(e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm font-body text-text-primary focus:border-accent focus:ring-1 focus:ring-accent/40 outline-none min-h-[48px]"
+            >
+              {['Argentina', 'México', 'Colombia', 'Chile', 'España', 'Otro'].map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
           <Input label="Fecha de nacimiento" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
           <div>
             <p className="text-sm font-medium text-text-primary mb-1.5">Sexo biológico</p>
