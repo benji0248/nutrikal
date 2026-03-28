@@ -53,7 +53,7 @@ function AuthenticatedApp() {
   const profile = useProfileStore((s) => s.profile);
   const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
 
-  const [activeTab, setActiveTab] = useState<AppTab>(profile ? 'calendar' : 'assistant');
+  const [activeTab, setActiveTab] = useState<AppTab>('calendar');
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
@@ -63,9 +63,15 @@ function AuthenticatedApp() {
   const [showRecalibrate, setShowRecalibrate] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
-  // Sync data from server on mount
+  // Sync data from server on mount, then redirect new users to Nutri
   useEffect(() => {
-    initialLoad();
+    initialLoad().then(() => {
+      // Wait a tick for dynamic-import hydration to settle
+      setTimeout(() => {
+        const p = useProfileStore.getState().profile;
+        if (!p) setActiveTab('assistant');
+      }, 100);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
