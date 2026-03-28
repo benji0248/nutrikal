@@ -48,7 +48,7 @@ export const LoginScreen = () => {
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             placeholder="Usuario o email"
-            className="w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all"
+            className="w-full px-4 py-3 bg-surface2 rounded-2xl text-sm font-body text-text-primary placeholder-muted/50 border border-border/40 focus:border-accent/50 outline-none transition-all"
             disabled={isLoading}
             autoComplete="username"
             autoCapitalize="none"
@@ -60,7 +60,7 @@ export const LoginScreen = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Contraseña"
-              className="w-full px-4 py-3 pr-12 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all"
+              className="w-full px-4 py-3 pr-12 bg-surface2 rounded-2xl text-sm font-body text-text-primary placeholder-muted/50 border border-border/40 focus:border-accent/50 outline-none transition-all"
               disabled={isLoading}
               autoComplete="current-password"
             />

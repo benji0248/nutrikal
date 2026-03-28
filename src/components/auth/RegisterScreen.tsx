@@ -52,7 +52,7 @@ export const RegisterScreen = () => {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Tu nombre (opcional)"
             className={clsx(
-              'w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+              'w-full px-4 py-3 bg-surface2 rounded-2xl text-sm font-body text-text-primary placeholder-muted/50 border border-border/40 focus:border-accent/50 outline-none transition-all',
               errorField === 'displayName' && 'border-amber-400/60',
             )}
             disabled={isLoading}
@@ -65,7 +65,7 @@ export const RegisterScreen = () => {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Usuario"
             className={clsx(
-              'w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+              'w-full px-4 py-3 bg-surface2 rounded-2xl text-sm font-body text-text-primary placeholder-muted/50 border border-border/40 focus:border-accent/50 outline-none transition-all',
               errorField === 'username' && 'border-amber-400/60',
             )}
             disabled={isLoading}
@@ -79,7 +79,7 @@ export const RegisterScreen = () => {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
             className={clsx(
-              'w-full px-4 py-3 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+              'w-full px-4 py-3 bg-surface2 rounded-2xl text-sm font-body text-text-primary placeholder-muted/50 border border-border/40 focus:border-accent/50 outline-none transition-all',
               errorField === 'email' && 'border-amber-400/60',
             )}
             disabled={isLoading}
@@ -94,7 +94,7 @@ export const RegisterScreen = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Contraseña"
               className={clsx(
-                'w-full px-4 py-3 pr-12 bg-surface2/40 rounded-2xl text-sm font-body text-text-primary placeholder-muted border border-border/40 focus:border-accent/50 outline-none transition-all',
+                'w-full px-4 py-3 pr-12 bg-surface2 rounded-2xl text-sm font-body text-text-primary placeholder-muted/50 border border-border/40 focus:border-accent/50 outline-none transition-all',
                 errorField === 'password' && 'border-amber-400/60',
               )}
               disabled={isLoading}
