@@ -155,6 +155,7 @@ export interface GistPayload {
   profile?: UserProfile;
   shoppingLists?: ShoppingList[];
   activityLog?: ActivityEntry[];
+  customDishes?: Dish[];
 }
 
 export type AuthState =
@@ -232,6 +233,8 @@ export interface Dish {
   defaultServings: number;
   prepMinutes: number;
   humanPortion: string; // e.g. "1 plato", "2 tostadas"
+  isCustom?: boolean;
+  createdBy?: string; // user ID of the creator
 }
 
 // ── Energy level ──

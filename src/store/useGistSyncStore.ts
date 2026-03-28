@@ -53,6 +53,15 @@ export const useGistSyncStore = create<GistSyncState>()(() => ({
       }
     } catch { /* ignore */ }
 
+    let customDishes: GistPayload['customDishes'] = [];
+    try {
+      const recipesRaw = localStorage.getItem('nutrikal-recipes');
+      if (recipesRaw) {
+        const parsed = JSON.parse(recipesRaw);
+        customDishes = parsed?.state?.customDishes ?? [];
+      }
+    } catch { /* ignore */ }
+
     let profile: GistPayload['profile'];
     let shoppingLists: GistPayload['shoppingLists'] = [];
     let activityLog: GistPayload['activityLog'] = [];
@@ -88,6 +97,7 @@ export const useGistSyncStore = create<GistSyncState>()(() => ({
       profile,
       shoppingLists,
       activityLog,
+      customDishes,
     };
   },
 
@@ -119,6 +129,11 @@ export const useGistSyncStore = create<GistSyncState>()(() => ({
     import('./useSettingsStore').then(({ useSettingsStore }) => {
       useSettingsStore.setState({
         showCalories: payload.settings?.showCalories ?? false,
+      });
+    });
+    import('./useRecipesStore').then(({ useRecipesStore }) => {
+      useRecipesStore.setState({
+        customDishes: payload.customDishes ?? [],
       });
     });
 

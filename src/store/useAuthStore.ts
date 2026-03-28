@@ -81,6 +81,9 @@ export const useAuthStore = create<AuthStoreState>()(
         import('./useShoppingStore').then(({ useShoppingStore }) =>
           useShoppingStore.setState({ lists: [] }),
         );
+        import('./useRecipesStore').then(({ useRecipesStore }) =>
+          useRecipesStore.setState({ customDishes: [] }),
+        );
       },
 
       restoreSession: async () => {
