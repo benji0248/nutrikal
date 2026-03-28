@@ -11,17 +11,19 @@ interface WeekPlannerProps {
 
 export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal }: WeekPlannerProps) => {
   return (
-    <div className="bg-surface2/30 rounded-2xl p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <CalendarCheck size={18} className="text-accent" />
-        <h3 className="text-sm font-heading font-bold text-text-primary">
-          Tu plan semanal
-        </h3>
+    <div className="bg-surface2/30 rounded-2xl overflow-hidden">
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <CalendarCheck size={18} className="text-accent" />
+          <h3 className="text-sm font-heading font-bold text-text-primary">
+            Tu plan semanal
+          </h3>
+        </div>
+
+        <PlanReviewGrid plan={plan} onSwapMeal={onSwapMeal} />
       </div>
 
-      <PlanReviewGrid plan={plan} onSwapMeal={onSwapMeal} />
-
-      <div className="flex gap-2 pt-2">
+      <div className="sticky bottom-0 flex gap-2 p-4 pt-3 bg-surface2/60 backdrop-blur-sm border-t border-border/30">
         <button
           type="button"
           onClick={() => onApply(plan)}

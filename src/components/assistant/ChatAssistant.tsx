@@ -86,7 +86,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
             </p>
           </div>
           <p className="text-sm font-body text-muted/80 leading-relaxed">
-            Creá tu perfil para que pueda conocerte y ayudarte a organizar tus comidas.
+            Son 4 preguntas rápidas. Después te armo el plan de la semana.
           </p>
           <Button
             variant="primary"

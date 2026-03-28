@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { RefreshCw, Clock } from 'lucide-react';
 import type { Dish, MealType } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
@@ -11,6 +12,8 @@ interface PlanMealCellProps {
 }
 
 export const PlanMealCell = ({ dish, mealType, date, servings, onSwap }: PlanMealCellProps) => {
+  const [expanded, setExpanded] = useState(false);
+
   if (!dish) {
     return (
       <div className="bg-surface2/30 rounded-xl p-3 min-h-[60px] flex items-center">
@@ -22,10 +25,14 @@ export const PlanMealCell = ({ dish, mealType, date, servings, onSwap }: PlanMea
   }
 
   return (
-    <div className="bg-surface2/40 rounded-xl p-3 space-y-1.5">
+    <div className="bg-surface2/40 rounded-xl p-3 space-y-1.5" title={dish.name}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-body font-medium text-text-primary truncate">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="min-w-0 flex-1 text-left"
+        >
+          <p className={`text-xs font-body font-medium text-text-primary ${expanded ? '' : 'line-clamp-2'} md:truncate`}>
             {dish.name}
           </p>
           <div className="flex items-center gap-2 mt-0.5">
@@ -39,7 +46,7 @@ export const PlanMealCell = ({ dish, mealType, date, servings, onSwap }: PlanMea
               </span>
             )}
           </div>
-        </div>
+        </button>
         <button
           type="button"
           onClick={() => onSwap(date, mealType)}
