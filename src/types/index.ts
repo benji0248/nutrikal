@@ -407,9 +407,15 @@ export const ACTIVITY_LEVEL_LABELS: Record<ActivityLevel, string> = {
 };
 
 export const GOAL_LABELS: Record<Goal, string> = {
-  lose: 'Bajar de peso',
-  maintain: 'Mantener',
-  gain: 'Subir de peso',
+  lose: 'Sentirme más liviano',
+  maintain: 'Mantenerme como estoy',
+  gain: 'Ganar fuerza y energía',
+};
+
+export const GOAL_DESCRIPTIONS: Record<Goal, string> = {
+  lose: 'Porciones balanceadas con más variedad',
+  maintain: 'Balance entre lo que comés y tu energía',
+  gain: 'Más proteína y comidas más completas',
 };
 
 export const DISH_CATEGORY_LABELS: Record<DishCategory, string> = {

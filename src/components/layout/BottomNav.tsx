@@ -1,4 +1,4 @@
-import { Calendar, BookOpen, Settings, Sparkles, ShoppingCart } from 'lucide-react';
+import { Calendar, Clock, Settings, Sparkles, ShoppingCart } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { AppTab } from '../../types';
 
@@ -10,7 +10,7 @@ interface BottomNavProps {
 const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
   { tab: 'assistant', label: 'Nutri', icon: Sparkles },
-  { tab: 'recipes', label: 'Recetas', icon: BookOpen },
+  { tab: 'recipes', label: 'Historial', icon: Clock },
   { tab: 'shopping', label: 'Compras', icon: ShoppingCart },
   { tab: 'settings', label: 'Ajustes', icon: Settings },
 ];

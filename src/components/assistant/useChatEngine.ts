@@ -119,7 +119,17 @@ export function useChatEngine(): ChatEngineResult {
       {
         id: makeId(),
         type: 'assistant-text',
-        text: `¡Hola${profile.name ? `, ${profile.name}` : ''}! Soy tu nutricionista. Contame, ¿qué necesitás?`,
+        text: `¡Hola${profile.name ? `, ${profile.name}` : ''}! Soy tu nutricionista. ¿En qué te ayudo?`,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: makeId(),
+        type: 'assistant-options',
+        options: [
+          { id: 'qr_0', label: 'Armame la semana', action: 'quick_reply', payload: 'Armame la semana' },
+          { id: 'qr_1', label: '¿Qué como hoy?', action: 'quick_reply', payload: '¿Qué como hoy?' },
+          { id: 'qr_2', label: '¿Cómo vengo hoy?', action: 'quick_reply', payload: '¿Cómo vengo hoy?' },
+        ],
         timestamp: new Date().toISOString(),
       },
     ];

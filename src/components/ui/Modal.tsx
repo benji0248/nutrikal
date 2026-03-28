@@ -45,7 +45,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative bg-surface border border-border rounded-3xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto z-10 animate-fade-in shadow-2xl">
+      <div className="relative bg-surface border border-border rounded-3xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto z-10 animate-fade-in shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-heading font-bold text-text-primary">{title}</h2>
           <button

@@ -45,6 +45,7 @@ export function BottomSheet({ isOpen, onClose, title, children, snap = 'full' }:
       <div
         ref={sheetRef}
         className={`absolute bottom-0 left-0 right-0 bg-surface border-t border-border rounded-t-3xl animate-slide-up ${maxHeight} overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => {
           dragStart.current = e.touches[0].clientY;
         }}

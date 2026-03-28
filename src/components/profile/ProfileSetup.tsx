@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Sex, Goal, ActivityLevel, DietaryRestriction, UserProfile } from '../../types';
-import { GOAL_LABELS } from '../../types';
+import { GOAL_LABELS, GOAL_DESCRIPTIONS } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ActivityLevelSelector } from './ActivityLevel';
@@ -70,22 +70,29 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
   const content = (
     <div className="space-y-5">
       {/* Step indicator */}
-      <div className="flex items-center gap-1 justify-center">
+      <div className="flex items-center justify-center gap-0">
         {stepLabels.map((label, i) => (
-          <div key={label} className="flex items-center gap-1">
-            <div
-              className={clsx(
-                'w-2 h-2 rounded-full transition-colors',
-                i <= step ? 'bg-accent' : 'bg-surface2',
-              )}
-            />
+          <div key={label} className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={clsx(
+                  'w-2.5 h-2.5 rounded-full transition-colors',
+                  i <= step ? 'bg-accent' : 'bg-surface2',
+                )}
+              />
+              <span className={clsx(
+                'text-[10px] font-body transition-colors',
+                i === step ? 'text-accent font-medium' : i < step ? 'text-text-primary' : 'text-muted',
+              )}>
+                {label}
+              </span>
+            </div>
             {i < stepLabels.length - 1 && (
-              <div className={clsx('w-6 h-0.5', i < step ? 'bg-accent' : 'bg-surface2')} />
+              <div className={clsx('w-8 h-0.5 mx-1 -mt-4', i < step ? 'bg-accent' : 'bg-surface2')} />
             )}
           </div>
         ))}
       </div>
-      <p className="text-center text-xs font-body text-muted">{stepLabels[step]}</p>
 
       {/* Step 0: Basic data */}
       {step === 0 && (
@@ -136,6 +143,9 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
             >
               <p className={clsx('text-sm font-body font-medium', goal === g ? 'text-accent' : 'text-text-primary')}>
                 {GOAL_LABELS[g]}
+              </p>
+              <p className={clsx('text-xs font-body mt-0.5', goal === g ? 'text-accent/70' : 'text-muted')}>
+                {GOAL_DESCRIPTIONS[g]}
               </p>
             </button>
           ))}
