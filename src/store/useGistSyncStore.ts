@@ -1,8 +1,21 @@
 import { create } from 'zustand';
 import type { GistPayload, SyncStatus } from '../types';
+import { loadUserData, saveUserData } from '../services/apiService';
+import { migratePayload } from '../services/gistService';
 import { useCalendarStore } from './useCalendarStore';
 import { useCalculatorStore } from './useCalculatorStore';
 import { useIngredientsStore } from './useIngredientsStore';
+
+const JWT_KEY = 'nutrikal-jwt';
+const DEBOUNCE_MS = 1500;
+const SUCCESS_RESET_MS = 2000;
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let successTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getToken(): string | null {
+  return localStorage.getItem(JWT_KEY);
+}
 
 interface GistSyncState {
   syncStatus: SyncStatus;
@@ -17,23 +30,89 @@ interface GistSyncState {
   hydrateAllStores: (payload: GistPayload) => void;
 }
 
-export const useGistSyncStore = create<GistSyncState>()(() => ({
+export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
   syncStatus: 'idle',
   lastSyncedAt: null,
   pendingSync: false,
   syncError: null,
 
-  // Gist sync disabled — data lives in localStorage only
   initialLoad: async () => {
-    // no-op: Gist sync disabled
+    const token = getToken();
+    if (!token) return;
+
+    try {
+      const { data: serverData, updatedAt } = await loadUserData(token);
+      const localPayload = get().buildPayload();
+
+      if (serverData && updatedAt) {
+        const serverPayload = migratePayload(serverData);
+        const serverTime = new Date(updatedAt).getTime();
+        const localTime = new Date(localPayload.lastModified).getTime();
+
+        if (serverTime >= localTime) {
+          // Server is newer or equal — hydrate local stores
+          get().hydrateAllStores(serverPayload);
+          set({ lastSyncedAt: updatedAt });
+        } else {
+          // Local is newer — push to server
+          await get().push();
+        }
+      } else {
+        // No server data — push local data up (migration for existing users)
+        const hasLocalData = Object.keys(localPayload.dayPlans).length > 0
+          || localPayload.savedRecipes.length > 0
+          || localPayload.customIngredients.length > 0
+          || localPayload.profile != null;
+
+        if (hasLocalData) {
+          await get().push();
+        }
+      }
+    } catch {
+      // Silently fail on initial load — user can still work offline
+      set({ syncStatus: 'offline', pendingSync: true });
+    }
   },
 
   push: async () => {
-    // no-op: Gist sync disabled
+    const token = getToken();
+    if (!token) return;
+
+    set({ syncStatus: 'syncing', syncError: null });
+
+    try {
+      const payload = get().buildPayload();
+      await saveUserData(token, payload);
+
+      const now = new Date().toISOString();
+      set({ syncStatus: 'success', lastSyncedAt: now, pendingSync: false, syncError: null });
+
+      // Reset to idle after brief success display
+      if (successTimer) clearTimeout(successTimer);
+      successTimer = setTimeout(() => {
+        if (get().syncStatus === 'success') {
+          set({ syncStatus: 'idle' });
+        }
+      }, SUCCESS_RESET_MS);
+    } catch (err) {
+      const isOffline = err instanceof TypeError
+        || (err as { message?: string }).message?.includes('fetch');
+
+      if (isOffline) {
+        set({ syncStatus: 'offline', pendingSync: true, syncError: 'Sin conexión' });
+      } else {
+        set({ syncStatus: 'error', pendingSync: true, syncError: (err as Error).message });
+      }
+    }
   },
 
   schedulePush: () => {
-    // no-op: Gist sync disabled
+    set({ pendingSync: true });
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      get().push();
+    }, DEBOUNCE_MS);
   },
 
   buildPayload: (): GistPayload => {
@@ -144,4 +223,3 @@ export const useGistSyncStore = create<GistSyncState>()(() => ({
     }
   },
 }));
-

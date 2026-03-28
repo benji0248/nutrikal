@@ -63,10 +63,17 @@ function AuthenticatedApp() {
 
   const profile = useProfileStore((s) => s.profile);
   const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
+  const initialLoad = useGistSyncStore((s) => s.initialLoad);
 
   const [showTemplates, setShowTemplates] = useState(false);
   const [showRecalibrate, setShowRecalibrate] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
+
+  // Sync data from server on mount
+  useEffect(() => {
+    initialLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Check recalibration on mount
   useEffect(() => {
@@ -321,7 +328,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
           </div>
 
           <p className="text-[10px] font-body text-muted/60">
-            Datos guardados localmente en este dispositivo
+            Datos sincronizados en la nube
           </p>
 
           <div className="flex flex-col gap-2">
@@ -390,7 +397,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
       <div className="text-center pt-4">
         <p className="text-xs text-muted font-body">NutriKal v5.0</p>
         <p className="text-[10px] text-muted/60 font-body mt-1">
-          Datos guardados localmente
+          Datos sincronizados en la nube
         </p>
       </div>
     </div>

@@ -85,6 +85,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Error al crear la cuenta. Intentá de nuevo.' });
   }
 
+  // Create empty user_data row for sync
+  await supabase
+    .from('user_data')
+    .insert({ user_id: newUser.id, data: {} });
+
   const token = signToken({
     sub: newUser.id,
     username: newUser.username,

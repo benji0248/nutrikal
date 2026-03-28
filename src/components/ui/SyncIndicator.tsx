@@ -18,7 +18,7 @@ export function SyncIndicator() {
   const pendingSync = useGistSyncStore((s) => s.pendingSync);
   const push = useGistSyncStore((s) => s.push);
 
-  const isClickable = syncStatus === 'error';
+  const isClickable = syncStatus === 'error' || syncStatus === 'offline';
 
   const handleClick = () => {
     if (isClickable) push();

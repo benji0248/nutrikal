@@ -1,4 +1,4 @@
-import type { AppUser } from '../types';
+import type { AppUser, GistPayload } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -65,4 +65,30 @@ export async function validateSession(token: string): Promise<AppUser> {
   });
   const data = await handleResponse<{ user: AppUser }>(res);
   return data.user;
+}
+
+// ── Data sync ──
+
+interface LoadDataResponse {
+  data: GistPayload | null;
+  updatedAt: string | null;
+}
+
+export async function loadUserData(token: string): Promise<LoadDataResponse> {
+  const res = await fetch(`${BASE_URL}/api/data/load`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<LoadDataResponse>(res);
+}
+
+export async function saveUserData(token: string, payload: GistPayload): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/data/save`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  await handleResponse<{ ok: boolean }>(res);
 }
