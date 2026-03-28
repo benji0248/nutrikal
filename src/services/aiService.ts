@@ -223,6 +223,7 @@ export async function sendMessage(
       return {
         text: data.text || '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana.',
         actions: [],
+        quickReplies: [],
         remaining: 0,
       };
     }
@@ -233,6 +234,7 @@ export async function sendMessage(
   return {
     text: data.text,
     actions: (data.actions || []) as AiAction[],
+    quickReplies: (data.quickReplies || []) as string[],
     remaining: data.remaining ?? 80,
   };
 }

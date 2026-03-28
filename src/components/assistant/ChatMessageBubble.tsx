@@ -1,9 +1,7 @@
-import { Minus, Plus, Droplets, Loader2 } from 'lucide-react';
-import type { ChatMessage, ChatOption, Dish, EnergyLevel, Ingredient, MealType, WeekPlan } from '../../types';
+import { Loader2, Droplets } from 'lucide-react';
+import type { ChatMessage, ChatOption, EnergyLevel, Ingredient, MealType, WeekPlan } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
 import { OptionChips } from './OptionChips';
-import { DishCard } from './DishCard';
-import { RecipeCard } from './RecipeCard';
 import { DayEnergyBar } from './DayEnergyBar';
 import { WeekPlanner } from '../planner/WeekPlanner';
 import { PlanAppliedView } from '../planner/PlanAppliedView';
@@ -11,9 +9,6 @@ import { PlanAppliedView } from '../planner/PlanAppliedView';
 interface ChatMessageBubbleProps {
   message: ChatMessage;
   onOptionSelect: (option: ChatOption) => void;
-  onDishSelect: (dish: Dish) => void;
-  onServingsChange: (servings: number) => void;
-  onWaterChange: (delta: number) => void;
   onApplyPlan: (plan: WeekPlan) => void;
   onRegeneratePlan: () => void;
   onSwapMeal: (date: string, mealType: MealType) => void;
@@ -21,23 +16,15 @@ interface ChatMessageBubbleProps {
   energyRatio: number;
   showCalories: boolean;
   allIngredients: Ingredient[];
-  isLast: boolean;
 }
 
 export const ChatMessageBubble = ({
   message,
   onOptionSelect,
-  onDishSelect,
-  onServingsChange,
-  onWaterChange,
   onApplyPlan,
   onRegeneratePlan,
   onSwapMeal,
-  energyLevel,
   energyRatio,
-  showCalories,
-  allIngredients,
-  isLast,
 }: ChatMessageBubbleProps) => {
   switch (message.type) {
     case 'assistant-text':
@@ -59,16 +46,6 @@ export const ChatMessageBubble = ({
         </div>
       );
 
-    case 'assistant-energy':
-      return (
-        <div className="max-w-[85%] space-y-2 animate-fade-in">
-          <div className="bg-surface2/40 rounded-2xl rounded-tl-md px-4 py-3">
-            <p className="text-sm font-body text-text-primary mb-3">{message.text}</p>
-            <DayEnergyBar level={energyLevel} ratio={energyRatio} />
-          </div>
-        </div>
-      );
-
     case 'user-text':
     case 'user-choice':
       return (
@@ -79,8 +56,9 @@ export const ChatMessageBubble = ({
         </div>
       );
 
+    // Only used for "Create profile" button when no profile exists
     case 'assistant-options':
-      if (!message.options || !isLast) return null;
+      if (!message.options) return null;
       return (
         <div className="animate-fade-in">
           <OptionChips options={message.options} onSelect={onOptionSelect} />
@@ -91,31 +69,18 @@ export const ChatMessageBubble = ({
       return (
         <div className="space-y-2 animate-fade-in">
           {message.dishSuggestions?.map((dish) => (
-            <div key={dish.id}>
-              <DishCard dish={dish} onClick={onDishSelect} compact />
+            <div key={dish.id} className="bg-surface2/40 rounded-2xl px-4 py-3">
+              <p className="text-sm font-body font-medium text-text-primary">{dish.name}</p>
+              <p className="text-xs font-body text-muted mt-0.5">
+                {dish.humanPortion} · {dish.prepMinutes > 0 ? `${dish.prepMinutes} min` : 'Listo'}
+              </p>
               {message.dishReasons?.[dish.id] && (
-                <p className="text-xs font-body text-muted mt-1 ml-2">
+                <p className="text-xs font-body text-muted mt-1 italic">
                   {message.dishReasons[dish.id]}
                 </p>
               )}
             </div>
           ))}
-        </div>
-      );
-
-    case 'assistant-recipe':
-      if (!message.selectedDish) return null;
-      return (
-        <div className="animate-fade-in">
-          <RecipeCard
-            dish={message.selectedDish}
-            servings={message.servings ?? 1}
-            onServingsChange={onServingsChange}
-            humanIngredients={message.humanIngredients ?? []}
-            energyLevel={energyLevel}
-            showCalories={showCalories}
-            allIngredients={allIngredients}
-          />
         </div>
       );
 
@@ -133,7 +98,6 @@ export const ChatMessageBubble = ({
       );
 
     case 'assistant-applied':
-      if (!message.weekPlan) return null;
       return (
         <div className="animate-fade-in w-full">
           <PlanAppliedView />
@@ -162,57 +126,15 @@ export const ChatMessageBubble = ({
             )}
 
             {message.daySummary && (
-              <DayEnergyBar
-                level={message.daySummary.energyLevel}
-                ratio={energyRatio}
-              />
+              <DayEnergyBar level={message.daySummary.energyLevel} ratio={energyRatio} />
             )}
 
             {message.daySummary && (
               <div className="flex items-center gap-2 text-sm font-body text-muted">
                 <Droplets size={14} className="text-pink" />
-                <span>
-                  {message.daySummary.water} / {message.daySummary.waterGoal} vasos
-                </span>
+                <span>{message.daySummary.water} / {message.daySummary.waterGoal} vasos</span>
               </div>
             )}
-          </div>
-        </div>
-      );
-
-    case 'assistant-water':
-      return (
-        <div className="max-w-[85%] animate-fade-in">
-          <div className="bg-surface2/40 rounded-2xl rounded-tl-md px-4 py-4 space-y-3">
-            <p className="text-sm font-body text-text-primary">{message.text}</p>
-
-            <div className="flex items-center justify-center gap-4">
-              <button
-                type="button"
-                onClick={() => onWaterChange(-1)}
-                className="w-12 h-12 rounded-2xl bg-surface2 flex items-center justify-center text-text-primary hover:bg-surface2/80 transition-all"
-              >
-                <Minus size={20} />
-              </button>
-
-              <div className="flex items-center gap-2">
-                <Droplets size={24} className="text-pink" />
-                <span className="text-2xl font-body font-bold text-text-primary">
-                  {message.daySummary?.water ?? 0}
-                </span>
-                <span className="text-sm font-body text-muted">
-                  / {message.daySummary?.waterGoal ?? 8}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onWaterChange(1)}
-                className="w-12 h-12 rounded-2xl bg-surface2 flex items-center justify-center text-text-primary hover:bg-surface2/80 transition-all"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
           </div>
         </div>
       );

@@ -420,6 +420,7 @@ export interface AiChatContext {
 export interface AiChatResponse {
   text: string;
   actions: AiAction[];
+  quickReplies: string[];
   remaining: number;
 }
 

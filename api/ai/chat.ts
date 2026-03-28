@@ -126,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const responseText = result.response.text();
 
     // Parse JSON response from Gemini
-    let parsed: { text: string; actions: unknown[] };
+    let parsed: { text: string; actions: unknown[]; quickReplies?: string[] };
     try {
       // Strip markdown code fences if present
       const cleaned = responseText
@@ -142,6 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       text: parsed.text,
       actions: parsed.actions || [],
+      quickReplies: parsed.quickReplies || [],
       remaining: rateResult.remaining,
     });
   } catch (err) {
