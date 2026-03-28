@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sun, CalendarDays, LayoutGrid, Download, Printer, UserCircle } from 'lucide-react';
+import { Sun, CalendarDays, LayoutGrid, Download, Printer, UserCircle, RotateCcw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
@@ -221,9 +221,11 @@ function CaloriesToggle() {
 function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
+  const clearProfile = useProfileStore((s) => s.clearProfile);
   const logout = useAuthStore((s) => s.logout);
   const buildPayload = useGistSyncStore((s) => s.buildPayload);
   const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
+  const schedulePush = useGistSyncStore((s) => s.schedulePush);
 
   const handleExportJSON = () => {
     const payload = buildPayload();
@@ -314,6 +316,9 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
             </p>
             <Button variant="secondary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
               Editar perfil
+            </Button>
+            <Button variant="danger" icon={<RotateCcw size={16} />} onClick={() => { if (confirm('¿Resetear tu perfil? Vas a tener que crearlo de nuevo.')) { clearProfile(); schedulePush(); } }} fullWidth>
+              Resetear perfil
             </Button>
           </div>
         ) : (
