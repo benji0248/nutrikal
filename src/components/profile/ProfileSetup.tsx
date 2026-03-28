@@ -8,6 +8,7 @@ import { DietaryPrefs } from './DietaryPrefs';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 import { useProfileStore } from '../../store/useProfileStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { generateId } from '../../utils/dateHelpers';
@@ -23,11 +24,12 @@ type Step = 0 | 1 | 2 | 3;
 
 export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupProps) {
   const setProfile = useProfileStore((s) => s.setProfile);
+  const user = useAuthStore((s) => s.user);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients = [...INGREDIENTS_DB, ...customIngredients];
 
   const [step, setStep] = useState<Step>(0);
-  const [name, setName] = useState(existingProfile?.name ?? '');
+  const profileName = existingProfile?.name ?? user?.displayName ?? user?.username ?? '';
   const [birthDate, setBirthDate] = useState(existingProfile?.birthDate ?? '');
   const [sex, setSex] = useState<Sex>(existingProfile?.sex ?? 'male');
   const [heightCm, setHeightCm] = useState(existingProfile?.heightCm?.toString() ?? '');
@@ -38,7 +40,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
   const [dislikedIds, setDislikedIds] = useState<string[]>(existingProfile?.dislikedIngredientIds ?? []);
 
   const canNext = (): boolean => {
-    if (step === 0) return name.trim().length > 0 && birthDate.length > 0 && Number(heightCm) > 0 && Number(weightKg) > 0;
+    if (step === 0) return birthDate.length > 0 && Number(heightCm) > 0 && Number(weightKg) > 0;
     return true;
   };
 
@@ -46,7 +48,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
     const now = new Date().toISOString();
     const profile: UserProfile = {
       id: existingProfile?.id ?? generateId(),
-      name: name.trim(),
+      name: profileName,
       birthDate,
       sex,
       heightCm: Number(heightCm),
@@ -88,7 +90,6 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       {/* Step 0: Basic data */}
       {step === 0 && (
         <div className="space-y-3">
-          <Input label="Nombre" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} />
           <Input label="Fecha de nacimiento" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
           <div>
             <p className="text-sm font-medium text-text-primary mb-1.5">Sexo biológico</p>
