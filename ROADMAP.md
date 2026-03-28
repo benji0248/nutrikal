@@ -3,9 +3,16 @@
 Each module is self-contained. We complete one fully before starting the next.
 "Complete" means: code written, types clean, build passes, pushed, tested in browser.
 
+**Order rationale:** The chat (Nutri) is the engine of everything — without it, the calendar
+is empty and shopping has nothing. So we clean up first, then perfect the chat, then the
+calendar (which now has data to show), then everything else.
+
+**Claude Web reviews UX** starting from Module 1 (Nutri). Each module gets reviewed
+in the browser before moving to the next.
+
 ---
 
-## Module 0: Cleanup
+## Module 0: Cleanup (Claude Code only)
 **Goal:** Remove dead code and features that are out of scope. Start clean.
 
 ### Remove:
@@ -16,6 +23,7 @@ Each module is self-contained. We complete one fully before starting the next.
 - [ ] WhatShouldIEat.tsx — delete (orphaned, replaced by AI chat)
 - [ ] PlanPreferencesForm.tsx — delete (never used)
 - [ ] Dead ChatMessageTypes — remove 'assistant-recipe', 'assistant-water', 'assistant-energy'
+- [ ] Dead assistant components — RecipeCard, PortionAdjuster (if orphaned)
 
 ### Fix:
 - [ ] migratePayload() — add customDishes handling
@@ -29,48 +37,58 @@ Each module is self-contained. We complete one fully before starting the next.
 
 ---
 
-## Module 1: Calendar → "Hoy" (Home Experience)
-**Goal:** Calendar opens to today. Today's view is the home screen of the app.
+## Module 1: Nutri (AI Chat) — Claude Web reviews first
+**Goal:** The AI chat is the heart of the app. It must feel natural, contextual, and useful.
+This is the FIRST module Claude Web reviews in the browser.
+
+### Why first:
+- The chat generates plans → fills the calendar → generates shopping lists
+- If the chat doesn't work well, everything downstream is useless
+- UX polish here has the highest impact on the whole app
 
 ### Changes:
-- [ ] Calendar defaults to day view (today) on app open
-- [ ] Today's view redesign:
-  - 4 meal slots clearly visible (desayuno/almuerzo/cena/snack)
-  - Each slot: empty state with "+" or filled with dish name + human portion
-  - Energy bar always visible at the top (color state, no numbers)
-  - Tap empty slot → dish search → select → done (2 taps)
-- [ ] Quick-add flow: tap "+" on slot → inline search → pick dish → saved
-- [ ] Remove calculator integration from meal slots (was CalorieCalculator)
-- [ ] Week/month views accessible via toggle, not tabs
-- [ ] Rename tab label from "Calendario" to "Hoy" (or keep "Calendario" — decide during implementation)
-
-### Verify:
-- [ ] Opening app lands on today's meal view
-- [ ] Adding a meal takes max 2 taps
-- [ ] Energy bar shows correct color state
-- [ ] Week/month views still accessible
-- [ ] Meals sync properly
-
----
-
-## Module 2: Nutri (AI Chat) Polish
-**Goal:** The AI chat is conversational, contextual, and reliable.
-
-### Changes:
-- [ ] Quick replies are always contextual (verify with testing)
-- [ ] Welcome message includes 2-3 initial quick replies
-- [ ] Error states are friendly (offline, rate limit, API error)
-- [ ] Conversation history persists during session (already works)
+- [ ] Welcome message with 2-3 contextual quick replies (not generic)
+- [ ] Quick replies are ALWAYS contextual to the AI's question
+- [ ] Dialogue-first: AI asks 2-3 questions before generating a plan
+- [ ] Short responses: 1-3 sentences max
 - [ ] Week plan review (WeekPlanner) renders correctly inline
 - [ ] Apply plan → meals appear in calendar + shopping list generated
 - [ ] Swap meal from plan works
+- [ ] Error states are friendly (offline, rate limit, API error)
 - [ ] Rate limit message is friendly
+- [ ] Chat scroll behavior is smooth (auto-scroll to latest)
+- [ ] Input UX: clear after send, disable while loading
+- [ ] Loading state: "Pensando..." bubble
 
-### Verify:
-- [ ] 5+ conversation flows tested end-to-end
-- [ ] Quick replies change with every message
-- [ ] Plan generation → review → apply → calendar has meals
-- [ ] No generic quick replies appear
+### Claude Web reviews:
+- [ ] Full conversation flow: open → ask for plan → dialogue → plan generated → apply
+- [ ] Mobile layout (375px): no overflow, touch targets OK
+- [ ] Quick replies look and feel right
+- [ ] WeekPlanner inline rendering
+- [ ] Error states
+
+---
+
+## Module 2: Calendario (Home + Empty State)
+**Goal:** Calendar opens to today. Empty days nudge you to plan.
+
+### Changes:
+- [ ] Calendar defaults to day view (today) on app open
+- [ ] Today's view shows 4 meal slots (desayuno/almuerzo/cena/snack)
+- [ ] Each slot: empty state with "+" or filled with dish name + human portion
+- [ ] Energy bar always visible at top (color state, no numbers)
+- [ ] **Empty state detection:** if today/week has no meals → friendly banner:
+  "No tenés nada planificado. ¿Armamos la semana?" → taps to Nutri tab
+- [ ] Quick-add: tap "+" on slot → dish search → select → done (2 taps)
+- [ ] Week/month views accessible via toggle
+- [ ] Remove calculator integration from meal slots
+
+### Claude Web reviews:
+- [ ] Opening app → today's view with meals or empty state
+- [ ] Empty state message + CTA to Nutri
+- [ ] Adding a meal in 2 taps
+- [ ] Energy bar correct color
+- [ ] Week/month still work
 
 ---
 
@@ -93,12 +111,11 @@ Each module is self-contained. We complete one fully before starting the next.
 - [ ] Update frequency count whenever a meal is added to calendar
 - [ ] Migrate existing meal data to populate initial frequency counts
 
-### Verify:
+### Claude Web reviews:
 - [ ] Tab shows dishes sorted by frequency
 - [ ] Favoriting works and persists
-- [ ] Custom dish CRUD still works
-- [ ] New meals increment frequency counter
-- [ ] Data syncs properly
+- [ ] Dish detail view looks good
+- [ ] Empty state for new users
 
 ---
 
@@ -113,11 +130,11 @@ Each module is self-contained. We complete one fully before starting the next.
 - [ ] Manual add item option
 - [ ] Consolidation: if plan has "pollo" twice, show combined amount
 
-### Verify:
-- [ ] Apply week plan → shopping list auto-generated
-- [ ] Add single meal → items added to list
-- [ ] Sections are correct
-- [ ] Checked items persist
+### Claude Web reviews:
+- [ ] Apply week plan → shopping list appears
+- [ ] Sections are logical
+- [ ] Check/uncheck UX
+- [ ] Mobile layout
 
 ---
 
@@ -134,11 +151,10 @@ Each module is self-contained. We complete one fully before starting the next.
 - [ ] Saved dishes appear in Historial tab
 - [ ] System prompt updated to allow invention beyond catalog
 
-### Verify:
-- [ ] AI suggests a dish not in catalog
-- [ ] Dish gets saved with calculated macros
+### Claude Web reviews:
+- [ ] AI suggests a novel dish
 - [ ] Dish appears in Historial
-- [ ] Macros are reasonable (spot-check against known values)
+- [ ] Macros look reasonable
 
 ---
 
@@ -151,7 +167,7 @@ Each module is self-contained. We complete one fully before starting the next.
 - [ ] Generates first week plan
 - [ ] Shows how to use the app (brief, not a tutorial)
 
-### Verify:
+### Claude Web reviews:
 - [ ] New user → profile → first plan → calendar populated
 - [ ] Feels natural, not like a tutorial
 
@@ -169,10 +185,10 @@ Each module is self-contained. We complete one fully before starting the next.
 - [ ] Account management
 - [ ] Remove any dead settings UI
 
-### Verify:
+### Claude Web reviews:
 - [ ] Changing weight recalculates budget
 - [ ] Restrictions affect AI suggestions
-- [ ] Export/import works end-to-end
+- [ ] Export/import works
 
 ---
 
