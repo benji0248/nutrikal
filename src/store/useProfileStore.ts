@@ -1,12 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { UserProfile, MetabolicResult, ActivityEntry } from '../types';
+import type { UserProfile, MetabolicResult } from '../types';
 import { computeMetabolism } from '../services/metabolicService';
-import { generateId } from '../utils/dateHelpers';
 
 interface ProfileState {
   profile: UserProfile | null;
-  activityLog: ActivityEntry[];
 
   setProfile: (profile: UserProfile) => void;
   updateProfile: (partial: Partial<UserProfile>) => void;
@@ -14,20 +12,15 @@ interface ProfileState {
   getMetabolicResult: () => MetabolicResult | null;
   needsRecalibration: () => boolean;
   markRecalibrated: () => void;
-  addActivity: (entry: Omit<ActivityEntry, 'id'>) => void;
-  removeActivity: (id: string) => void;
-  getActivitiesForDate: (date: string) => ActivityEntry[];
 }
 
 export const useProfileStore = create<ProfileState>()(
   persist(
     (set, get) => ({
       profile: null,
-      activityLog: [],
 
       setProfile: (profile: UserProfile) => {
         set({ profile });
-        // Trigger sync
         import('./useGistSyncStore').then(({ useGistSyncStore }) =>
           useGistSyncStore.getState().schedulePush(),
         );
@@ -43,7 +36,7 @@ export const useProfileStore = create<ProfileState>()(
         );
       },
 
-      clearProfile: () => set({ profile: null, activityLog: [] }),
+      clearProfile: () => set({ profile: null }),
 
       getMetabolicResult: (): MetabolicResult | null => {
         const { profile } = get();
@@ -74,31 +67,11 @@ export const useProfileStore = create<ProfileState>()(
           useGistSyncStore.getState().schedulePush(),
         );
       },
-
-      addActivity: (entry) => {
-        const newEntry: ActivityEntry = { ...entry, id: generateId() };
-        set((s) => ({ activityLog: [...s.activityLog, newEntry] }));
-        import('./useGistSyncStore').then(({ useGistSyncStore }) =>
-          useGistSyncStore.getState().schedulePush(),
-        );
-      },
-
-      removeActivity: (id) => {
-        set((s) => ({ activityLog: s.activityLog.filter((a) => a.id !== id) }));
-        import('./useGistSyncStore').then(({ useGistSyncStore }) =>
-          useGistSyncStore.getState().schedulePush(),
-        );
-      },
-
-      getActivitiesForDate: (date: string): ActivityEntry[] => {
-        return get().activityLog.filter((a) => a.date === date);
-      },
     }),
     {
       name: 'nutrikal-profile',
       partialize: (state) => ({
         profile: state.profile,
-        activityLog: state.activityLog,
       }),
     },
   ),

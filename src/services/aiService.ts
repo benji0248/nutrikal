@@ -56,7 +56,7 @@ function compressTodayPlan(
   }
 
   if (Object.keys(result).length === 0) return null;
-  return { date: plan.date, meals: result, water: plan.water, waterGoal: plan.waterGoal };
+  return { date: plan.date, meals: result };
 }
 
 /**

@@ -20,8 +20,6 @@ import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
 import { ThemeToggle } from './components/ui/ThemeToggle';
 import { SyncIndicator } from './components/ui/SyncIndicator';
 import { Button } from './components/ui/Button';
-import { BottomSheet } from './components/ui/BottomSheet';
-import { Modal } from './components/ui/Modal';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
@@ -57,15 +55,11 @@ function AuthenticatedApp() {
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
   const currentDate = useCalendarStore((s) => s.currentDate);
-  const weekTemplates = useCalendarStore((s) => s.weekTemplates);
-  const applyTemplate = useCalendarStore((s) => s.applyTemplate);
-  const deleteTemplate = useCalendarStore((s) => s.deleteTemplate);
 
   const profile = useProfileStore((s) => s.profile);
   const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
   const initialLoad = useGistSyncStore((s) => s.initialLoad);
 
-  const [showTemplates, setShowTemplates] = useState(false);
   const [showRecalibrate, setShowRecalibrate] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
@@ -83,36 +77,6 @@ function AuthenticatedApp() {
   }, [profile, needsRecalibration]);
 
   const headerLabel = view === 'day' ? '' : view === 'week' ? getWeekRange(currentDate) : getMonthLabel(currentDate);
-
-  const templatesContent = (
-    <div className="space-y-3">
-      {weekTemplates.length === 0 ? (
-        <p className="text-sm text-muted font-body text-center py-4">No hay plantillas guardadas</p>
-      ) : (
-        weekTemplates.map((tpl) => (
-          <div key={tpl.id} className="bg-surface2/50 rounded-2xl border border-border/40 p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-body font-medium text-text-primary">{tpl.name}</h3>
-              <span className="text-[10px] text-muted font-mono">
-                {new Date(tpl.createdAt).toLocaleDateString('es-AR')}
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="primary" onClick={() => { applyTemplate(tpl.id, currentDate, 'merge'); setShowTemplates(false); }}>
-                Combinar
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => { applyTemplate(tpl.id, currentDate, 'replace'); setShowTemplates(false); }}>
-                Reemplazar
-              </Button>
-              <Button size="sm" variant="danger" onClick={() => deleteTemplate(tpl.id)}>
-                Eliminar
-              </Button>
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
 
   return (
     <div className="min-h-dvh bg-bg text-text-primary">
@@ -181,13 +145,6 @@ function AuthenticatedApp() {
                   >
                     Hoy
                   </button>
-                  <button
-                    onClick={() => setShowTemplates(true)}
-                    className="px-2 py-2 rounded-xl text-xs font-body text-muted hover:text-text-primary hover:bg-surface2 transition-colors min-h-[36px]"
-                    aria-label="Plantillas"
-                  >
-                    ⋯
-                  </button>
                 </>
               )}
               <SyncIndicator />
@@ -211,13 +168,6 @@ function AuthenticatedApp() {
       </main>
 
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-
-      <BottomSheet isOpen={showTemplates} onClose={() => setShowTemplates(false)} title="Plantillas de semana">
-        {templatesContent}
-      </BottomSheet>
-      <Modal isOpen={showTemplates} onClose={() => setShowTemplates(false)} title="Plantillas de semana">
-        {templatesContent}
-      </Modal>
 
       <ProfileRecalibrate
         isOpen={showRecalibrate}

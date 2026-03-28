@@ -67,7 +67,7 @@ export const useAuthStore = create<AuthStoreState>()(
 
         // Reset data stores
         import('./useCalendarStore').then(({ useCalendarStore }) =>
-          useCalendarStore.setState({ dayPlans: {}, weekTemplates: [], notifications: [] }),
+          useCalendarStore.setState({ dayPlans: {}, notifications: [] }),
         );
         import('./useCalculatorStore').then(({ useCalculatorStore }) =>
           useCalculatorStore.setState({ savedRecipes: [], entries: [] }),
@@ -76,7 +76,7 @@ export const useAuthStore = create<AuthStoreState>()(
           useIngredientsStore.setState({ customIngredients: [] }),
         );
         import('./useProfileStore').then(({ useProfileStore }) =>
-          useProfileStore.setState({ profile: null, activityLog: [] }),
+          useProfileStore.setState({ profile: null }),
         );
         import('./useShoppingStore').then(({ useShoppingStore }) =>
           useShoppingStore.setState({ lists: [] }),

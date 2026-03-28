@@ -228,8 +228,6 @@ export function useChatEngine(): ChatEngineResult {
             daySummary: {
               meals,
               energyLevel: currentLevel,
-              water: plan?.water ?? 0,
-              waterGoal: plan?.waterGoal ?? 8,
             },
             timestamp: new Date().toISOString(),
           });

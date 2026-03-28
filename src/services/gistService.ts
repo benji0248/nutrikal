@@ -41,18 +41,16 @@ function emptyPayload(): GistPayload {
     version: 1,
     lastModified: new Date().toISOString(),
     dayPlans: {},
-    weekTemplates: [],
     savedRecipes: [],
     customIngredients: [],
     notifications: [],
     settings: {
-      waterGoalDefault: 8,
       theme: 'dark',
       showCalories: false,
     },
     profile: undefined,
     shoppingLists: [],
-    activityLog: [],
+    customDishes: [],
   };
 }
 
@@ -162,7 +160,6 @@ export function migratePayload(data: unknown): GistPayload {
   const raw = data as Record<string, unknown>;
 
   return {
-    ...raw,
     version: typeof raw.version === 'number' ? raw.version : 1,
     lastModified:
       typeof raw.lastModified === 'string' ? raw.lastModified : base.lastModified,
@@ -170,9 +167,6 @@ export function migratePayload(data: unknown): GistPayload {
       raw.dayPlans && typeof raw.dayPlans === 'object'
         ? (raw.dayPlans as GistPayload['dayPlans'])
         : base.dayPlans,
-    weekTemplates: Array.isArray(raw.weekTemplates)
-      ? (raw.weekTemplates as GistPayload['weekTemplates'])
-      : base.weekTemplates,
     savedRecipes: Array.isArray(raw.savedRecipes)
       ? (raw.savedRecipes as GistPayload['savedRecipes'])
       : base.savedRecipes,
@@ -183,11 +177,6 @@ export function migratePayload(data: unknown): GistPayload {
       ? (raw.notifications as GistPayload['notifications'])
       : base.notifications,
     settings: {
-      waterGoalDefault:
-        raw.settings &&
-        typeof (raw.settings as Record<string, unknown>).waterGoalDefault === 'number'
-          ? (raw.settings as GistPayload['settings']).waterGoalDefault
-          : base.settings.waterGoalDefault,
       theme:
         raw.settings &&
         ((raw.settings as Record<string, unknown>).theme === 'dark' ||
@@ -207,8 +196,8 @@ export function migratePayload(data: unknown): GistPayload {
     shoppingLists: Array.isArray(raw.shoppingLists)
       ? (raw.shoppingLists as GistPayload['shoppingLists'])
       : base.shoppingLists,
-    activityLog: Array.isArray(raw.activityLog)
-      ? (raw.activityLog as GistPayload['activityLog'])
-      : base.activityLog,
-  } as GistPayload;
+    customDishes: Array.isArray(raw.customDishes)
+      ? (raw.customDishes as GistPayload['customDishes'])
+      : base.customDishes,
+  };
 }

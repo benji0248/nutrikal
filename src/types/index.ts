@@ -1,7 +1,7 @@
 export type MealType = 'desayuno' | 'almuerzo' | 'cena' | 'snack';
 export type Theme = 'dark' | 'light';
 export type ViewMode = 'day' | 'week' | 'month';
-export type AppTab = 'calendar' | 'calculator' | 'recipes' | 'assistant' | 'shopping' | 'settings';
+export type AppTab = 'calendar' | 'recipes' | 'assistant' | 'shopping' | 'settings';
 
 export type IngredientCategory =
   | 'carnes'
@@ -93,16 +93,7 @@ export interface Meal {
 export interface DayPlan {
   date: string;
   meals: Record<MealType, Meal[]>;
-  water: number;
-  waterGoal: number;
   notes: string;
-}
-
-export interface WeekTemplate {
-  id: string;
-  name: string;
-  createdAt: string;
-  days: Partial<Record<string, Pick<DayPlan, 'meals' | 'notes'>>>;
 }
 
 export interface Notification {
@@ -143,18 +134,15 @@ export interface GistPayload {
   version: number;
   lastModified: string;
   dayPlans: Record<string, DayPlan>;
-  weekTemplates: WeekTemplate[];
   savedRecipes: CalculatorRecipe[];
   customIngredients: Ingredient[];
   notifications: Notification[];
   settings: {
-    waterGoalDefault: number;
     theme: Theme;
     showCalories?: boolean;
   };
   profile?: UserProfile;
   shoppingLists?: ShoppingList[];
-  activityLog?: ActivityEntry[];
   customDishes?: Dish[];
 }
 
@@ -270,16 +258,6 @@ export interface ShoppingList {
   items: ShoppingItem[];
 }
 
-// ── Activity types ──
-
-export interface ActivityEntry {
-  id: string;
-  date: string;
-  description: string;
-  durationMinutes: number;
-  caloriesBurned: number; // internal only, never displayed
-}
-
 // ── Ingredient portion types ──
 
 export interface IngredientPortion {
@@ -295,17 +273,13 @@ export type ChatStep =
   | 'meal_selected'
   | 'dish_selected'
   | 'confirmed'
-  | 'day_summary'
-  | 'water_tracking';
+  | 'day_summary';
 
 export type ChatMessageType =
   | 'assistant-text'
   | 'assistant-options'
   | 'assistant-dishes'
-  | 'assistant-recipe'
   | 'assistant-summary'
-  | 'assistant-water'
-  | 'assistant-energy'
   | 'assistant-plan'
   | 'assistant-loading'
   | 'assistant-applied'
@@ -333,8 +307,6 @@ export interface ChatMessage {
   daySummary?: {
     meals: Array<{ mealType: MealType; name: string }>;
     energyLevel: EnergyLevel;
-    water: number;
-    waterGoal: number;
   };
   weekPlan?: WeekPlan;
   timestamp: string;

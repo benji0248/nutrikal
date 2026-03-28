@@ -1,20 +1,15 @@
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { useSwipe } from '../../hooks/useSwipe';
 import { getWeekDays, getWeekRange, parseDate, isToday, DAY_LABELS, formatDateKey } from '../../utils/dateHelpers';
 import { DayCard } from './DayCard';
-import { Button } from '../ui/Button';
-import { BottomSheet } from '../ui/BottomSheet';
-import { Modal } from '../ui/Modal';
-import { Input } from '../ui/Input';
 import { format } from 'date-fns';
 
 export function WeekView() {
   const currentDate = useCalendarStore((s) => s.currentDate);
   const navWeek = useCalendarStore((s) => s.navigateWeek);
-  const saveTemplate = useCalendarStore((s) => s.saveWeekAsTemplate);
 
   const weekDays = useMemo(() => getWeekDays(parseDate(currentDate)), [currentDate]);
 
@@ -22,8 +17,6 @@ export function WeekView() {
     const todayIdx = weekDays.findIndex((d) => isToday(d));
     return todayIdx >= 0 ? todayIdx : 0;
   });
-  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
-  const [templateName, setTemplateName] = useState('');
 
   const swipeBindings = useSwipe({
     onSwipeLeft: () => {
@@ -35,32 +28,6 @@ export function WeekView() {
       else navWeek('prev');
     },
   });
-
-  const handleSaveTemplate = () => {
-    if (!templateName.trim()) return;
-    saveTemplate(templateName.trim());
-    setTemplateName('');
-    setShowSaveTemplate(false);
-  };
-
-  const templateForm = (
-    <div className="space-y-4">
-      <p className="text-sm text-muted font-body">
-        Guardá esta semana como plantilla para reutilizarla.
-      </p>
-      <Input
-        label="Nombre"
-        value={templateName}
-        onChange={(e) => setTemplateName(e.target.value)}
-        placeholder="Ej: Semana alta en proteínas"
-        onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
-      />
-      <div className="flex gap-3">
-        <Button variant="secondary" onClick={() => setShowSaveTemplate(false)} fullWidth>Cancelar</Button>
-        <Button onClick={handleSaveTemplate} fullWidth disabled={!templateName.trim()}>Guardar</Button>
-      </div>
-    </div>
-  );
 
   return (
     <div {...swipeBindings}>
@@ -84,9 +51,6 @@ export function WeekView() {
             <ChevronRight size={20} className="text-muted" />
           </button>
         </div>
-        <Button variant="ghost" size="sm" icon={<Save size={14} />} onClick={() => setShowSaveTemplate(true)}>
-          <span className="hidden sm:inline">Plantilla</span>
-        </Button>
       </div>
 
       {/* Day tabs — mobile only */}
@@ -130,13 +94,6 @@ export function WeekView() {
           <DayCard key={formatDateKey(day)} date={day} />
         ))}
       </div>
-
-      <BottomSheet isOpen={showSaveTemplate} onClose={() => setShowSaveTemplate(false)} title="Guardar plantilla">
-        {templateForm}
-      </BottomSheet>
-      <Modal isOpen={showSaveTemplate} onClose={() => setShowSaveTemplate(false)} title="Guardar plantilla">
-        {templateForm}
-      </Modal>
     </div>
   );
 }

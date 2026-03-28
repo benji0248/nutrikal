@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Droplets } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { useCalendarStore } from '../../store/useCalendarStore';
@@ -65,7 +65,6 @@ export function MonthView() {
             const today = isToday(date);
             const plan = dayPlans[key];
             const hasMeals = plan && MEAL_TYPE_ORDER.some((mt) => plan.meals[mt].length > 0);
-            const waterMet = plan && plan.water >= (plan.waterGoal || 8);
 
             return (
               <button
@@ -94,7 +93,6 @@ export function MonthView() {
                     ))}
                   </div>
                 )}
-                {waterMet && <Droplets size={8} className="text-blue-400" />}
               </button>
             );
           })}

@@ -1,4 +1,4 @@
-import { Loader2, Droplets } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { ChatMessage, ChatOption, EnergyLevel, Ingredient, MealType, WeekPlan } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
 import { OptionChips } from './OptionChips';
@@ -127,13 +127,6 @@ export const ChatMessageBubble = ({
 
             {message.daySummary && (
               <DayEnergyBar level={message.daySummary.energyLevel} ratio={energyRatio} />
-            )}
-
-            {message.daySummary && (
-              <div className="flex items-center gap-2 text-sm font-body text-muted">
-                <Droplets size={14} className="text-pink" />
-                <span>{message.daySummary.water} / {message.daySummary.waterGoal} vasos</span>
-              </div>
             )}
           </div>
         </div>

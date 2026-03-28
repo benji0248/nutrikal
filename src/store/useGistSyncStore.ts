@@ -143,13 +143,11 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
 
     let profile: GistPayload['profile'];
     let shoppingLists: GistPayload['shoppingLists'] = [];
-    let activityLog: GistPayload['activityLog'] = [];
     try {
       const profileRaw = localStorage.getItem('nutrikal-profile');
       if (profileRaw) {
         const parsed = JSON.parse(profileRaw);
         profile = parsed?.state?.profile ?? undefined;
-        activityLog = parsed?.state?.activityLog ?? [];
       }
     } catch { /* ignore */ }
     try {
@@ -164,18 +162,15 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
       version: 1,
       lastModified: new Date().toISOString(),
       dayPlans: calendar.dayPlans,
-      weekTemplates: calendar.weekTemplates,
       savedRecipes: calculator.savedRecipes,
       customIngredients: ingredients.customIngredients,
       notifications: calendar.notifications,
       settings: {
-        waterGoalDefault: 8,
         theme: theme as 'dark' | 'light',
         showCalories,
       },
       profile,
       shoppingLists,
-      activityLog,
       customDishes,
     };
   },
@@ -183,7 +178,6 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
   hydrateAllStores: (payload: GistPayload) => {
     useCalendarStore.setState({
       dayPlans: payload.dayPlans,
-      weekTemplates: payload.weekTemplates,
       notifications: payload.notifications,
     });
     useCalculatorStore.setState({
@@ -197,7 +191,6 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
     import('./useProfileStore').then(({ useProfileStore }) => {
       useProfileStore.setState({
         profile: payload.profile ?? null,
-        activityLog: payload.activityLog ?? [],
       });
     });
     import('./useShoppingStore').then(({ useShoppingStore }) => {

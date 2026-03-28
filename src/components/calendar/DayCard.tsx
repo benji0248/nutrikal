@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { Droplets, Plus, Minus } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore, createEmptyDayPlan } from '../../store/useCalendarStore';
 import { isToday, formatDayFull, formatDateKey } from '../../utils/dateHelpers';
@@ -18,7 +17,6 @@ export function DayCard({ date }: DayCardProps) {
   const dateKey = formatDateKey(date);
   const storedPlan = useCalendarStore((s) => s.dayPlans[dateKey]);
   const dayPlan = useMemo(() => storedPlan ?? createEmptyDayPlan(dateKey), [storedPlan, dateKey]);
-  const setWater = useCalendarStore((s) => s.setWater);
   const setNotes = useCalendarStore((s) => s.setNotes);
 
   const [notesValue, setNotesValue] = useState(dayPlan.notes);
@@ -32,9 +30,6 @@ export function DayCard({ date }: DayCardProps) {
     (sum, mt) => sum + dayPlan.meals[mt].reduce((s, m) => s + (getMealCalories(m, allIngredients) ?? 0), 0),
     0,
   );
-  const waterGoal = dayPlan.waterGoal || 8;
-  const waterPercent = Math.min((dayPlan.water / waterGoal) * 100, 100);
-
   return (
     <div
       className={clsx(
@@ -59,41 +54,6 @@ export function DayCard({ date }: DayCardProps) {
         {showCalories && totalCals > 0 && (
           <span className="text-xs font-mono text-accent">{totalCals} kcal</span>
         )}
-      </div>
-
-      {/* Water tracker */}
-      <div className="bg-surface2/40 rounded-2xl border border-border/30 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Droplets size={16} className="text-blue-400" />
-            <span className="text-xs font-body font-medium text-text-primary">Agua</span>
-          </div>
-          <span className="text-[11px] font-mono text-muted">
-            {dayPlan.water}/{waterGoal}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setWater(dateKey, Math.max(0, dayPlan.water - 1))}
-            className="p-2 rounded-xl bg-surface hover:bg-surface2 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-            aria-label="Quitar un vaso"
-          >
-            <Minus size={14} className="text-muted" />
-          </button>
-          <div className="flex-1 h-2.5 bg-surface rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-500"
-              style={{ width: `${waterPercent}%` }}
-            />
-          </div>
-          <button
-            onClick={() => setWater(dateKey, Math.min(dayPlan.water + 1, 20))}
-            className="p-2 rounded-xl bg-surface hover:bg-surface2 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-            aria-label="Agregar un vaso"
-          >
-            <Plus size={14} className="text-blue-400" />
-          </button>
-        </div>
       </div>
 
       {/* Meal slots */}
