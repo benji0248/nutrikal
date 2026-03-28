@@ -1,4 +1,4 @@
-import { getSupabase } from './supabase';
+import { getSupabase } from './supabase.js';
 
 const DAILY_LIMIT = 80;
 
