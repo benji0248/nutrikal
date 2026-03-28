@@ -4,6 +4,7 @@ import { getSupabase } from '../_lib/supabase';
 import { signToken } from '../_lib/jwt';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -49,4 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       displayName: user.display_name,
     },
   });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ error: (err as Error).message || 'Error interno del servidor' });
+  }
 }
