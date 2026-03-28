@@ -39,24 +39,20 @@ export const ChatAssistant = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || !bottomRef.current) return;
-
-    const isNearBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 200;
-
-    if (isNearBottom) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    // Small delay to ensure DOM has updated with new message content
+    const timer = setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   return (
-    <div className="flex flex-col -mx-4 -mt-6 -mb-24 md:-mb-6" style={{ height: 'calc(100dvh - 60px - 64px)' }}>
+    <div className="flex flex-col -mx-4 -mt-6 -mb-24 md:-mb-6 h-[calc(100dvh-60px-64px)] md:h-[calc(100dvh-60px)]">
       <ChatHeader />
 
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-6 space-y-4"
+        className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4"
       >
         {messages.map((msg, idx) => (
           <ChatMessageBubble
