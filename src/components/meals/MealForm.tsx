@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { generateId } from '../../utils/dateHelpers';
+import { useSettingsStore } from '../../store/useSettingsStore';
 import type { Meal } from '../../types';
 
 interface MealFormProps {
@@ -11,6 +12,7 @@ interface MealFormProps {
 }
 
 export function MealForm({ editingMeal, onSubmit, onCancel }: MealFormProps) {
+  const showCalories = useSettingsStore((s) => s.showCalories);
   const [name, setName] = useState(editingMeal?.name ?? '');
   const [calories, setCalories] = useState(editingMeal?.calories?.toString() ?? '');
   const [notes, setNotes] = useState(editingMeal?.notes ?? '');
@@ -37,14 +39,16 @@ export function MealForm({ editingMeal, onSubmit, onCancel }: MealFormProps) {
         placeholder="Ej: Avena con frutas"
         required
       />
-      <Input
-        label="Calorías"
-        type="number"
-        value={calories}
-        onChange={(e) => setCalories(e.target.value)}
-        placeholder="kcal (opcional)"
-        min={0}
-      />
+      {showCalories && (
+        <Input
+          label="Calorías"
+          type="number"
+          value={calories}
+          onChange={(e) => setCalories(e.target.value)}
+          placeholder="kcal (opcional)"
+          min={0}
+        />
+      )}
       <div>
         <label className="block text-sm font-medium text-text-primary mb-1.5 font-body">
           Notas

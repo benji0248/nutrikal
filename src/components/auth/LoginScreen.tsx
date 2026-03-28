@@ -38,7 +38,7 @@ export const LoginScreen = () => {
             <span className="text-accent font-heading font-bold text-2xl">N</span>
           </div>
           <h1 className="text-2xl font-heading font-bold text-text-primary">NutriKal</h1>
-          <p className="text-sm font-body text-muted">Tu calendario de nutrición</p>
+          <p className="text-sm font-body text-muted">Tu nutrición, organizada</p>
         </div>
 
         {/* Login form */}

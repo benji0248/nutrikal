@@ -50,14 +50,14 @@ function App() {
 }
 
 function AuthenticatedApp() {
-  const [activeTab, setActiveTab] = useState<AppTab>('calendar');
+  const profile = useProfileStore((s) => s.profile);
+  const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
+
+  const [activeTab, setActiveTab] = useState<AppTab>(profile ? 'calendar' : 'assistant');
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
   const currentDate = useCalendarStore((s) => s.currentDate);
-
-  const profile = useProfileStore((s) => s.profile);
-  const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
   const initialLoad = useGistSyncStore((s) => s.initialLoad);
 
   const [showRecalibrate, setShowRecalibrate] = useState(false);

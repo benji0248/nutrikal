@@ -162,14 +162,16 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
               <Plus size={16} />
               <span className="text-xs font-body font-medium">Agregar</span>
             </button>
-            <button
-              onClick={() => setShowCalc(true)}
-              className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-border hover:border-accent/40 hover:bg-accent/5 transition-all text-muted hover:text-accent min-h-[48px]"
-              aria-label="Calcular calorías"
-            >
-              <Calculator size={16} />
-              <span className="text-xs font-body font-medium hidden sm:inline">Calcular</span>
-            </button>
+            {showCalories && (
+              <button
+                onClick={() => setShowCalc(true)}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-border hover:border-accent/40 hover:bg-accent/5 transition-all text-muted hover:text-accent min-h-[48px]"
+                aria-label="Calculadora"
+              >
+                <Calculator size={16} />
+                <span className="text-xs font-body font-medium hidden sm:inline">Calcular</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -194,7 +196,7 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
       <BottomSheet
         isOpen={showCalc}
         onClose={() => setShowCalc(false)}
-        title="Calcular calorías"
+        title="Calculadora"
         snap="full"
       >
         {calcContent}
@@ -202,7 +204,7 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
       <Modal
         isOpen={showCalc}
         onClose={() => setShowCalc(false)}
-        title="Calcular calorías"
+        title="Calculadora"
       >
         {calcContent}
       </Modal>
