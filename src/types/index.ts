@@ -306,6 +306,10 @@ export type ChatMessageType =
   | 'assistant-summary'
   | 'assistant-water'
   | 'assistant-energy'
+  | 'assistant-plan'
+  | 'assistant-loading'
+  | 'assistant-applied'
+  | 'user-text'
   | 'user-choice';
 
 export interface ChatOption {
@@ -322,6 +326,7 @@ export interface ChatMessage {
   text?: string;
   options?: ChatOption[];
   dishSuggestions?: Dish[];
+  dishReasons?: Record<string, string>;
   selectedDish?: Dish;
   servings?: number;
   humanIngredients?: Array<{ name: string; humanPortion: string }>;
@@ -331,7 +336,91 @@ export interface ChatMessage {
     water: number;
     waterGoal: number;
   };
+  weekPlan?: WeekPlan;
   timestamp: string;
+}
+
+// ── AI types ──
+
+export type AiAction =
+  | AiAddMealAction
+  | AiWeekPlanAction
+  | AiSwapMealAction
+  | AiSuggestDishesAction
+  | AiShowSummaryAction;
+
+export interface AiAddMealAction {
+  type: 'add_meal';
+  date: string;
+  mealType: MealType;
+  dishId: string;
+  servings: number;
+}
+
+export interface AiWeekPlanAction {
+  type: 'week_plan';
+  days: PlannedDay[];
+}
+
+export interface AiSwapMealAction {
+  type: 'swap_meal';
+  date: string;
+  mealType: MealType;
+  dishId: string;
+  servings: number;
+}
+
+export interface AiSuggestDishesAction {
+  type: 'suggest_dishes';
+  dishes: Array<{ dishId: string; reason: string }>;
+}
+
+export interface AiShowSummaryAction {
+  type: 'show_summary';
+}
+
+export interface PlannedMeal {
+  dishId: string;
+  servings: number;
+}
+
+export interface PlannedDay {
+  date: string;
+  meals: Partial<Record<MealType, PlannedMeal>>;
+}
+
+export interface WeekPlan {
+  days: PlannedDay[];
+  applied: boolean;
+}
+
+export interface PlanPreferences {
+  variety: 'poca' | 'normal' | 'mucha';
+  cookingTime: 'rapido' | 'normal' | 'elaborado';
+  budget: 'economico' | 'normal' | 'premium';
+}
+
+export interface AiChatContext {
+  profile: {
+    name: string;
+    goal: string;
+    restrictions: string[];
+    dislikedIds: string[];
+    dailyBudget: number;
+  };
+  catalog: string;
+  todayPlan: unknown | null;
+  weekSummary: string | null;
+  conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
+  todayDate: string;
+  weekDates: string[] | null;
+  preferences: PlanPreferences | null;
+}
+
+export interface AiChatResponse {
+  text: string;
+  actions: AiAction[];
+  remaining: number;
 }
 
 // ── Label maps ──

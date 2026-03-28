@@ -10,7 +10,7 @@ interface SidebarProps {
 
 const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
-  { tab: 'assistant', label: '¿Qué como?', icon: Sparkles },
+  { tab: 'assistant', label: 'Nutri', icon: Sparkles },
   { tab: 'recipes', label: 'Recetas', icon: BookOpen },
   { tab: 'shopping', label: 'Compras', icon: ShoppingCart },
   { tab: 'settings', label: 'Ajustes', icon: Settings },

@@ -203,7 +203,7 @@ function AuthenticatedApp() {
           {activeTab === 'calendar' && view === 'day' && <DayView />}
           {activeTab === 'calendar' && view === 'week' && <WeekView />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
-          {activeTab === 'assistant' && <ChatAssistant />}
+          {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
           {activeTab === 'recipes' && <RecipeBank />}
           {activeTab === 'shopping' && <ShoppingListView />}
           {activeTab === 'settings' && <SettingsView onEditProfile={() => setShowProfileEdit(true)} />}

@@ -1,42 +1,41 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type {
   ChatMessage,
-  ChatStep,
   ChatOption,
   MealType,
   Dish,
   Ingredient,
   EnergyLevel,
+  AiAction,
+  WeekPlan,
+  PlanPreferences,
 } from '../../types';
 import { MEAL_TYPE_LABELS, MEAL_TYPE_ORDER } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { useRecipesStore } from '../../store/useRecipesStore';
 import { useShoppingStore } from '../../store/useShoppingStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { DISHES_DB } from '../../data/dishes';
 import {
-  matchDishes,
   computeDayConsumed,
-  computeRemainingBudget,
-  mealTypeToDishCategory,
   computeDishMacros,
 } from '../../services/dishMatchService';
 import { getEnergyLevel, getEnergyRatio } from '../../services/metabolicService';
 import { createShoppingItemsFromDish } from '../../services/shoppingService';
 import { getDishHumanIngredients } from '../../utils/portionHelpers';
 import { todayKey, generateId } from '../../utils/dateHelpers';
+import {
+  sendMessage,
+  buildContext,
+  getNextWeekDates,
+} from '../../services/aiService';
 
 function makeId(): string {
   return generateId();
 }
-
-const ENERGY_MESSAGES: Record<EnergyLevel, string> = {
-  green: 'Tenés buen margen. Te sugiero estas opciones:',
-  amber: 'Te sugiero opciones que van bien con lo que ya comiste:',
-  warm_orange: 'Hoy ya comiste bastante, van opciones más livianas:',
-};
 
 interface ChatEngineResult {
   messages: ChatMessage[];
@@ -45,16 +44,22 @@ interface ChatEngineResult {
   handleSelectDish: (dish: Dish) => void;
   handleServingsChange: (servings: number) => void;
   handleWaterChange: (delta: number) => void;
+  handleSendMessage: (text: string) => void;
+  handleApplyPlan: (plan: WeekPlan) => void;
+  handleRegeneratePlan: () => void;
+  handleSwapMeal: (date: string, mealType: MealType) => void;
   currentServings: number;
   energyLevel: EnergyLevel;
   energyRatio: number;
   showCalories: boolean;
+  isLoading: boolean;
 }
 
 export function useChatEngine(): ChatEngineResult {
   const profile = useProfileStore((s) => s.profile);
   const getMetabolicResult = useProfileStore((s) => s.getMetabolicResult);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
+  const customDishes = useRecipesStore((s) => s.customDishes);
   const dayPlans = useCalendarStore((s) => s.dayPlans);
   const upsertMeal = useCalendarStore((s) => s.upsertMeal);
   const setWater = useCalendarStore((s) => s.setWater);
@@ -66,39 +71,44 @@ export function useChatEngine(): ChatEngineResult {
     [customIngredients],
   );
 
+  const allDishes: Dish[] = useMemo(
+    () => [...DISHES_DB, ...customDishes],
+    [customDishes],
+  );
+
   const today = todayKey();
   const todayPlan = dayPlans[today];
   const metabolic = getMetabolicResult();
   const budget = metabolic?.budget ?? 2000;
   const consumed = computeDayConsumed(todayPlan, allIngredients);
-  const remaining = computeRemainingBudget(todayPlan, budget, allIngredients);
   const energyLevel = getEnergyLevel(consumed, budget);
   const energyRatio = getEnergyRatio(consumed, budget);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => buildWelcomeMessages());
-  const [, setStep] = useState<ChatStep>('welcome');
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentServings, setCurrentServings] = useState(1);
+  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
+  const [planPreferences] = useState<PlanPreferences | null>(null);
+  const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const prevProfileRef = useRef(profile);
+  const lastPlanRequestRef = useRef<string>('');
 
-  // Reset chat when profile is created (null → value)
+  // Reset chat when profile is created
   useEffect(() => {
     if (!prevProfileRef.current && profile) {
       setMessages(buildWelcomeMessages());
-      setStep('welcome');
+      conversationRef.current = [];
     }
     prevProfileRef.current = profile;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
-  const [selectedMealType, setSelectedMealType] = useState<MealType | null>(null);
-  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
-  const [currentServings, setCurrentServings] = useState(1);
-  const [suggestionOffset, setSuggestionOffset] = useState(0);
 
   function buildWelcomeMessages(): ChatMessage[] {
     const welcomeText: ChatMessage = {
       id: makeId(),
       type: 'assistant-text',
       text: profile
-        ? `¡Hola${profile.name ? `, ${profile.name}` : ''}! ¿Qué querés comer?`
+        ? `¡Hola${profile.name ? `, ${profile.name}` : ''}! Soy tu nutricionista personal. ¿En qué te puedo ayudar?`
         : '¡Bienvenido a NutriKal! Creá tu perfil para recibir sugerencias personalizadas.',
       timestamp: new Date().toISOString(),
     };
@@ -115,23 +125,17 @@ export function useChatEngine(): ChatEngineResult {
       return [welcomeText, profileOption];
     }
 
-    const mealOptions: ChatOption[] = MEAL_TYPE_ORDER.map((mt) => ({
-      id: `meal_${mt}`,
-      label: `Quiero ${MEAL_TYPE_LABELS[mt].toLowerCase()}`,
-      action: 'select_meal',
-      payload: mt,
-      icon: getMealIcon(mt),
-    }));
-
-    const extraOptions: ChatOption[] = [
-      { id: 'day_summary', label: '¿Qué comí hoy?', action: 'day_summary', icon: 'CalendarDays' },
+    const quickActions: ChatOption[] = [
+      { id: 'plan_week', label: 'Planificar mi semana', action: 'plan_week', icon: 'CalendarRange' },
+      { id: 'what_eat', label: '¿Qué como hoy?', action: 'send_text', payload: '¿Qué puedo comer hoy?' },
+      { id: 'day_summary', label: '¿Cómo vengo hoy?', action: 'send_text', payload: '¿Cómo vengo hoy?' },
       { id: 'water', label: 'Registrar agua', action: 'water', icon: 'Droplets' },
     ];
 
     const optionsMsg: ChatMessage = {
       id: makeId(),
       type: 'assistant-options',
-      options: [...mealOptions, ...extraOptions],
+      options: quickActions,
       timestamp: new Date().toISOString(),
     };
 
@@ -142,18 +146,241 @@ export function useChatEngine(): ChatEngineResult {
     setMessages((prev) => [...prev, ...msgs]);
   }
 
-  function getSuggestions(mealType: MealType, offset: number): Dish[] {
-    const category = mealTypeToDishCategory(mealType);
-    const all = matchDishes(DISHES_DB, allIngredients, {
-      category,
-      restrictions: profile?.restrictions,
-      dislikedIngredientIds: profile?.dislikedIngredientIds,
-      maxCalories: remaining > 0 ? remaining : undefined,
-    });
-    return all.slice(offset, offset + 4);
+  function findDish(dishId: string): Dish | undefined {
+    return allDishes.find((d) => d.id === dishId);
   }
 
+  /**
+   * Execute actions returned by the AI.
+   */
+  function executeActions(actions: AiAction[]) {
+    for (const action of actions) {
+      switch (action.type) {
+        case 'add_meal':
+        case 'swap_meal': {
+          const dish = findDish(action.dishId);
+          if (!dish) break;
+
+          const servings = action.servings || 1;
+          const entries = dish.ingredients.map((di) => ({
+            ingredientId: di.ingredientId,
+            grams: Math.round(di.grams * servings),
+          }));
+          const macros = computeDishMacros(dish, allIngredients);
+          const totalCals = Math.round(macros.calories * servings);
+
+          // For swap, first delete existing meals in that slot
+          if (action.type === 'swap_meal') {
+            const currentPlan = useCalendarStore.getState().dayPlans[action.date];
+            if (currentPlan) {
+              const slotMeals = currentPlan.meals[action.mealType];
+              for (const m of slotMeals) {
+                useCalendarStore.getState().deleteMeal(action.date, action.mealType, m.id);
+              }
+            }
+          }
+
+          upsertMeal(action.date, action.mealType, {
+            id: generateId(),
+            name: servings === 1 ? dish.name : `${dish.name} (x${servings})`,
+            entries,
+            calories: totalCals,
+            linkedRecipeId: dish.id,
+          });
+
+          const shoppingItems = createShoppingItemsFromDish(dish, servings, allIngredients);
+          addItemsToActiveList(shoppingItems);
+          break;
+        }
+
+        case 'week_plan': {
+          // Show the plan for review instead of applying directly
+          const weekPlan: WeekPlan = {
+            days: action.days,
+            applied: false,
+          };
+
+          const planMsg: ChatMessage = {
+            id: makeId(),
+            type: 'assistant-plan',
+            weekPlan,
+            timestamp: new Date().toISOString(),
+          };
+
+          addMessages(planMsg);
+          break;
+        }
+
+        case 'suggest_dishes': {
+          const suggestions = action.dishes
+            .map((s) => findDish(s.dishId))
+            .filter((d): d is Dish => d !== undefined);
+
+          const reasons: Record<string, string> = {};
+          for (const s of action.dishes) {
+            if (s.reason) reasons[s.dishId] = s.reason;
+          }
+
+          if (suggestions.length > 0) {
+            const dishesMsg: ChatMessage = {
+              id: makeId(),
+              type: 'assistant-dishes',
+              dishSuggestions: suggestions,
+              dishReasons: reasons,
+              timestamp: new Date().toISOString(),
+            };
+            addMessages(dishesMsg);
+          }
+          break;
+        }
+
+        case 'show_summary': {
+          const plan = useCalendarStore.getState().dayPlans[todayKey()];
+          const meals: Array<{ mealType: MealType; name: string }> = [];
+
+          if (plan) {
+            for (const mt of MEAL_TYPE_ORDER) {
+              for (const meal of plan.meals[mt]) {
+                meals.push({ mealType: mt, name: meal.name });
+              }
+            }
+          }
+
+          const currentLevel = getEnergyLevel(
+            computeDayConsumed(plan, allIngredients),
+            budget,
+          );
+
+          const summaryMsg: ChatMessage = {
+            id: makeId(),
+            type: 'assistant-summary',
+            daySummary: {
+              meals,
+              energyLevel: currentLevel,
+              water: plan?.water ?? 0,
+              waterGoal: plan?.waterGoal ?? 8,
+            },
+            timestamp: new Date().toISOString(),
+          };
+          addMessages(summaryMsg);
+          break;
+        }
+      }
+    }
+  }
+
+  /**
+   * Send a text message to the AI.
+   */
+  async function sendToAi(
+    text: string,
+    extraWeekDates?: string[] | null,
+    extraPreferences?: PlanPreferences | null,
+  ) {
+    if (!profile) return;
+
+    setIsLoading(true);
+
+    // Add loading indicator
+    const loadingId = makeId();
+    addMessages({
+      id: loadingId,
+      type: 'assistant-loading',
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      const context = buildContext({
+        message: text,
+        profile,
+        dailyBudget: budget,
+        allDishes,
+        allIngredients,
+        dayPlans: useCalendarStore.getState().dayPlans,
+        conversationHistory: conversationRef.current,
+        preferences: extraPreferences || planPreferences,
+        weekDates: extraWeekDates,
+      });
+
+      const response = await sendMessage(text, context);
+
+      // Remove loading message
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+
+      // Add conversation history
+      conversationRef.current.push(
+        { role: 'user', text },
+        { role: 'assistant', text: response.text },
+      );
+      // Keep only last 10
+      if (conversationRef.current.length > 20) {
+        conversationRef.current = conversationRef.current.slice(-20);
+      }
+
+      // Add AI text response
+      if (response.text) {
+        const textMsg: ChatMessage = {
+          id: makeId(),
+          type: 'assistant-text',
+          text: response.text,
+          timestamp: new Date().toISOString(),
+        };
+        addMessages(textMsg);
+      }
+
+      // Execute actions
+      if (response.actions && response.actions.length > 0) {
+        executeActions(response.actions);
+      }
+
+      // Add quick actions after response
+      const quickOptions: ChatOption[] = [
+        { id: 'qa_1', label: 'Planificar mi semana', action: 'plan_week', icon: 'CalendarRange' },
+        { id: 'qa_2', label: '¿Qué como hoy?', action: 'send_text', payload: '¿Qué puedo comer hoy?' },
+        { id: 'qa_3', label: 'Registrar agua', action: 'water', icon: 'Droplets' },
+      ];
+
+      addMessages({
+        id: makeId(),
+        type: 'assistant-options',
+        options: quickOptions,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      // Remove loading message
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+
+      const errorMsg: ChatMessage = {
+        id: makeId(),
+        type: 'assistant-text',
+        text: err instanceof Error && err.message === 'Not authenticated'
+          ? 'Necesitás estar conectado para usar el asistente.'
+          : 'Algo salió mal. ¿Podés intentar de nuevo?',
+        timestamp: new Date().toISOString(),
+      };
+      addMessages(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const handleSendMessage = useCallback((text: string) => {
+    if (!text.trim() || isLoading) return;
+
+    const userMsg: ChatMessage = {
+      id: makeId(),
+      type: 'user-text',
+      text: text.trim(),
+      timestamp: new Date().toISOString(),
+    };
+    addMessages(userMsg);
+
+    sendToAi(text.trim());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, profile, allDishes, allIngredients, budget, planPreferences]);
+
   const handleOption = useCallback((option: ChatOption) => {
+    // Add user choice message
     const userChoice: ChatMessage = {
       id: makeId(),
       type: 'user-choice',
@@ -162,171 +389,31 @@ export function useChatEngine(): ChatEngineResult {
     };
 
     switch (option.action) {
-      case 'select_meal': {
-        const mealType = option.payload as MealType;
-        setSelectedMealType(mealType);
-        setSuggestionOffset(0);
-        setStep('meal_selected');
-
-        const currentEnergyLevel = getEnergyLevel(
-          computeDayConsumed(useCalendarStore.getState().dayPlans[todayKey()], allIngredients),
-          budget,
-        );
-
-        const suggestions = getSuggestions(mealType, 0);
-
-        const energyMsg: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-energy',
-          text: ENERGY_MESSAGES[currentEnergyLevel],
-          timestamp: new Date().toISOString(),
-        };
-
-        if (suggestions.length === 0) {
-          const noResults: ChatMessage = {
-            id: makeId(),
-            type: 'assistant-text',
-            text: currentEnergyLevel === 'warm_orange'
-              ? 'Hoy ya comiste bastante. ¡Tomá agua y descansá!'
-              : 'No encontré sugerencias con tus filtros. Probá otra comida.',
-            timestamp: new Date().toISOString(),
-          };
-          const backOption: ChatMessage = {
-            id: makeId(),
-            type: 'assistant-options',
-            options: [
-              { id: 'back', label: 'Volver', action: 'back_welcome', icon: 'ArrowLeft' },
-            ],
-            timestamp: new Date().toISOString(),
-          };
-          addMessages(userChoice, energyMsg, noResults, backOption);
-          return;
-        }
-
-        const dishesMsg: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-dishes',
-          dishSuggestions: suggestions,
-          timestamp: new Date().toISOString(),
-        };
-
-        const moreOptions: ChatOption[] = [
-          { id: 'more', label: 'Mostrame más', action: 'show_more', icon: 'ChevronDown' },
-          { id: 'back', label: 'Volver', action: 'back_welcome', icon: 'ArrowLeft' },
-        ];
-
-        const moreMsg: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-options',
-          options: moreOptions,
-          timestamp: new Date().toISOString(),
-        };
-
-        addMessages(userChoice, energyMsg, dishesMsg, moreMsg);
+      case 'send_text': {
+        const text = option.payload || option.label;
+        addMessages(userChoice);
+        sendToAi(text);
         break;
       }
 
-      case 'show_more': {
-        if (!selectedMealType) return;
-        const newOffset = suggestionOffset + 4;
-        setSuggestionOffset(newOffset);
-
-        const more = getSuggestions(selectedMealType, newOffset);
-
-        if (more.length === 0) {
-          const noMore: ChatMessage = {
-            id: makeId(),
-            type: 'assistant-text',
-            text: 'No hay más sugerencias disponibles.',
-            timestamp: new Date().toISOString(),
-          };
-          const backOpt: ChatMessage = {
-            id: makeId(),
-            type: 'assistant-options',
-            options: [
-              { id: 'back', label: 'Volver', action: 'back_welcome', icon: 'ArrowLeft' },
-            ],
-            timestamp: new Date().toISOString(),
-          };
-          addMessages(userChoice, noMore, backOpt);
-          return;
-        }
-
-        const moreDishes: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-dishes',
-          dishSuggestions: more,
-          timestamp: new Date().toISOString(),
-        };
-
-        const moreOpts: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-options',
-          options: [
-            { id: 'more2', label: 'Mostrame más', action: 'show_more', icon: 'ChevronDown' },
-            { id: 'back2', label: 'Volver', action: 'back_welcome', icon: 'ArrowLeft' },
-          ],
-          timestamp: new Date().toISOString(),
-        };
-
-        addMessages(userChoice, moreDishes, moreOpts);
-        break;
-      }
-
-      case 'day_summary': {
-        setStep('day_summary');
-        const plan = useCalendarStore.getState().dayPlans[todayKey()];
-        const meals: Array<{ mealType: MealType; name: string }> = [];
-
-        if (plan) {
-          for (const mt of MEAL_TYPE_ORDER) {
-            for (const meal of plan.meals[mt]) {
-              meals.push({ mealType: mt, name: meal.name });
-            }
-          }
-        }
-
-        const currentLevel = getEnergyLevel(
-          computeDayConsumed(plan, allIngredients),
-          budget,
+      case 'plan_week': {
+        addMessages(userChoice);
+        const weekDates = getNextWeekDates();
+        lastPlanRequestRef.current = 'Planificame la semana completa con desayuno, almuerzo, cena y snack para cada día.';
+        sendToAi(
+          lastPlanRequestRef.current,
+          weekDates,
+          planPreferences,
         );
-
-        const summaryMsg: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-summary',
-          text: meals.length > 0
-            ? 'Así viene tu día:'
-            : 'Todavía no registraste ninguna comida hoy.',
-          daySummary: {
-            meals,
-            energyLevel: currentLevel,
-            water: plan?.water ?? 0,
-            waterGoal: plan?.waterGoal ?? 8,
-          },
-          timestamp: new Date().toISOString(),
-        };
-
-        const summaryOptions: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-options',
-          options: [
-            { id: 'add_meal', label: 'Agregar una comida', action: 'back_welcome', icon: 'Plus' },
-            { id: 'home', label: 'Inicio', action: 'back_welcome', icon: 'Home' },
-          ],
-          timestamp: new Date().toISOString(),
-        };
-
-        addMessages(userChoice, summaryMsg, summaryOptions);
         break;
       }
 
       case 'water': {
-        setStep('water_tracking');
         const plan = useCalendarStore.getState().dayPlans[todayKey()];
         const waterMsg: ChatMessage = {
           id: makeId(),
           type: 'assistant-water',
-          text: `Llevas ${plan?.water ?? 0} vasos de agua hoy.`,
+          text: `Llevás ${plan?.water ?? 0} vasos de agua hoy.`,
           daySummary: {
             meals: [],
             energyLevel: 'green',
@@ -350,10 +437,7 @@ export function useChatEngine(): ChatEngineResult {
       }
 
       case 'confirm_dish': {
-        if (!selectedDish || !selectedMealType) return;
-        setStep('confirmed');
-
-        const mealType = selectedMealType;
+        if (!selectedDish) return;
         const dish = selectedDish;
         const servings = currentServings;
 
@@ -361,9 +445,10 @@ export function useChatEngine(): ChatEngineResult {
           ingredientId: di.ingredientId,
           grams: Math.round(di.grams * servings),
         }));
-
         const macros = computeDishMacros(dish, allIngredients);
         const totalCals = Math.round(macros.calories * servings);
+
+        const mealType = guessMealType(dish);
 
         upsertMeal(todayKey(), mealType, {
           id: generateId(),
@@ -383,69 +468,12 @@ export function useChatEngine(): ChatEngineResult {
           timestamp: new Date().toISOString(),
         };
 
-        const nextOptions: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-options',
-          options: [
-            { id: 'add_another', label: 'Agregar otra comida', action: 'back_welcome', icon: 'Plus' },
-            { id: 'view_day', label: 'Ver mi día', action: 'day_summary', icon: 'CalendarDays' },
-            { id: 'home2', label: 'Inicio', action: 'back_welcome', icon: 'Home' },
-          ],
-          timestamp: new Date().toISOString(),
-        };
-
-        addMessages(userChoice, confirmText, nextOptions);
-
+        addMessages(userChoice, confirmText);
         setSelectedDish(null);
-        setSelectedMealType(null);
-        break;
-      }
-
-      case 'choose_another': {
-        if (!selectedMealType) {
-          handleOption({ id: 'back', label: 'Volver', action: 'back_welcome' });
-          return;
-        }
-        setStep('meal_selected');
-        setSuggestionOffset(0);
-        setSelectedDish(null);
-
-        const suggestions = getSuggestions(selectedMealType, 0);
-
-        const textMsg: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-text',
-          text: 'Dale, acá van otras opciones:',
-          timestamp: new Date().toISOString(),
-        };
-
-        const dishesMsg: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-dishes',
-          dishSuggestions: suggestions,
-          timestamp: new Date().toISOString(),
-        };
-
-        const moreOpts: ChatMessage = {
-          id: makeId(),
-          type: 'assistant-options',
-          options: [
-            { id: 'more3', label: 'Mostrame más', action: 'show_more', icon: 'ChevronDown' },
-            { id: 'back3', label: 'Volver', action: 'back_welcome', icon: 'ArrowLeft' },
-          ],
-          timestamp: new Date().toISOString(),
-        };
-
-        addMessages(userChoice, textMsg, dishesMsg, moreOpts);
         break;
       }
 
       case 'back_welcome': {
-        setStep('welcome');
-        setSelectedMealType(null);
-        setSelectedDish(null);
-        setSuggestionOffset(0);
-
         const welcome = buildWelcomeMessages();
         addMessages(userChoice, ...welcome);
         break;
@@ -455,12 +483,11 @@ export function useChatEngine(): ChatEngineResult {
         break;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMealType, selectedDish, currentServings, profile, allIngredients, budget, remaining, suggestionOffset]);
+  }, [selectedDish, currentServings, profile, allIngredients, allDishes, budget, planPreferences, isLoading]);
 
   const handleSelectDish = useCallback((dish: Dish) => {
     setSelectedDish(dish);
     setCurrentServings(dish.defaultServings);
-    setStep('dish_selected');
 
     const humanIngredients = getDishHumanIngredients(dish, dish.defaultServings, allIngredients);
 
@@ -485,7 +512,7 @@ export function useChatEngine(): ChatEngineResult {
       type: 'assistant-options',
       options: [
         { id: 'confirm', label: 'Agregar al día', action: 'confirm_dish', icon: 'Plus' },
-        { id: 'other', label: 'Elegir otro', action: 'choose_another', icon: 'ArrowLeft' },
+        { id: 'back', label: 'Volver', action: 'back_welcome', icon: 'ArrowLeft' },
       ],
       timestamp: new Date().toISOString(),
     };
@@ -503,11 +530,7 @@ export function useChatEngine(): ChatEngineResult {
         const updated = [...prev];
         for (let i = updated.length - 1; i >= 0; i--) {
           if (updated[i].type === 'assistant-recipe') {
-            updated[i] = {
-              ...updated[i],
-              servings,
-              humanIngredients,
-            };
+            updated[i] = { ...updated[i], servings, humanIngredients };
             break;
           }
         }
@@ -528,7 +551,7 @@ export function useChatEngine(): ChatEngineResult {
         if (updated[i].type === 'assistant-water') {
           updated[i] = {
             ...updated[i],
-            text: `Llevas ${newVal} vasos de agua hoy.`,
+            text: `Llevás ${newVal} vasos de agua hoy.`,
             daySummary: {
               ...updated[i].daySummary!,
               water: newVal,
@@ -541,6 +564,91 @@ export function useChatEngine(): ChatEngineResult {
     });
   }, [setWater]);
 
+  const handleApplyPlan = useCallback((plan: WeekPlan) => {
+    // Apply all meals from the plan to the calendar
+    for (const day of plan.days) {
+      for (const mt of MEAL_TYPE_ORDER) {
+        const planned = day.meals[mt];
+        if (!planned) continue;
+
+        const dish = findDish(planned.dishId);
+        if (!dish) continue;
+
+        const servings = planned.servings || 1;
+        const entries = dish.ingredients.map((di) => ({
+          ingredientId: di.ingredientId,
+          grams: Math.round(di.grams * servings),
+        }));
+        const macros = computeDishMacros(dish, allIngredients);
+        const totalCals = Math.round(macros.calories * servings);
+
+        upsertMeal(day.date, mt, {
+          id: generateId(),
+          name: servings === 1 ? dish.name : `${dish.name} (x${servings})`,
+          entries,
+          calories: totalCals,
+          linkedRecipeId: dish.id,
+        });
+
+        const shoppingItems = createShoppingItemsFromDish(dish, servings, allIngredients);
+        addItemsToActiveList(shoppingItems);
+      }
+    }
+
+    // Update the plan message to show applied state
+    setMessages((prev) => {
+      const updated = [...prev];
+      for (let i = updated.length - 1; i >= 0; i--) {
+        if (updated[i].type === 'assistant-plan' && updated[i].weekPlan) {
+          updated[i] = {
+            ...updated[i],
+            type: 'assistant-applied',
+            weekPlan: { ...updated[i].weekPlan!, applied: true },
+          };
+          break;
+        }
+      }
+      return updated;
+    });
+
+    // Add confirmation message
+    const confirmMsg: ChatMessage = {
+      id: makeId(),
+      type: 'assistant-text',
+      text: '¡Listo! Ya apliqué el plan a tu calendario y agregué todo a la lista de compras.',
+      timestamp: new Date().toISOString(),
+    };
+
+    const nextOptions: ChatMessage = {
+      id: makeId(),
+      type: 'assistant-options',
+      options: [
+        { id: 'view_cal', label: 'Ver calendario', action: 'go_calendar', icon: 'Calendar' },
+        { id: 'view_shop', label: 'Ver compras', action: 'go_shopping', icon: 'ShoppingCart' },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+
+    addMessages(confirmMsg, nextOptions);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allIngredients, allDishes, budget]);
+
+  const handleRegeneratePlan = useCallback(() => {
+    // Remove the previous plan message
+    setMessages((prev) => prev.filter((m) => m.type !== 'assistant-plan'));
+
+    const weekDates = getNextWeekDates();
+    const msg = lastPlanRequestRef.current || 'Planificame la semana completa con desayuno, almuerzo, cena y snack para cada día. Armame opciones distintas a las anteriores.';
+    sendToAi(msg, weekDates, planPreferences);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, allDishes, allIngredients, budget, planPreferences]);
+
+  const handleSwapMeal = useCallback((date: string, mealType: MealType) => {
+    const msg = `Cambiame el ${MEAL_TYPE_LABELS[mealType].toLowerCase()} del ${date} por otra opción.`;
+    sendToAi(msg);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, allDishes, allIngredients, budget]);
+
   return {
     messages,
     hasProfile: !!profile,
@@ -548,18 +656,22 @@ export function useChatEngine(): ChatEngineResult {
     handleSelectDish,
     handleServingsChange,
     handleWaterChange,
+    handleSendMessage,
+    handleApplyPlan,
+    handleRegeneratePlan,
+    handleSwapMeal,
     currentServings,
     energyLevel,
     energyRatio,
     showCalories,
+    isLoading,
   };
 }
 
-function getMealIcon(mealType: MealType): string {
-  switch (mealType) {
-    case 'desayuno': return 'Coffee';
-    case 'almuerzo': return 'UtensilsCrossed';
-    case 'cena': return 'Moon';
-    case 'snack': return 'Cookie';
-  }
+function guessMealType(dish: Dish): MealType {
+  if (dish.category === 'desayuno') return 'desayuno';
+  if (dish.category === 'almuerzo') return 'almuerzo';
+  if (dish.category === 'cena') return 'cena';
+  if (dish.category === 'snack' || dish.category === 'postre') return 'snack';
+  return 'almuerzo';
 }
