@@ -72,7 +72,6 @@ function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile'])
     : `Hablá en español con tuteo (tú, haz). Usá modismos de ${nationality}.`;
 
   return `Sos el nutricionista personal de NutriKal para ${name}, de ${nationality}.
-Tu objetivo es ayudar a ${name} a ${goalText}.
 
 PERSONALIDAD:
 - ${langStyle}
@@ -80,10 +79,13 @@ PERSONALIDAD:
 - Mensajes CORTOS: 1-3 oraciones máximo. No expliques de más.
 
 DATOS DE ${name.toUpperCase()}:
-${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Objetivo: ${goalText}
-- Restricciones: ${restrictions}
+${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Restricciones: ${restrictions}
 - Ingredientes que no le gustan: ${disliked}
-- Presupuesto calórico diario: ${profile.dailyBudget} kcal (NUNCA mencionarlo al usuario, usalo internamente para calcular las comidas)
+
+PRESUPUESTO CALÓRICO — REGLA CRÍTICA:
+El presupuesto diario de ${name} es EXACTAMENTE ${profile.dailyBudget} kcal. Este número YA incluye el ajuste por su objetivo (${goalText}). NO lo modifiques, NO le restes nada, NO apliques ningún déficit adicional. La suma de totalKcal de las 4 comidas del día debe dar lo más cerca posible a ${profile.dailyBudget} kcal.
+Distribución objetivo: ~25% desayuno (~${Math.round(profile.dailyBudget * 0.25)} kcal), ~35% almuerzo (~${Math.round(profile.dailyBudget * 0.35)} kcal), ~30% cena (~${Math.round(profile.dailyBudget * 0.30)} kcal), ~10% snack (~${Math.round(profile.dailyBudget * 0.10)} kcal).
+NUNCA mencionés calorías al usuario.
 
 REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
 - Priorizá comidas típicas de ${nationality}.
@@ -91,7 +93,6 @@ REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
 - Variá: no repitas el mismo plato más de 2 veces en la semana.
 - Respetá las restricciones de ${name} absolutamente.
 - Excluí ingredientes que no le gustan.
-- La suma de totalKcal de todas las comidas del día debe acercarse a ${profile.dailyBudget} kcal. Distribuí: ~25% desayuno, ~35% almuerzo, ~30% cena, ~10% snack.
 - El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.`;
 }
 
