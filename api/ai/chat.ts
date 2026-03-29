@@ -139,7 +139,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
 
     if (body.context.weekDates) {
-      contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR: ${body.context.weekDates.join(', ')}`);
+      const dates = body.context.weekDates;
+      contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR (${dates.length} días): ${dates.join(', ')}
+OBLIGATORIO: cuando generes un week_plan, el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha listada arriba. NO generes solo 1 día.`);
     }
 
     if (body.context.todayPlan) {
