@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getGeminiClient, SYSTEM_PROMPT } from '../_lib/gemini.js';
+import { getGeminiClient, SYSTEM_RULES } from '../_lib/gemini.js';
 import { checkRateLimit } from '../_lib/rateLimit.js';
 
 interface ChatRequestBody {
@@ -29,6 +29,70 @@ interface ChatRequestBody {
       budget: string;
     } | null;
   };
+}
+
+const GOAL_TEXT: Record<string, string> = {
+  lose: 'perder peso de forma saludable',
+  maintain: 'mantener su peso actual',
+  gain: 'ganar masa muscular',
+};
+
+const RESTRICTION_TEXT: Record<string, string> = {
+  vegetarian: 'vegetariano (sin carne ni pescado)',
+  vegan: 'vegano (sin productos animales)',
+  gluten_free: 'sin gluten (celíaco)',
+  lactose_free: 'sin lácteos',
+  low_sodium: 'bajo en sodio',
+  diabetic: 'apto para diabéticos (bajo índice glucémico)',
+};
+
+function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile']): string {
+  const name = profile.name || 'el usuario';
+  const nationality = profile.nationality ?? 'Argentina';
+  const goalText = GOAL_TEXT[profile.goal] ?? 'mantener su peso actual';
+
+  const restrictions = profile.restrictions.length > 0
+    ? profile.restrictions.map((r) => RESTRICTION_TEXT[r] || r).join(', ')
+    : 'ninguna';
+
+  const disliked = profile.dislikedIds.length > 0
+    ? profile.dislikedIds.join(', ')
+    : 'ninguno';
+
+  const physicalLines: string[] = [];
+  if (profile.sex) physicalLines.push(`Sexo biológico: ${profile.sex === 'male' ? 'masculino' : 'femenino'}`);
+  if (profile.age) physicalLines.push(`Edad: ${profile.age} años`);
+  if (profile.heightCm) physicalLines.push(`Altura: ${profile.heightCm} cm`);
+  if (profile.weightKg) physicalLines.push(`Peso: ${profile.weightKg} kg`);
+
+  // Determine language style based on nationality
+  const isVoseo = ['Argentina', 'Uruguay', 'Paraguay', 'Costa Rica', 'Guatemala', 'Honduras', 'El Salvador', 'Nicaragua'].includes(nationality);
+  const langStyle = isVoseo
+    ? `Hablá en español con voseo (vos, hacé, dale, bárbaro). Usá modismos de ${nationality}.`
+    : `Hablá en español con tuteo (tú, haz). Usá modismos de ${nationality}.`;
+
+  return `Sos el nutricionista personal de NutriKal para ${name}, de ${nationality}.
+Tu objetivo es ayudar a ${name} a ${goalText}.
+
+PERSONALIDAD:
+- ${langStyle}
+- Cálido, cercano, conciso. Nunca juzgás. Si alguien tiene ansiedad o comió de más, lo contenés.
+- Mensajes CORTOS: 1-3 oraciones máximo. No expliques de más.
+
+DATOS DE ${name.toUpperCase()}:
+${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Objetivo: ${goalText}
+- Restricciones: ${restrictions}
+- Ingredientes que no le gustan: ${disliked}
+- Presupuesto calórico diario: ${profile.dailyBudget} kcal (NUNCA mencionarlo al usuario, usalo internamente para calcular las comidas)
+
+REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
+- Priorizá comidas típicas de ${nationality}.
+- Balanceá las comidas: proteína repartida, no todos carbos juntos.
+- Variá: no repitas el mismo plato más de 2 veces en la semana.
+- Respetá las restricciones de ${name} absolutamente.
+- Excluí ingredientes que no le gustan.
+- La suma de totalKcal de todas las comidas del día debe acercarse a ${profile.dailyBudget} kcal. Distribuí: ~25% desayuno, ~35% almuerzo, ~30% cena, ~10% snack.
+- El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -66,45 +130,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing message or context' });
     }
 
-    // Build contextual prompt
+    // Build personalized system prompt
+    const personalizedPrompt = buildPersonalizedPrompt(body.context.profile);
+
+    // Build situational context
     const contextParts: string[] = [];
 
-    // Profile context
-    const { profile } = body.context;
-    const physicalParts = [
-      profile.sex ? `Sexo: ${profile.sex === 'male' ? 'masculino' : 'femenino'}` : '',
-      profile.heightCm ? `Altura: ${profile.heightCm} cm` : '',
-      profile.weightKg ? `Peso: ${profile.weightKg} kg` : '',
-      profile.age ? `Edad: ${profile.age} años` : '',
-    ].filter(Boolean);
-
-    contextParts.push(`PERFIL DEL USUARIO:
-- Nombre: ${profile.name}
-- Nacionalidad: ${profile.nationality ?? 'Argentina'}
-${physicalParts.length > 0 ? `- ${physicalParts.join(', ')}\n` : ''}- Objetivo: ${profile.goal}
-- Restricciones: ${profile.restrictions.length > 0 ? profile.restrictions.join(', ') : 'ninguna'}
-- Ingredientes que no le gustan: ${profile.dislikedIds.length > 0 ? profile.dislikedIds.join(', ') : 'ninguno'}
-- Presupuesto diario interno (NUNCA mencionar): ${profile.dailyBudget} kcal`);
-
-    // Today date
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
 
-    // Week dates for planning
     if (body.context.weekDates) {
       contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR: ${body.context.weekDates.join(', ')}`);
     }
 
-    // Today plan
     if (body.context.todayPlan) {
       contextParts.push(`PLAN DE HOY:\n${JSON.stringify(body.context.todayPlan)}`);
     }
 
-    // Week summary
     if (body.context.weekSummary) {
       contextParts.push(`RESUMEN DE LA SEMANA:\n${body.context.weekSummary}`);
     }
 
-    // Preferences for planning
     if (body.context.preferences) {
       const p = body.context.preferences;
       contextParts.push(`PREFERENCIAS PARA EL PLAN:
@@ -113,7 +158,7 @@ ${physicalParts.length > 0 ? `- ${physicalParts.join(', ')}\n` : ''}- Objetivo: 
 - Presupuesto: ${p.budget}`);
     }
 
-    const fullSystemPrompt = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n\n');
+    const fullSystemPrompt = personalizedPrompt + '\n\n' + SYSTEM_RULES + '\n\n' + contextParts.join('\n\n');
 
     // Build conversation history for Gemini
     const history = (body.context.conversationHistory || []).map((msg) => ({
