@@ -11,6 +11,7 @@ interface ChatRequestBody {
       goal: string;
       restrictions: string[];
       dislikedIds: string[];
+      dislikedNames: string[];
       dailyBudget: number;
       nationality?: string;
       sex?: string;
@@ -55,8 +56,11 @@ function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile'])
     ? profile.restrictions.map((r) => RESTRICTION_TEXT[r] || r).join(', ')
     : 'ninguna';
 
-  const disliked = profile.dislikedIds.length > 0
-    ? profile.dislikedIds.join(', ')
+  const dislikedList = profile.dislikedNames?.length > 0
+    ? profile.dislikedNames
+    : profile.dislikedIds;
+  const disliked = dislikedList.length > 0
+    ? dislikedList.join(', ')
     : 'ninguno';
 
   const physicalLines: string[] = [];
@@ -80,7 +84,7 @@ PERSONALIDAD:
 
 DATOS DE ${name.toUpperCase()}:
 ${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Restricciones: ${restrictions}
-- Ingredientes que no le gustan: ${disliked}
+- A ${name} NO le gustan estos ingredientes (NUNCA los incluyas en ninguna comida): ${disliked}
 
 PRESUPUESTO CALÓRICO — REGLA CRÍTICA:
 - DÍAS NORMALES (lunes a sábado): el presupuesto es EXACTAMENTE ${profile.dailyBudget} kcal. YA incluye el ajuste por su objetivo. NO lo modifiques, NO le restes nada.

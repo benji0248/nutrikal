@@ -3,6 +3,7 @@ import type {
   AiChatResponse,
   AiAction,
   DayPlan,
+  Ingredient,
   UserProfile,
   PlanPreferences,
 } from '../types';
@@ -86,6 +87,7 @@ export interface BuildContextParams {
   profile: UserProfile;
   dailyBudget: number;
   dayPlans: Record<string, DayPlan>;
+  allIngredients: Ingredient[];
   conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
   preferences?: PlanPreferences | null;
   weekDates?: string[] | null;
@@ -99,6 +101,7 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     profile,
     dailyBudget,
     dayPlans,
+    allIngredients,
     conversationHistory,
     preferences,
     weekDates,
@@ -112,12 +115,18 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     ? differenceInYears(new Date(), parseISO(profile.birthDate))
     : undefined;
 
+  // Resolve disliked ingredient IDs to human-readable names
+  const dislikedNames = profile.dislikedIngredientIds
+    .map((id) => allIngredients.find((i) => i.id === id)?.name)
+    .filter((name): name is string => !!name);
+
   return {
     profile: {
       name: profile.name,
       goal: profile.goal,
       restrictions: profile.restrictions as string[],
       dislikedIds: profile.dislikedIngredientIds,
+      dislikedNames,
       dailyBudget,
       nationality: profile.nationality,
       sex: profile.sex,

@@ -387,6 +387,7 @@ export interface AiChatContext {
     goal: string;
     restrictions: string[];
     dislikedIds: string[];
+    dislikedNames: string[];
     dailyBudget: number;
     nationality?: string;
     sex?: string;

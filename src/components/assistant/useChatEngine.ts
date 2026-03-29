@@ -248,6 +248,7 @@ export function useChatEngine(): ChatEngineResult {
         profile,
         dailyBudget: budget,
         dayPlans: useCalendarStore.getState().dayPlans,
+        allIngredients,
         conversationHistory: conversationRef.current,
         preferences: extraPreferences || planPreferences,
         weekDates,
