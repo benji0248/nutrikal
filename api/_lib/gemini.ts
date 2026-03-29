@@ -50,6 +50,19 @@ REGLA CRÍTICA SOBRE week_plan:
 - El array "days" DEBE contener EXACTAMENTE un objeto por cada fecha recibida en "FECHAS DE LA SEMANA A PLANIFICAR". Si recibís 7 fechas, generá 7 días. NUNCA generes solo 1 día.
 - Cada día DEBE tener los 4 slots: desayuno, almuerzo, cena, snack.
 - Usá las fechas exactas recibidas (formato YYYY-MM-DD).
+- El domingo marcado como CHEAT DAY usa el presupuesto de cheat day (más alto). Ese día incluí comidas más indulgentes.
+
+MODOS DE VARIEDAD (según respuesta del usuario a "¿Preferís variedad o repetir?"):
+- "Variado" / "Variedad": cada comida es diferente. Ningún plato se repite en la semana (excepto domingo cheat day que es libre).
+- "Un poco de cada" / "Me da igual": mezcla equilibrada para los 6 días normales (lunes a sábado):
+  · Almuerzo y cena: elegí 4 platos únicos. Repartilos en los 12 slots (6 almuerzos + 6 cenas) = cada plato aparece 3 veces, intercalados (no consecutivos).
+  · Desayuno: 2 tipos de desayuno. Cada uno aparece 3 veces, alternados.
+  · Snack: 2 tipos de snack. Cada uno aparece 3 veces, alternados.
+  · El domingo (cheat day) es independiente y no sigue estas reglas de repetición.
+- "Repetir" / "Que se repitan": máxima eficiencia. Menos variedad que "un poco de cada":
+  · Almuerzo y cena: 2-3 platos que se repiten toda la semana.
+  · Desayuno: 1-2 tipos que se repiten.
+  · Snack: 1 tipo que se repite.
 
 FLUJO "¿QUÉ COMO HOY/AHORA?":
 1. Una sola pregunta: "¿Para qué comida?" (o inferilo del contexto/hora).

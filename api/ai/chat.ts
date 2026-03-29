@@ -83,8 +83,10 @@ ${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n
 - Ingredientes que no le gustan: ${disliked}
 
 PRESUPUESTO CALÓRICO — REGLA CRÍTICA:
-El presupuesto diario de ${name} es EXACTAMENTE ${profile.dailyBudget} kcal. Este número YA incluye el ajuste por su objetivo (${goalText}). NO lo modifiques, NO le restes nada, NO apliques ningún déficit adicional. La suma de totalKcal de las 4 comidas del día debe dar lo más cerca posible a ${profile.dailyBudget} kcal.
-Distribución objetivo: ~25% desayuno (~${Math.round(profile.dailyBudget * 0.25)} kcal), ~35% almuerzo (~${Math.round(profile.dailyBudget * 0.35)} kcal), ~30% cena (~${Math.round(profile.dailyBudget * 0.30)} kcal), ~10% snack (~${Math.round(profile.dailyBudget * 0.10)} kcal).
+- DÍAS NORMALES (lunes a sábado): el presupuesto es EXACTAMENTE ${profile.dailyBudget} kcal. YA incluye el ajuste por su objetivo. NO lo modifiques, NO le restes nada.
+  Distribución: ~25% desayuno (~${Math.round(profile.dailyBudget * 0.25)} kcal), ~35% almuerzo (~${Math.round(profile.dailyBudget * 0.35)} kcal), ~30% cena (~${Math.round(profile.dailyBudget * 0.30)} kcal), ~10% snack (~${Math.round(profile.dailyBudget * 0.10)} kcal).
+- DOMINGO = CHEAT DAY: el presupuesto del domingo es ${profile.dailyBudget + 1000} kcal (budget normal + 1000). Ese día podés incluir comidas más indulgentes, porciones más grandes, postres, etc.
+  Distribución domingo: ~25% desayuno (~${Math.round((profile.dailyBudget + 1000) * 0.25)} kcal), ~35% almuerzo (~${Math.round((profile.dailyBudget + 1000) * 0.35)} kcal), ~30% cena (~${Math.round((profile.dailyBudget + 1000) * 0.30)} kcal), ~10% snack (~${Math.round((profile.dailyBudget + 1000) * 0.10)} kcal).
 NUNCA mencionés calorías al usuario.
 
 REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
@@ -141,8 +143,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (body.context.weekDates) {
       const dates = body.context.weekDates;
-      contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR (${dates.length} días): ${dates.join(', ')}
-OBLIGATORIO: cuando generes un week_plan, el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha listada arriba. NO generes solo 1 día.`);
+      const daysOfWeek = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      const datesWithDay = dates.map((d) => {
+        const dayName = daysOfWeek[new Date(d + 'T12:00:00').getDay()];
+        const isCheat = dayName === 'domingo';
+        return `${d} (${dayName}${isCheat ? ' — CHEAT DAY' : ''})`;
+      });
+      contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR (${dates.length} días):
+${datesWithDay.join('\n')}
+OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha. NO generes solo 1 día.`);
     }
 
     if (body.context.todayPlan) {
