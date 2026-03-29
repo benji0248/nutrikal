@@ -226,6 +226,14 @@ export function useChatEngine(): ChatEngineResult {
   ) {
     if (!profile) return;
 
+    // Auto-detect weekly plan requests and inject weekDates
+    const weekPlanRegex = /arm(a|á|e)me la semana|plan(ific|ea|[áa] la) semana|plan semanal|semana completa|7 d[ií]as/i;
+    const weekDates = extraWeekDates ?? (weekPlanRegex.test(text) ? getNextWeekDates() : null);
+
+    if (weekPlanRegex.test(text)) {
+      lastPlanRequestRef.current = text;
+    }
+
     setIsLoading(true);
 
     const loadingId = makeId();
@@ -242,7 +250,7 @@ export function useChatEngine(): ChatEngineResult {
         dayPlans: useCalendarStore.getState().dayPlans,
         conversationHistory: conversationRef.current,
         preferences: extraPreferences || planPreferences,
-        weekDates: extraWeekDates,
+        weekDates,
       });
 
       const response = await sendMessage(text, context);

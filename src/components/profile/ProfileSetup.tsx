@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import type { Sex, Goal, ActivityLevel, DietaryRestriction, UserProfile } from '../../types';
 import { GOAL_LABELS, GOAL_DESCRIPTIONS } from '../../types';
 import { Button } from '../ui/Button';
@@ -13,6 +13,14 @@ import { INGREDIENTS_DB } from '../../data/ingredients';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { generateId } from '../../utils/dateHelpers';
 import { clsx } from 'clsx';
+
+const COUNTRIES = [
+  'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica',
+  'Cuba', 'Ecuador', 'El Salvador', 'España', 'Estados Unidos',
+  'Guatemala', 'Honduras', 'Italia', 'México', 'Nicaragua', 'Panamá',
+  'Paraguay', 'Perú', 'Puerto Rico', 'República Dominicana', 'Uruguay',
+  'Venezuela',
+];
 
 interface ProfileSetupProps {
   isOpen: boolean;
@@ -39,6 +47,15 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
   const [goal, setGoal] = useState<Goal>(existingProfile?.goal ?? 'maintain');
   const [restrictions, setRestrictions] = useState<DietaryRestriction[]>(existingProfile?.restrictions ?? []);
   const [dislikedIds, setDislikedIds] = useState<string[]>(existingProfile?.dislikedIngredientIds ?? []);
+  const [countryQuery, setCountryQuery] = useState(nationality);
+  const [showCountries, setShowCountries] = useState(false);
+  const countryInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredCountries = useMemo(() => {
+    const q = countryQuery.toLowerCase().trim();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter((c) => c.toLowerCase().includes(q));
+  }, [countryQuery]);
 
   const canNext = (): boolean => {
     if (step === 0) return birthDate.length > 0 && Number(heightCm) > 0 && Number(weightKg) > 0;
@@ -99,17 +116,49 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       {/* Step 0: Basic data */}
       {step === 0 && (
         <div className="space-y-3">
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-text-primary mb-1.5">País</label>
-            <select
-              value={nationality}
-              onChange={(e) => setNationality(e.target.value)}
+            <input
+              ref={countryInputRef}
+              type="text"
+              value={countryQuery}
+              onChange={(e) => {
+                setCountryQuery(e.target.value);
+                setShowCountries(true);
+              }}
+              onFocus={() => setShowCountries(true)}
+              onBlur={() => {
+                // Delay to allow click on dropdown item
+                setTimeout(() => setShowCountries(false), 150);
+              }}
+              placeholder="Buscar país..."
               className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm font-body text-text-primary focus:border-accent focus:ring-1 focus:ring-accent/40 outline-none min-h-[48px]"
-            >
-              {['Argentina', 'México', 'Colombia', 'Chile', 'España', 'Otro'].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            />
+            {showCountries && filteredCountries.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-border bg-surface shadow-lg max-h-48 overflow-y-auto">
+                {filteredCountries.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setNationality(c);
+                      setCountryQuery(c);
+                      setShowCountries(false);
+                      countryInputRef.current?.blur();
+                    }}
+                    className={clsx(
+                      'w-full text-left px-3 py-2.5 text-sm font-body transition-colors min-h-[44px]',
+                      c === nationality
+                        ? 'text-accent bg-accent/10'
+                        : 'text-text-primary hover:bg-surface2/50',
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Input label="Fecha de nacimiento" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
           <div>
