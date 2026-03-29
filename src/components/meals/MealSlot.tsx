@@ -10,7 +10,7 @@ import type { Meal, MealType } from '../../types';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
-import { DISHES_DB } from '../../data/dishes';
+import { useRecipesStore } from '../../store/useRecipesStore';
 import { getMealCalories } from '../../utils/macroHelpers';
 import { gramsToHumanPortion, getDishHumanIngredients } from '../../utils/portionHelpers';
 
@@ -213,6 +213,7 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
 }
 
 function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients: import('../../types').Ingredient[] }) {
+  const customDishes = useRecipesStore((s) => s.customDishes);
   const ingredients = useMemo(() => {
     // AI-generated ingredients
     if (meal.aiIngredients?.length) {
@@ -222,11 +223,10 @@ function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients:
       }));
     }
 
-    // If linked to a dish, use dish ingredients with human portions
+    // If linked to a custom recipe, use its ingredients with human portions
     if (meal.linkedRecipeId) {
-      const dish = DISHES_DB.find((d) => d.id === meal.linkedRecipeId);
+      const dish = customDishes.find((d) => d.id === meal.linkedRecipeId);
       if (dish) {
-        // Detect servings from meal name (e.g. "Dish (x2)" → 2)
         const servingsMatch = meal.name.match(/\(x([\d.]+)\)$/);
         const servings = servingsMatch ? parseFloat(servingsMatch[1]) : dish.defaultServings;
         return getDishHumanIngredients(dish, servings, allIngredients);
@@ -245,7 +245,7 @@ function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients:
     }
 
     return [];
-  }, [meal, allIngredients]);
+  }, [meal, allIngredients, customDishes]);
 
   if (ingredients.length === 0) return null;
 

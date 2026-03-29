@@ -6,7 +6,6 @@ import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { useRecipesStore } from '../../store/useRecipesStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
-import { DISHES_DB } from '../../data/dishes';
 import { getDishHumanIngredients } from '../../utils/portionHelpers';
 import { generateId } from '../../utils/dateHelpers';
 import { computeDishMacros } from '../../services/dishMatchService';
@@ -23,11 +22,10 @@ import {
 } from '../../types';
 import type { Dish, DishCategory, MealType, Ingredient } from '../../types';
 
-type FilterValue = DishCategory | 'all' | 'custom';
+type FilterValue = DishCategory | 'all';
 
 const CATEGORY_FILTERS: { value: FilterValue; label: string }[] = [
   { value: 'all', label: 'Todas' },
-  { value: 'custom', label: 'Mis recetas' },
   { value: 'desayuno', label: 'Desayuno' },
   { value: 'almuerzo', label: 'Almuerzo' },
   { value: 'cena', label: 'Cena' },
@@ -50,10 +48,7 @@ export function RecipeBank() {
     [customIngredients],
   );
 
-  const allDishes: Dish[] = useMemo(
-    () => [...DISHES_DB, ...customDishes],
-    [customDishes],
-  );
+  const allDishes: Dish[] = customDishes;
 
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<FilterValue>('all');
@@ -70,9 +65,7 @@ export function RecipeBank() {
 
   const filtered = useMemo(() => {
     let dishes = allDishes;
-    if (categoryFilter === 'custom') {
-      dishes = dishes.filter((d) => d.isCustom);
-    } else if (categoryFilter !== 'all') {
+    if (categoryFilter !== 'all') {
       dishes = dishes.filter((d) => d.category === categoryFilter);
     }
     if (search.trim()) {
@@ -198,7 +191,6 @@ export function RecipeBank() {
           <span className="text-xs font-body">{selectedDish.defaultServings} {selectedDish.defaultServings === 1 ? 'porción' : 'porciones'}</span>
         </div>
         <Badge variant="accent">{DISH_CATEGORY_LABELS[selectedDish.category]}</Badge>
-        {selectedDish.isCustom && <Badge variant="success">Mía</Badge>}
       </div>
 
       {selectedDish.tags.length > 0 && (
@@ -308,7 +300,6 @@ export function RecipeBank() {
             >
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-sm font-body font-medium text-text-primary leading-snug">{dish.name}</h3>
-                {dish.isCustom && <Badge variant="success" size="sm">Mía</Badge>}
               </div>
               <div className="flex items-center gap-2 text-muted">
                 <span className="text-[10px] font-body">{dish.prepMinutes} min</span>

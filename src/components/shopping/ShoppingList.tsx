@@ -6,7 +6,7 @@ import { useShoppingStore } from '../../store/useShoppingStore';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
-import { DISHES_DB } from '../../data/dishes';
+import { useRecipesStore } from '../../store/useRecipesStore';
 import { generateShoppingList } from '../../services/shoppingService';
 import { todayKey, getWeekDayKeys } from '../../utils/dateHelpers';
 import { ShoppingItemRow } from './ShoppingItem';
@@ -20,6 +20,7 @@ export function ShoppingListView() {
   const toggleItem = useShoppingStore((s) => s.toggleItem);
   const dayPlans = useCalendarStore((s) => s.dayPlans);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
+  const customDishes = useRecipesStore((s) => s.customDishes);
   const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
 
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -39,7 +40,7 @@ export function ShoppingListView() {
     const to = weekKeys[weekKeys.length - 1];
     const list = generateShoppingList(
       dayPlans,
-      DISHES_DB,
+      customDishes,
       allIngredients,
       from,
       to,
