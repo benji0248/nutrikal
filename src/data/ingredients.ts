@@ -16,7 +16,7 @@ export const INGREDIENTS_DB: Ingredient[] = [
   { id: 'ing_012', name: 'Costilla de cerdo', category: 'carnes', calories: 290, protein: 25.0, carbs: 0.0, fat: 21.0 },
   { id: 'ing_013', name: 'Merluza', category: 'carnes', calories: 82, protein: 18.0, carbs: 0.0, fat: 0.8 },
   { id: 'ing_014', name: 'Salmón', category: 'carnes', calories: 208, protein: 20.0, carbs: 0.0, fat: 13.0 },
-  { id: 'ing_015', name: 'Atún fresco', category: 'carnes', calories: 144, protein: 23.0, carbs: 0.0, fat: 5.0 },
+  { id: 'ing_015', name: 'Atún', category: 'carnes', calories: 144, protein: 23.0, carbs: 0.0, fat: 5.0 },
   { id: 'ing_016', name: 'Trucha', category: 'carnes', calories: 141, protein: 20.0, carbs: 0.0, fat: 6.0 },
   { id: 'ing_017', name: 'Lenguado', category: 'carnes', calories: 91, protein: 19.0, carbs: 0.0, fat: 1.2 },
   { id: 'ing_018', name: 'Caballa', category: 'carnes', calories: 205, protein: 19.0, carbs: 0.0, fat: 14.0 },

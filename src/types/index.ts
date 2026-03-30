@@ -196,6 +196,8 @@ export interface UserProfile {
   goal: Goal;
   restrictions: DietaryRestriction[];
   dislikedIngredientIds: string[];
+  dislikedCategories?: string[];
+  allowedExceptions?: string[];
   nationality?: string;
   createdAt: string;
   updatedAt: string;
@@ -388,6 +390,8 @@ export interface AiChatContext {
     restrictions: string[];
     dislikedIds: string[];
     dislikedNames: string[];
+    dislikedCategories: string[];
+    allowedExceptionNames: string[];
     dailyBudget: number;
     nationality?: string;
     sex?: string;

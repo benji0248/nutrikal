@@ -9,6 +9,10 @@ interface DietaryPrefsProps {
   onRestrictionsChange: (restrictions: DietaryRestriction[]) => void;
   dislikedIds: string[];
   onDislikedChange: (ids: string[]) => void;
+  dislikedCategories: string[];
+  onDislikedCategoriesChange: (cats: string[]) => void;
+  allowedExceptions: string[];
+  onAllowedExceptionsChange: (ids: string[]) => void;
   allIngredients: Ingredient[];
 }
 
@@ -166,14 +170,24 @@ const COMMON_DISLIKES: { category: string; ids: string[] }[] = [
   },
 ];
 
+/** General food categories that can be disliked as a whole, with optional exceptions. */
+const GENERAL_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'pescado', label: 'Pescado' },
+];
+
 export function DietaryPrefs({
   restrictions,
   onRestrictionsChange,
   dislikedIds,
   onDislikedChange,
+  dislikedCategories,
+  onDislikedCategoriesChange,
+  allowedExceptions,
+  onAllowedExceptionsChange,
   allIngredients,
 }: DietaryPrefsProps) {
   const [search, setSearch] = useState('');
+  const [exceptionSearch, setExceptionSearch] = useState('');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const toggleRestriction = (r: DietaryRestriction) => {
@@ -203,13 +217,58 @@ export function DietaryPrefs({
     setSearch('');
   };
 
+  const toggleCategory = (cat: string) => {
+    if (dislikedCategories.includes(cat)) {
+      onDislikedCategoriesChange(dislikedCategories.filter((c) => c !== cat));
+      // Also remove any exceptions for this category
+      onAllowedExceptionsChange(allowedExceptions.filter((id) => !isCategoryIngredient(cat, id)));
+    } else {
+      onDislikedCategoriesChange([...dislikedCategories, cat]);
+    }
+  };
+
+  const toggleException = (id: string) => {
+    if (allowedExceptions.includes(id)) {
+      onAllowedExceptionsChange(allowedExceptions.filter((x) => x !== id));
+    } else {
+      onAllowedExceptionsChange([...allowedExceptions, id]);
+    }
+    setExceptionSearch('');
+  };
+
+  /** Check if an ingredient belongs to a general category */
+  function isCategoryIngredient(cat: string, ingredientId: string): boolean {
+    const ing = allIngredients.find((i) => i.id === ingredientId);
+    if (!ing) return false;
+    if (cat === 'pescado') {
+      const fishIds = ['ing_013', 'ing_014', 'ing_015', 'ing_016', 'ing_017', 'ing_018', 'ing_035'];
+      return fishIds.includes(ingredientId);
+    }
+    return false;
+  }
+
+  /** Get all ingredients for a category (for exception selection) */
+  function getCategoryIngredients(cat: string): Ingredient[] {
+    if (cat === 'pescado') {
+      const fishIds = ['ing_013', 'ing_014', 'ing_015', 'ing_016', 'ing_017', 'ing_018', 'ing_035'];
+      return allIngredients.filter((i) => fishIds.includes(i.id));
+    }
+    return [];
+  }
+
+  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
   const filteredIngredients = search.length >= 2
     ? allIngredients
         .filter((i) => !dislikedIds.includes(i.id))
-        .filter((i) =>
-          i.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .includes(search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')),
-        )
+        .filter((i) => normalize(i.name).includes(normalize(search)))
+        .slice(0, 8)
+    : [];
+
+  const filteredExceptions = exceptionSearch.length >= 1
+    ? dislikedCategories.flatMap((cat) => getCategoryIngredients(cat))
+        .filter((i) => !allowedExceptions.includes(i.id))
+        .filter((i) => normalize(i.name).includes(normalize(exceptionSearch)))
         .slice(0, 8)
     : [];
 
@@ -243,9 +302,100 @@ export function DietaryPrefs({
         </div>
       </div>
 
+      {/* General category dislikes */}
       <div>
         <p className="text-sm font-body font-medium text-text-primary mb-2">
-          Alimentos que no te gustan
+          Categorías que no te gustan
+        </p>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {GENERAL_CATEGORIES.map(({ value, label }) => {
+            const active = dislikedCategories.includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => toggleCategory(value)}
+                className={clsx(
+                  'px-3 py-1.5 rounded-xl text-xs font-body font-medium transition-all border',
+                  active
+                    ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                    : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Exceptions for selected categories */}
+        {dislikedCategories.length > 0 && (
+          <div className="ml-2 pl-3 border-l-2 border-accent/30 space-y-2">
+            <p className="text-xs font-body text-muted">
+              Excepciones (sí te gustan a pesar de la categoría)
+            </p>
+            {allowedExceptions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {allowedExceptions.map((id) => (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-body bg-green-500/10 text-green-400"
+                  >
+                    {getName(id)}
+                    <button type="button" onClick={() => toggleException(id)} className="hover:text-green-300 min-w-[20px] min-h-[20px] flex items-center justify-center">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Quick exception chips */}
+            <div className="flex flex-wrap gap-1.5">
+              {dislikedCategories.flatMap((cat) => getCategoryIngredients(cat))
+                .filter((i) => !allowedExceptions.includes(i.id))
+                .map((ing) => (
+                  <button
+                    key={ing.id}
+                    type="button"
+                    onClick={() => toggleException(ing.id)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-body transition-all border bg-surface2/30 text-muted border-border hover:text-text-primary min-h-[32px]"
+                  >
+                    {ing.name}
+                  </button>
+                ))}
+            </div>
+            {/* Exception search */}
+            <div className="relative">
+              <Input
+                variant="search"
+                placeholder="Buscar excepción..."
+                value={exceptionSearch}
+                onChange={(e) => setExceptionSearch(e.target.value)}
+                clearable
+                onClear={() => setExceptionSearch('')}
+              />
+              {filteredExceptions.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-surface border border-border rounded-2xl shadow-lg max-h-36 overflow-y-auto">
+                  {filteredExceptions.map((ing) => (
+                    <button
+                      key={ing.id}
+                      type="button"
+                      onClick={() => toggleException(ing.id)}
+                      className="w-full text-left px-4 py-2.5 text-sm font-body text-text-primary hover:bg-surface2/50 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                    >
+                      {ing.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="text-sm font-body font-medium text-text-primary mb-2">
+          Ingredientes específicos que no te gustan
         </p>
 
         {dislikedIds.length > 0 && (

@@ -12,6 +12,8 @@ interface ChatRequestBody {
       restrictions: string[];
       dislikedIds: string[];
       dislikedNames: string[];
+      dislikedCategories: string[];
+      allowedExceptionNames: string[];
       dailyBudget: number;
       nationality?: string;
       sex?: string;
@@ -59,9 +61,22 @@ function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile'])
   const dislikedList = profile.dislikedNames?.length > 0
     ? profile.dislikedNames
     : profile.dislikedIds;
-  const disliked = dislikedList.length > 0
-    ? dislikedList.join(', ')
-    : 'ninguno';
+
+  // Build disliked text with categories + exceptions
+  const dislikedParts: string[] = [];
+  const categories = profile.dislikedCategories ?? [];
+  const exceptions = profile.allowedExceptionNames ?? [];
+  for (const cat of categories) {
+    if (exceptions.length > 0) {
+      dislikedParts.push(`${cat} en general (EXCEPTO ${exceptions.join(', ')} que sí le gustan)`);
+    } else {
+      dislikedParts.push(`${cat} (todos)`);
+    }
+  }
+  if (dislikedList.length > 0) {
+    dislikedParts.push(dislikedList.join(', '));
+  }
+  const disliked = dislikedParts.length > 0 ? dislikedParts.join('; ') : 'ninguno';
 
   const physicalLines: string[] = [];
   if (profile.sex) physicalLines.push(`Sexo biológico: ${profile.sex === 'male' ? 'masculino' : 'femenino'}`);

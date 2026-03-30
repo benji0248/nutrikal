@@ -120,6 +120,11 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     .map((id) => allIngredients.find((i) => i.id === id)?.name)
     .filter((name): name is string => !!name);
 
+  // Resolve allowed exception IDs to names
+  const allowedExceptionNames = (profile.allowedExceptions ?? [])
+    .map((id) => allIngredients.find((i) => i.id === id)?.name)
+    .filter((name): name is string => !!name);
+
   return {
     profile: {
       name: profile.name,
@@ -127,6 +132,8 @@ export function buildContext(params: BuildContextParams): AiChatContext {
       restrictions: profile.restrictions as string[],
       dislikedIds: profile.dislikedIngredientIds,
       dislikedNames,
+      dislikedCategories: profile.dislikedCategories ?? [],
+      allowedExceptionNames,
       dailyBudget,
       nationality: profile.nationality,
       sex: profile.sex,

@@ -47,6 +47,8 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
   const [goal, setGoal] = useState<Goal>(existingProfile?.goal ?? 'maintain');
   const [restrictions, setRestrictions] = useState<DietaryRestriction[]>(existingProfile?.restrictions ?? []);
   const [dislikedIds, setDislikedIds] = useState<string[]>(existingProfile?.dislikedIngredientIds ?? []);
+  const [dislikedCategories, setDislikedCategories] = useState<string[]>(existingProfile?.dislikedCategories ?? []);
+  const [allowedExceptions, setAllowedExceptions] = useState<string[]>(existingProfile?.allowedExceptions ?? []);
   const [countryQuery, setCountryQuery] = useState(nationality);
   const [showCountries, setShowCountries] = useState(false);
   const countryInputRef = useRef<HTMLInputElement>(null);
@@ -75,6 +77,8 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       goal,
       restrictions,
       dislikedIngredientIds: dislikedIds,
+      dislikedCategories,
+      allowedExceptions,
       nationality,
       createdAt: existingProfile?.createdAt ?? now,
       updatedAt: now,
@@ -222,6 +226,10 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
           onRestrictionsChange={setRestrictions}
           dislikedIds={dislikedIds}
           onDislikedChange={setDislikedIds}
+          dislikedCategories={dislikedCategories}
+          onDislikedCategoriesChange={setDislikedCategories}
+          allowedExceptions={allowedExceptions}
+          onAllowedExceptionsChange={setAllowedExceptions}
           allIngredients={allIngredients}
         />
       )}
