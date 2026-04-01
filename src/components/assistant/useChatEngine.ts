@@ -28,6 +28,7 @@ import {
   buildContext,
   getNextWeekDates,
 } from '../../services/aiService';
+import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 
 function makeId(): string {
   return generateId();
@@ -158,6 +159,10 @@ export function useChatEngine(): ChatEngineResult {
           }
 
           upsertMeal(action.date, action.mealType, aiMealToCalendarMeal(aiMeal));
+
+          submitDishesForEmbedding([
+            aiMealToDishToEmbed(aiMeal, action.mealType, action.date),
+          ]);
 
           const shoppingItems = createShoppingItemsFromAiMeals([aiMeal]);
           addItemsToActiveList(shoppingItems);
@@ -361,6 +366,14 @@ export function useChatEngine(): ChatEngineResult {
     // Add all ingredients to shopping list
     const shoppingItems = createShoppingItemsFromAiMeals(allAiMeals);
     addItemsToActiveList(shoppingItems);
+
+    // Fire-and-forget: embed all dishes for semantic search
+    const dishesToEmbed = plan.days.flatMap((day) =>
+      MEAL_TYPE_ORDER
+        .filter((mt) => day.meals[mt])
+        .map((mt) => aiMealToDishToEmbed(day.meals[mt]!, mt, day.date)),
+    );
+    submitDishesForEmbedding(dishesToEmbed);
 
     setMessages((prev) => {
       const updated = [...prev];
