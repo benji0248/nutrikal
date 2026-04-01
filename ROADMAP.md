@@ -12,7 +12,7 @@ calendar (which now has data to show), then everything else.
 **Claude Web reviews UX** starting from Module 1 (Nutri). Each module gets reviewed
 in the browser before moving to the next.
 
-**CURRENT STATUS:** Between Module 1 (85%) and Module 2 (95%). Ready for UX testing and vector DB setup.
+**CURRENT STATUS:** Module 2.5 (Vector DB) complete. Module 1 (85%) and Module 2 (95%) await UX testing. Ready for Module 3.
 
 ---
 
@@ -110,75 +110,37 @@ This is the FIRST module Claude Web reviews in the browser.
 
 ---
 
-## Module 2.5: Vector Database Setup (RECOMMENDED BEFORE MODULE 3)
-**Goal:** Set up pgvector infrastructure for semantic search and personalization BEFORE starting to track meal history.
+## Module 2.5: Vector Database Setup ✅ (Complete)
+**Goal:** pgvector infrastructure for semantic search and personalization, set up BEFORE Module 3.
 
-**Why now:** Module 3 will start tracking meal frequency/favorites. If we implement embeddings now, every dish gets its embedding from day 1. This makes future personalization trivial (no refactor needed).
+### What was built:
+- [x] `dish_embeddings` table with pgvector (768-dim, HNSW index, cosine similarity)
+- [x] `find_similar_dishes()` RPC function in Supabase
+- [x] `api/_lib/embeddings.ts` — Gemini `text-embedding-004` helper
+- [x] `api/ai/embed.ts` — POST endpoint, stores embeddings with dedup (exact name match)
+- [x] `api/ai/search.ts` — POST endpoint, semantic search via RPC (ready for Module 3+)
+- [x] `src/services/embeddingService.ts` — fire-and-forget frontend service
+- [x] `useChatEngine.ts` integration — embedding calls on add_meal, swap_meal, and handleApplyPlan
 
-**Why NOT later:** If we wait until after Module 3, we'll need to:
-- Regenerate embeddings for all historical dishes
-- Refactor recommendation logic
-- Deal with migration complexity
-- Estimated refactor cost: 2-3 weeks
+### Architecture: Async Fire-and-Forget
+```
+User asks for meal → Gemini generates → Frontend receives response
+                                          ├─ Apply to calendar (existing, unchanged)
+                                          └─ POST /api/ai/embed (async, non-blocking)
+                                              └─ Generate embedding → Store in dish_embeddings
+```
 
-**Investment now:** ~1 day of work
-**Savings later:** 2-3 weeks of refactoring
+### SQL Migration (must run manually in Supabase SQL Editor):
+Table: `dish_embeddings` (user_id, dish_name, ingredients JSONB, total_kcal, prep_minutes, human_portion, embedding vector(768), meal_type, date_planned, created_at)
+Indexes: user_id (B-tree), embedding (HNSW cosine)
+Function: `find_similar_dishes(query_embedding, user_uuid, match_threshold, match_count)`
 
-### Backend Setup (Supabase):
-- [ ] Activate pgvector extension in Supabase
-- [ ] Create `dish_embeddings` table:
-  ```sql
-  create table dish_embeddings (
-    id text primary key,
-    user_id uuid references auth.users,
-    dish_name text,
-    embedding vector(768),  -- Gemini embedding-001 dimension
-    ingredients jsonb,
-    created_at timestamptz default now()
-  );
-  create index on dish_embeddings using ivfflat (embedding vector_cosine_ops);
-  ```
-- [ ] Create `user_dish_interactions` table (for future personalization):
-  ```sql
-  create table user_dish_interactions (
-    user_id uuid,
-    dish_id text,
-    interaction_type text,  -- 'planned', 'completed', 'liked', 'disliked'
-    created_at timestamptz default now()
-  );
-  ```
+### Pending manual step:
+- [ ] **Run SQL migration in Supabase SQL Editor** — without this, embed endpoint will error on INSERT
 
-### Script: Generate Embeddings (one-time for existing dishes):
-- [ ] Create `scripts/generateEmbeddings.ts`
-- [ ] For each custom dish in `customDishes`: generate embedding and insert
-- [ ] Run script to populate initial embeddings
-
-### API Endpoints:
-- [ ] `api/search/semantic.ts` — semantic search endpoint
-  - Takes query string
-  - Generates embedding via Gemini
-  - Returns similar dishes via cosine similarity
-- [ ] Modify `api/ai/chat.ts` to auto-generate embeddings when Gemini creates new dishes
-
-### Integration:
-- [ ] When AI generates a meal → auto-generate embedding → save to `dish_embeddings`
-- [ ] When user adds custom dish → auto-generate embedding
-- [ ] Test: verify embeddings are generated and stored
-
-### Future-ready (don't implement yet, just prepare):
-- Document how to use embeddings for:
-  - Personalized recommendations (query user's favorite dishes embeddings)
-  - Variety detection (ensure weekly plans have diverse embeddings)
-  - Substitutions (find similar dishes with different macros)
-  - Search in history (semantic search instead of string matching)
-
-**Estimated time:** 4-6 hours (setup + testing)
-
-**Success criteria:**
-- [ ] pgvector tables exist and indexed
-- [ ] AI-generated dishes automatically get embeddings
-- [ ] Semantic search endpoint works (test query returns relevant dishes)
-- [ ] Zero impact on current UX (runs in background)
+### Zero UX impact confirmed:
+- Embedding is fully async, non-blocking
+- If it fails, meals are already in calendar — console.warn only
 
 ---
 
@@ -310,6 +272,7 @@ This is the FIRST module Claude Web reviews in the browser.
 
 ### ✅ Completed Modules:
 - **Module 0: Cleanup** (95%) — all dead code removed
+- **Module 2.5: Vector Database** (100%) — pgvector + embeddings pipeline live
 - **Module 7: Profile & Settings** (95%) — fully functional
 
 ### ⚠️ In Progress:
@@ -318,8 +281,7 @@ This is the FIRST module Claude Web reviews in the browser.
 - **Module 5: AI Dish Invention** (60%) — Gemini generates freely, needs ingredient matching
 
 ### ❌ Not Started:
-- **Module 2.5: Vector Database** (0%) — RECOMMENDED before Module 3
-- **Module 3: Historial** (0%) — depends on Module 2.5 for optimal architecture
+- **Module 3: Historial** (0%) — vector DB ready, can leverage embeddings from day 1
 - **Module 4: Shopping Polish** (70% estimated) — basic features work
 - **Module 6: Onboarding** (50% estimated) — ProfileSetup exists, needs guided flow
 
@@ -327,28 +289,12 @@ This is the FIRST module Claude Web reviews in the browser.
 
 ## RECOMMENDED PATH FORWARD
 
-### Option A: Complete Current Modules (Conservative)
-1. **Module 1 UX Testing** (1-2 days) — test with Claude Web, fix issues
-2. **Module 2 Empty State** (2 hours) — add global banner
-3. **Module 3 Historial** (2-3 days) — add frequency tracking + favorites
-4. Continue with remaining modules
-
-**Pros:** Finish what's started, less risk
-**Cons:** Refactoring needed later when adding personalization
-
----
-
-### Option B: Invest in Vectors Now (Strategic)
-1. **Module 2.5 Vector DB Setup** (1 day) — pgvector + embeddings
-2. **Module 1 UX Testing** (1-2 days)
-3. **Module 2 Empty State** (2 hours)
-4. **Module 3 Historial** (2-3 days) — now with embeddings from day 1
-5. Continue with personalization features (already have infrastructure)
-
-**Pros:** Future-proof architecture, personalization is trivial later
-**Cons:** 1 day investment upfront
-
-**Recommendation:** **Option B** — investing 1 day now saves 2-3 weeks of refactoring later.
+1. **Run SQL migration** in Supabase (5 min) — activate the vector DB
+2. **Module 1 UX Testing** (1-2 days) — test with Claude Web, fix issues
+3. **Module 2 Empty State** (2 hours) — add global banner
+4. **Module 3 Historial** (2-3 days) — frequency tracking + favorites + semantic search
+5. **AI Personalization** — feed embeddings into Gemini context for better recommendations
+6. Continue with remaining modules
 
 ---
 

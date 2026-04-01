@@ -23,7 +23,8 @@ Users never see calorie numbers. They see colors, suggestions, and human-languag
 - date-fns 4 (all date operations — never use native Date arithmetic directly)
 - lucide-react (icons)
 - clsx + tailwind-merge (className composition)
-- @google/generative-ai (Gemini AI — ONLY imported in api/_lib/gemini.ts)
+- @google/generative-ai (Gemini AI — ONLY imported in api/_lib/gemini.ts and api/_lib/embeddings.ts)
+- pgvector (Supabase extension — dish embeddings for semantic search)
 - Fonts: @fontsource/syne, @fontsource/plus-jakarta-sans, @fontsource/jetbrains-mono, @fontsource/inter
 
 ---
@@ -52,12 +53,15 @@ npx tsc --noEmit     # type check without building (run before every commit)
 │   │   ├── supabase.ts           Supabase client singleton
 │   │   ├── jwt.ts                JWT sign/verify helpers
 │   │   ├── gemini.ts             Gemini AI client + system prompt
+│   │   ├── embeddings.ts         Gemini text-embedding-004 helper
 │   │   └── rateLimit.ts          AI rate limiting (80 msgs/day per user)
 │   ├── auth/
 │   │   ├── login.ts              POST — email/password login → JWT
 │   │   └── register.ts           POST — create account
 │   ├── ai/
-│   │   └── chat.ts               POST — AI chat endpoint (Gemini)
+│   │   ├── chat.ts               POST — AI chat endpoint (Gemini)
+│   │   ├── embed.ts              POST — store dish embeddings (async)
+│   │   └── search.ts             POST — semantic dish search (pgvector)
 │   └── data/
 │       ├── load.ts               GET — load user data from Supabase
 │       └── save.ts               POST — save user data to Supabase
@@ -87,6 +91,7 @@ npx tsc --noEmit     # type check without building (run before every commit)
 │   ├── services/
 │   │   ├── apiService.ts         Auth + data load/save API calls
 │   │   ├── aiService.ts          AI chat: buildContext, sendMessage, compressCatalog
+│   │   ├── embeddingService.ts   Fire-and-forget dish embedding submission
 │   │   ├── gistService.ts        LEGACY — migratePayload still used for data migration
 │   │   ├── metabolicService.ts   TMB, TDEE, budget — pure functions
 │   │   ├── dishMatchService.ts   fuzzy search + macro computation
