@@ -400,6 +400,7 @@ export interface AiChatContext {
   todayDate: string;
   weekDates: string[] | null;
   preferences: PlanPreferences | null;
+  dishHistory?: Array<{ name: string; count: number; lastDate: string; isFavorite: boolean }> | null;
 }
 
 export interface AiChatResponse {

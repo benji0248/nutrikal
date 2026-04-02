@@ -91,6 +91,7 @@ export interface BuildContextParams {
   conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
   preferences?: PlanPreferences | null;
   weekDates?: string[] | null;
+  favorites?: string[];
 }
 
 /**
@@ -105,6 +106,7 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     conversationHistory,
     preferences,
     weekDates,
+    favorites,
   } = params;
 
   const todayDate = format(new Date(), 'yyyy-MM-dd');
@@ -124,6 +126,36 @@ export function buildContext(params: BuildContextParams): AiChatContext {
   const allowedExceptionNames = (profile.allowedExceptions ?? [])
     .map((id) => allIngredients.find((i) => i.id === id)?.name)
     .filter((name): name is string => !!name);
+
+  // Compute dish frequency from all dayPlans
+  const favSet = new Set(favorites ?? []);
+  const freqMap = new Map<string, { count: number; lastDate: string }>();
+  for (const [date, plan] of Object.entries(dayPlans)) {
+    for (const mt of MEAL_TYPE_ORDER) {
+      for (const meal of plan.meals[mt]) {
+        const existing = freqMap.get(meal.name);
+        if (!existing) {
+          freqMap.set(meal.name, { count: 1, lastDate: date });
+        } else {
+          existing.count += 1;
+          if (date > existing.lastDate) existing.lastDate = date;
+        }
+      }
+    }
+  }
+
+  let dishHistory: AiChatContext['dishHistory'] = null;
+  if (freqMap.size > 0) {
+    dishHistory = Array.from(freqMap.entries())
+      .map(([name, data]) => ({
+        name,
+        count: data.count,
+        lastDate: data.lastDate,
+        isFavorite: favSet.has(name),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 30);
+  }
 
   return {
     profile: {
@@ -147,6 +179,7 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     todayDate,
     weekDates: weekDates || null,
     preferences: preferences || null,
+    dishHistory,
   };
 }
 

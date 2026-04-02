@@ -30,6 +30,7 @@ import {
 } from '../../services/aiService';
 import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
+import { useHistorialStore } from '../../store/useHistorialStore';
 
 function makeId(): string {
   return generateId();
@@ -258,6 +259,7 @@ export function useChatEngine(): ChatEngineResult {
         conversationHistory: conversationRef.current,
         preferences: extraPreferences || planPreferences,
         weekDates,
+        favorites: useHistorialStore.getState().favorites,
       });
 
       const response = await sendMessage(text, context);

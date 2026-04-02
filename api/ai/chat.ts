@@ -31,6 +31,7 @@ interface ChatRequestBody {
       cookingTime: string;
       budget: string;
     } | null;
+    dishHistory?: Array<{ name: string; count: number; lastDate: string; isFavorite: boolean }> | null;
   };
 }
 
@@ -114,7 +115,8 @@ REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
 - Variá: no repitas el mismo plato más de 2 veces en la semana.
 - Respetá las restricciones de ${name} absolutamente.
 - Excluí ingredientes que no le gustan.
-- El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.`;
+- El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.
+- Si el usuario tiene historial, priorizá sus favoritos pero variá para no aburrir.`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -187,6 +189,36 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
 - Variedad: ${p.variety}
 - Tiempo de cocina: ${p.cookingTime}
 - Presupuesto: ${p.budget}`);
+    }
+
+    // Inject dish history for personalization
+    const dishHistory = body.context.dishHistory;
+    if (dishHistory && dishHistory.length > 0) {
+      const name = body.context.profile.name || 'el usuario';
+      const favDishes = dishHistory.filter((d) => d.isFavorite);
+      const frequentDishes = dishHistory.slice(0, 15);
+      const overRepeated = dishHistory.filter((d) => d.count >= 5);
+      const uniqueCount = dishHistory.length;
+
+      const lines: string[] = [];
+      lines.push(`HISTORIAL DE ${name.toUpperCase()}:`);
+      lines.push(`Platos más frecuentes: ${frequentDishes.map((d) => `${d.name} (${d.count}x)`).join(', ')}`);
+
+      if (favDishes.length > 0) {
+        lines.push(`Favoritos marcados por ${name}: ${favDishes.map((d) => d.name).join(', ')}`);
+        lines.push(`→ Priorizá estos platos cuando encajen con el plan.`);
+      }
+
+      if (overRepeated.length > 0) {
+        lines.push(`⚠ Platos muy repetidos (5+ veces): ${overRepeated.map((d) => d.name).join(', ')}`);
+        lines.push(`→ Sugerí alternativas similares para variar.`);
+      }
+
+      if (uniqueCount < 5) {
+        lines.push(`→ ${name} tiene poca variedad (${uniqueCount} platos únicos). Introducí platos nuevos gradualmente.`);
+      }
+
+      contextParts.push(lines.join('\n'));
     }
 
     const fullSystemPrompt = personalizedPrompt + '\n\n' + SYSTEM_RULES + '\n\n' + contextParts.join('\n\n');
