@@ -1,4 +1,4 @@
-import { Calendar, Settings, Sparkles, ShoppingCart } from 'lucide-react';
+import { Calendar, Settings, Sparkles, ShoppingCart, Heart } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import type { AppTab } from '../../types';
@@ -11,7 +11,7 @@ interface SidebarProps {
 const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
   { tab: 'assistant', label: 'Nutri', icon: Sparkles },
-  // { tab: 'recipes', label: 'Favoritos', icon: Heart }, // TODO: implement Favoritos
+  { tab: 'historial', label: 'Historial', icon: Heart },
   { tab: 'shopping', label: 'Compras', icon: ShoppingCart },
   { tab: 'settings', label: 'Ajustes', icon: Settings },
 ];

@@ -1,7 +1,7 @@
 export type MealType = 'desayuno' | 'almuerzo' | 'cena' | 'snack';
 export type Theme = 'dark' | 'light';
 export type ViewMode = 'day' | 'week' | 'month';
-export type AppTab = 'calendar' | 'recipes' | 'assistant' | 'shopping' | 'settings';
+export type AppTab = 'calendar' | 'historial' | 'assistant' | 'shopping' | 'settings';
 
 export type IngredientCategory =
   | 'carnes'
@@ -122,14 +122,7 @@ export interface Notification {
   mealType?: MealType;
 }
 
-/** @deprecated Use AppUser instead — GistUser is kept for backward compat */
-export interface GistUser {
-  login: string;
-  name: string;
-  avatarUrl: string;
-  token: string;
-  gistId: string | null;
-}
+
 
 export interface AppUser {
   id: string;
@@ -147,7 +140,8 @@ export type SyncStatus =
   | 'error'
   | 'offline';
 
-export interface GistPayload {
+/** Payload serializado para guardar/cargar en Supabase (tabla user_data) o exportar como backup JSON */
+export interface AppPayload {
   version: number;
   lastModified: string;
   dayPlans: Record<string, DayPlan>;
@@ -161,6 +155,7 @@ export interface GistPayload {
   profile?: UserProfile;
   shoppingLists?: ShoppingList[];
   customDishes?: Dish[];
+  favoriteDishes?: string[];
 }
 
 export type AuthState =

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { GistPayload, SyncStatus } from '../types';
+import type { AppPayload, SyncStatus } from '../types';
 import { loadUserData, saveUserData } from '../services/apiService';
-import { migratePayload } from '../services/gistService';
+import { migratePayload } from '../utils/migratePayload';
 import { useCalendarStore } from './useCalendarStore';
 import { useCalculatorStore } from './useCalculatorStore';
 import { useIngredientsStore } from './useIngredientsStore';
@@ -17,7 +17,7 @@ function getToken(): string | null {
   return localStorage.getItem(JWT_KEY);
 }
 
-interface GistSyncState {
+interface SyncState {
   syncStatus: SyncStatus;
   lastSyncedAt: string | null;
   pendingSync: boolean;
@@ -26,11 +26,11 @@ interface GistSyncState {
   initialLoad: () => Promise<void>;
   push: () => Promise<void>;
   schedulePush: () => void;
-  buildPayload: () => GistPayload;
-  hydrateAllStores: (payload: GistPayload) => void;
+  buildPayload: () => AppPayload;
+  hydrateAllStores: (payload: AppPayload) => void;
 }
 
-export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
+export const useGistSyncStore = create<SyncState>()((set, get) => ({
   syncStatus: 'idle',
   lastSyncedAt: null,
   pendingSync: false,
@@ -115,7 +115,7 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
     }, DEBOUNCE_MS);
   },
 
-  buildPayload: (): GistPayload => {
+  buildPayload: (): AppPayload => {
     const calendar = useCalendarStore.getState();
     const calculator = useCalculatorStore.getState();
     const ingredients = useIngredientsStore.getState();
@@ -132,7 +132,7 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
       }
     } catch { /* ignore */ }
 
-    let customDishes: GistPayload['customDishes'] = [];
+    let customDishes: AppPayload['customDishes'] = [];
     try {
       const recipesRaw = localStorage.getItem('nutrikal-recipes');
       if (recipesRaw) {
@@ -141,8 +141,17 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
       }
     } catch { /* ignore */ }
 
-    let profile: GistPayload['profile'];
-    let shoppingLists: GistPayload['shoppingLists'] = [];
+    let favoriteDishes: string[] = [];
+    try {
+      const historialRaw = localStorage.getItem('nutrikal-historial');
+      if (historialRaw) {
+        const parsed = JSON.parse(historialRaw);
+        favoriteDishes = parsed?.state?.favorites ?? [];
+      }
+    } catch { /* ignore */ }
+
+    let profile: AppPayload['profile'];
+    let shoppingLists: AppPayload['shoppingLists'] = [];
     try {
       const profileRaw = localStorage.getItem('nutrikal-profile');
       if (profileRaw) {
@@ -172,10 +181,11 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
       profile,
       shoppingLists,
       customDishes,
+      favoriteDishes,
     };
   },
 
-  hydrateAllStores: (payload: GistPayload) => {
+  hydrateAllStores: (payload: AppPayload) => {
     useCalendarStore.setState({
       dayPlans: payload.dayPlans,
       notifications: payload.notifications,
@@ -206,6 +216,11 @@ export const useGistSyncStore = create<GistSyncState>()((set, get) => ({
     import('./useRecipesStore').then(({ useRecipesStore }) => {
       useRecipesStore.setState({
         customDishes: payload.customDishes ?? [],
+      });
+    });
+    import('./useHistorialStore').then(({ useHistorialStore }) => {
+      useHistorialStore.setState({
+        favorites: payload.favoriteDishes ?? [],
       });
     });
 

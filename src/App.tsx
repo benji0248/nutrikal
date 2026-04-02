@@ -12,7 +12,7 @@ import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
 import { MonthView } from './components/calendar/MonthView';
 import { DayView } from './components/calendar/DayView';
-import { RecipeBank } from './components/meals/RecipeBank';
+import { HistorialView } from './components/historial/HistorialView';
 import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
@@ -174,7 +174,7 @@ function AuthenticatedApp() {
           {activeTab === 'calendar' && view === 'week' && <WeekView />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
-          {activeTab === 'recipes' && <RecipeBank />}
+          {activeTab === 'historial' && <HistorialView />}
           {activeTab === 'shopping' && <ShoppingListView />}
           {activeTab === 'settings' && <SettingsView onEditProfile={() => setShowProfileEdit(true)} />}
         </div>
@@ -258,7 +258,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
     reader.onload = async () => {
       try {
         const raw = JSON.parse(reader.result as string);
-        const { migratePayload } = await import('./services/gistService');
+        const { migratePayload } = await import('./utils/migratePayload');
         const payload = migratePayload(raw);
         if (confirm('¿Reemplazar todos tus datos actuales?')) {
           hydrateAllStores(payload);
@@ -312,7 +312,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
                 className="hidden"
               />
             </label>
-            <Button variant="danger" onClick={() => { if (confirm('Tus datos están guardados en este dispositivo. ¿Cerrar sesión?')) logout(); }} fullWidth>
+            <Button variant="danger" onClick={() => { if (confirm('Tu información está guardada en la nube. ¿Cerrar sesión?')) logout(); }} fullWidth>
               Cerrar sesión
             </Button>
           </div>
