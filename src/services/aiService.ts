@@ -189,6 +189,7 @@ export function buildContext(params: BuildContextParams): AiChatContext {
 export async function sendMessage(
   message: string,
   context: AiChatContext,
+  catalog?: string,
 ): Promise<AiChatResponse> {
   const token = getToken();
   if (!token) {
@@ -201,7 +202,7 @@ export async function sendMessage(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message, context }),
+    body: JSON.stringify({ message, context, catalog }),
   });
 
   if (!res.ok) {

@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore, createEmptyDayPlan } from '../../store/useCalendarStore';
-import { parseDate, isToday, formatDayFull, todayKey } from '../../utils/dateHelpers';
+import { parseDate, isToday, formatDayFull, todayKey, getWeekDays, formatDateKey } from '../../utils/dateHelpers';
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
 import type { MealType } from '../../types';
@@ -33,11 +33,16 @@ function getCurrentMealType(): MealType | null {
   return null;
 }
 
-export function DayView() {
+interface DayViewProps {
+  onNavigateToAssistant?: () => void;
+}
+
+export function DayView({ onNavigateToAssistant }: DayViewProps) {
   const currentDate = useCalendarStore((s) => s.currentDate);
   const navDay = useCalendarStore((s) => s.navigateDay);
   const goToToday = useCalendarStore((s) => s.goToToday);
-  const storedPlan = useCalendarStore((s) => s.dayPlans[currentDate]);
+  const dayPlans = useCalendarStore((s) => s.dayPlans);
+  const storedPlan = dayPlans[currentDate];
   const dayPlan = useMemo(() => storedPlan ?? createEmptyDayPlan(currentDate), [storedPlan, currentDate]);
   const setNotes = useCalendarStore((s) => s.setNotes);
   const toggleMealCompleted = useCalendarStore((s) => s.toggleMealCompleted);
@@ -48,6 +53,16 @@ export function DayView() {
   const showCalories = useSettingsStore((s) => s.showCalories);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
+
+  const hasAnyMealsThisWeek = useMemo(() => {
+    const weekDays = getWeekDays(date);
+    return weekDays.some((day) => {
+      const key = formatDateKey(day);
+      const plan = dayPlans[key];
+      if (!plan) return false;
+      return MEAL_TYPE_ORDER.some((mt) => plan.meals[mt].length > 0);
+    });
+  }, [date, dayPlans]);
   const [activeMealType, setActiveMealType] = useState<MealType | null>(getCurrentMealType);
   const [notesValue, setNotesValue] = useState(dayPlan.notes);
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -133,6 +148,29 @@ export function DayView() {
             </p>
             <p className="text-[11px] font-body text-muted">{MEAL_TIME_LABELS[activeMealType]}</p>
           </div>
+        </div>
+      )}
+
+      {/* Empty state banner */}
+      {!hasAnyMealsThisWeek && onNavigateToAssistant && (
+        <div className="bg-accent/10 border border-accent/30 rounded-2xl px-4 py-5 flex flex-col items-center gap-3 text-center">
+          <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
+            <Sparkles size={20} className="text-accent" />
+          </div>
+          <div>
+            <p className="text-sm font-heading font-bold text-text-primary">
+              No tenés nada planificado
+            </p>
+            <p className="text-xs font-body text-muted mt-1">
+              Pedile a Nutri que te arme la semana
+            </p>
+          </div>
+          <button
+            onClick={onNavigateToAssistant}
+            className="px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-body font-medium hover:bg-accent/90 transition-colors min-h-[48px]"
+          >
+            Ir a Nutri
+          </button>
         </div>
       )}
 

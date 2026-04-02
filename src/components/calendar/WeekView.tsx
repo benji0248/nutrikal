@@ -1,17 +1,34 @@
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { useSwipe } from '../../hooks/useSwipe';
 import { getWeekDays, getWeekRange, parseDate, isToday, DAY_LABELS, formatDateKey } from '../../utils/dateHelpers';
 import { DayCard } from './DayCard';
 import { format } from 'date-fns';
+import type { MealType } from '../../types';
 
-export function WeekView() {
+interface WeekViewProps {
+  onNavigateToAssistant?: () => void;
+}
+
+export function WeekView({ onNavigateToAssistant }: WeekViewProps) {
   const currentDate = useCalendarStore((s) => s.currentDate);
   const navWeek = useCalendarStore((s) => s.navigateWeek);
 
+  const dayPlans = useCalendarStore((s) => s.dayPlans);
   const weekDays = useMemo(() => getWeekDays(parseDate(currentDate)), [currentDate]);
+
+  const hasAnyMeals = useMemo(() => {
+    return weekDays.some((day) => {
+      const key = formatDateKey(day);
+      const plan = dayPlans[key];
+      if (!plan) return false;
+      return (Object.keys(plan.meals) as MealType[]).some(
+        (mt) => plan.meals[mt].length > 0,
+      );
+    });
+  }, [weekDays, dayPlans]);
 
   const [activeDayIdx, setActiveDayIdx] = useState(() => {
     const todayIdx = weekDays.findIndex((d) => isToday(d));
@@ -82,6 +99,29 @@ export function WeekView() {
           );
         })}
       </div>
+
+      {/* Empty state banner */}
+      {!hasAnyMeals && onNavigateToAssistant && (
+        <div className="bg-accent/10 border border-accent/30 rounded-2xl px-4 py-5 flex flex-col items-center gap-3 text-center mb-4">
+          <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
+            <Sparkles size={20} className="text-accent" />
+          </div>
+          <div>
+            <p className="text-sm font-heading font-bold text-text-primary">
+              No tenés nada planificado
+            </p>
+            <p className="text-xs font-body text-muted mt-1">
+              Pedile a Nutri que te arme la semana
+            </p>
+          </div>
+          <button
+            onClick={onNavigateToAssistant}
+            className="px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-body font-medium hover:bg-accent/90 transition-colors min-h-[48px]"
+          >
+            Ir a Nutri
+          </button>
+        </div>
+      )}
 
       {/* Mobile: single day */}
       <div className="md:hidden">

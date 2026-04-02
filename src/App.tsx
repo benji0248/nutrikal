@@ -69,7 +69,9 @@ function AuthenticatedApp() {
     initialLoad().then(() => {
       setTimeout(() => {
         const p = useProfileStore.getState().profile;
-        if (!p) setActiveTab('assistant');
+        if (!p) {
+          setShowProfileEdit(true);
+        }
         setReady(true);
       }, 100);
     }).catch(() => {
@@ -170,8 +172,8 @@ function AuthenticatedApp() {
         </header>
 
         <div className="px-4 py-6 pb-24 md:pb-6 max-w-4xl mx-auto">
-          {activeTab === 'calendar' && view === 'day' && <DayView />}
-          {activeTab === 'calendar' && view === 'week' && <WeekView />}
+          {activeTab === 'calendar' && view === 'day' && <DayView onNavigateToAssistant={() => setActiveTab('assistant')} />}
+          {activeTab === 'calendar' && view === 'week' && <WeekView onNavigateToAssistant={() => setActiveTab('assistant')} />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
           {activeTab === 'historial' && <HistorialView />}
@@ -189,7 +191,12 @@ function AuthenticatedApp() {
       />
       <ProfileSetup
         isOpen={showProfileEdit}
-        onClose={() => setShowProfileEdit(false)}
+        onClose={() => {
+          setShowProfileEdit(false);
+          // After closing profile setup, if profile now exists, go to assistant
+          const p = useProfileStore.getState().profile;
+          if (p) setActiveTab('assistant');
+        }}
         existingProfile={profile}
       />
     </div>

@@ -96,6 +96,49 @@ export interface AiMeal {
   humanPortion?: string;
 }
 
+// ── Portion Engine types (Phase 4/5 — Desacople) ──
+
+/** Gemini's new lightweight response — creative only, no numbers */
+export interface AiMealLite {
+  name: string;
+  ingredientIds: string[];
+  humanPortion?: string;
+  prepMinutes?: number;
+}
+
+/** Macro role classification for portion engine */
+export type MacroRole = 'protein' | 'energy' | 'fat' | 'volume';
+
+/** Result from portionEngine: fully hydrated ingredient with exact grams */
+export interface HydratedIngredient {
+  ingredientId: string;
+  name: string;
+  grams: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  macroRole: MacroRole;
+}
+
+/** Fully hydrated meal with exact macros computed by portionEngine */
+export interface HydratedMeal {
+  name: string;
+  ingredients: HydratedIngredient[];
+  totalKcal: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  prepMinutes?: number;
+  humanPortion?: string;
+}
+
+/** Compact catalog entry sent to Gemini (id + name only) */
+export interface CatalogEntry {
+  id: string;
+  name: string;
+}
+
 export interface Meal {
   id: string;
   name: string;

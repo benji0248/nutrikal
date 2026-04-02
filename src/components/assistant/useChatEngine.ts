@@ -7,8 +7,11 @@ import type {
   EnergyLevel,
   AiAction,
   AiMeal,
+  AiMealLite,
   WeekPlan,
   PlanPreferences,
+  PlannedDay,
+  PlannedMeal,
 } from '../../types';
 import { MEAL_TYPE_LABELS, MEAL_TYPE_ORDER } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
@@ -31,6 +34,16 @@ import {
 import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
 import { useHistorialStore } from '../../store/useHistorialStore';
+import {
+  hydrateMeal,
+  hydratedToAiMeal,
+  getMealSlotBudget,
+} from '../../services/portionEngine';
+import {
+  filterIngredientsForUser,
+  buildCatalogForPrompt,
+  catalogToPromptString,
+} from '../../services/ingredientFilter';
 
 function makeId(): string {
   return generateId();
@@ -133,6 +146,49 @@ export function useChatEngine(): ChatEngineResult {
     setMessages((prev) => [...prev, ...msgs]);
   }
 
+  // ── Pre-compute filtered catalog for Gemini ──
+  const catalogString = useMemo(() => {
+    if (!profile) return '';
+    const filtered = filterIngredientsForUser(allIngredients, profile);
+    return catalogToPromptString(buildCatalogForPrompt(filtered));
+  }, [profile, allIngredients]);
+
+  /**
+   * Detect whether a raw meal object from Gemini is the new lite format
+   * (ingredientIds only) or the legacy format (full ingredients array).
+   */
+  function isLiteFormat(meal: unknown): meal is AiMealLite {
+    return (
+      typeof meal === 'object' &&
+      meal !== null &&
+      'ingredientIds' in meal &&
+      Array.isArray((meal as AiMealLite).ingredientIds)
+    );
+  }
+
+  /**
+   * Rehydrate a raw meal from Gemini into the legacy AiMeal format.
+   * If already in legacy format, pass through unchanged.
+   * If in lite format, use portionEngine to compute exact portions.
+   */
+  function rehydrateRawMeal(
+    raw: unknown,
+    mealType: MealType,
+    dailyBudgetOverride?: number,
+  ): AiMeal | null {
+    if (!raw || typeof raw !== 'object') return null;
+
+    if (isLiteFormat(raw)) {
+      const effectiveBudget = dailyBudgetOverride ?? budget;
+      const slotBudget = getMealSlotBudget(effectiveBudget, mealType);
+      const hydrated = hydrateMeal(raw, slotBudget, allIngredients);
+      return hydratedToAiMeal(hydrated);
+    }
+
+    // Legacy format — pass through as-is
+    return raw as AiMeal;
+  }
+
   function aiMealToCalendarMeal(aiMeal: AiMeal) {
     return {
       id: generateId(),
@@ -147,7 +203,11 @@ export function useChatEngine(): ChatEngineResult {
       switch (action.type) {
         case 'add_meal':
         case 'swap_meal': {
-          const aiMeal = action.meal;
+          const rawMeal = action.meal;
+          if (!rawMeal) break;
+
+          // Rehydrate: lite format → full AiMeal with exact portions
+          const aiMeal = rehydrateRawMeal(rawMeal, action.mealType);
           if (!aiMeal) break;
 
           if (action.type === 'swap_meal') {
@@ -166,13 +226,32 @@ export function useChatEngine(): ChatEngineResult {
             aiMealToDishToEmbed(aiMeal, action.mealType, action.date),
           ]);
 
-          const shoppingItems = createShoppingItemsFromAiMeals([aiMeal]);
+          const shoppingItems = createShoppingItemsFromAiMeals([aiMeal], allIngredients);
           addItemsToActiveList(shoppingItems);
           break;
         }
 
         case 'week_plan': {
-          const weekPlan: WeekPlan = { days: action.days, applied: false };
+          // Rehydrate all meals in the week plan before displaying
+          const rehydratedDays: PlannedDay[] = action.days.map((day) => {
+            const rehydratedMeals: Partial<Record<MealType, PlannedMeal>> = {};
+            // Determine if this is a cheat day (Sunday)
+            const dayDate = new Date(day.date + 'T12:00:00');
+            const isSunday = dayDate.getDay() === 0;
+            const dayBudget = isSunday ? budget + 1000 : budget;
+
+            for (const mt of MEAL_TYPE_ORDER) {
+              const rawMeal = day.meals[mt];
+              if (!rawMeal) continue;
+              const aiMeal = rehydrateRawMeal(rawMeal, mt, dayBudget);
+              if (aiMeal) {
+                rehydratedMeals[mt] = aiMeal;
+              }
+            }
+            return { date: day.date, meals: rehydratedMeals };
+          });
+
+          const weekPlan: WeekPlan = { days: rehydratedDays, applied: false };
           addMessages({
             id: makeId(),
             type: 'assistant-plan',
@@ -184,10 +263,17 @@ export function useChatEngine(): ChatEngineResult {
 
         case 'suggest_meals': {
           if (action.meals && action.meals.length > 0) {
+            // Rehydrate suggested meals (default to 'almuerzo' slot budget)
+            const rehydratedSuggestions = action.meals.map((rawMeal) => {
+              const aiMeal = rehydrateRawMeal(rawMeal, 'almuerzo');
+              const reason = 'reason' in rawMeal ? (rawMeal as AiMeal & { reason: string }).reason : '';
+              return aiMeal ? { ...aiMeal, reason } : { ...rawMeal as AiMeal, reason };
+            });
+
             addMessages({
               id: makeId(),
               type: 'assistant-meals',
-              mealSuggestions: action.meals,
+              mealSuggestions: rehydratedSuggestions,
               timestamp: new Date().toISOString(),
             });
           }
@@ -262,7 +348,7 @@ export function useChatEngine(): ChatEngineResult {
         favorites: useHistorialStore.getState().favorites,
       });
 
-      const response = await sendMessage(text, context);
+      const response = await sendMessage(text, context, catalogString);
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
 
@@ -370,7 +456,8 @@ export function useChatEngine(): ChatEngineResult {
     }
 
     // Add all ingredients to shopping list
-    const shoppingItems = createShoppingItemsFromAiMeals(allAiMeals);
+    const allIngs = [...INGREDIENTS_DB, ...useIngredientsStore.getState().customIngredients];
+    const shoppingItems = createShoppingItemsFromAiMeals(allAiMeals, allIngs);
     shoppingStore.addItemsToActiveList(shoppingItems);
 
     // Fire-and-forget: embed all dishes for semantic search

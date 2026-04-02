@@ -5,6 +5,8 @@ import { checkRateLimit } from '../_lib/rateLimit.js';
 
 interface ChatRequestBody {
   message: string;
+  /** Filtered ingredient catalog (id: name) pre-built on the frontend */
+  catalog?: string;
   context: {
     profile: {
       name: string;
@@ -102,11 +104,11 @@ DATOS DE ${name.toUpperCase()}:
 ${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Restricciones: ${restrictions}
 - A ${name} NO le gustan estos ingredientes (NUNCA los incluyas en ninguna comida): ${disliked}
 
-PRESUPUESTO CALÓRICO — REGLA CRÍTICA:
-- DÍAS NORMALES (lunes a sábado): el presupuesto es EXACTAMENTE ${profile.dailyBudget} kcal. YA incluye el ajuste por su objetivo. NO lo modifiques, NO le restes nada.
-  Distribución: ~25% desayuno (~${Math.round(profile.dailyBudget * 0.25)} kcal), ~35% almuerzo (~${Math.round(profile.dailyBudget * 0.35)} kcal), ~30% cena (~${Math.round(profile.dailyBudget * 0.30)} kcal), ~10% snack (~${Math.round(profile.dailyBudget * 0.10)} kcal).
-- DOMINGO = CHEAT DAY: el presupuesto del domingo es ${profile.dailyBudget + 1000} kcal (budget normal + 1000). Ese día podés incluir comidas más indulgentes, porciones más grandes, postres, etc.
-  Distribución domingo: ~25% desayuno (~${Math.round((profile.dailyBudget + 1000) * 0.25)} kcal), ~35% almuerzo (~${Math.round((profile.dailyBudget + 1000) * 0.35)} kcal), ~30% cena (~${Math.round((profile.dailyBudget + 1000) * 0.30)} kcal), ~10% snack (~${Math.round((profile.dailyBudget + 1000) * 0.10)} kcal).
+PORCIONES Y CALORÍAS:
+- NO calculés gramos ni calorías. El sistema NutriKal calcula las porciones exactas a partir de los ingredientes que elegís.
+- Tu trabajo es elegir combinaciones de ingredientes sabrosas y balanceadas.
+- Intentá que cada comida tenga al menos una fuente de proteína, una de carbohidratos y verduras.
+- El domingo es CHEAT DAY: podés incluir ingredientes más indulgentes (ultraprocesados, postres, etc.).
 NUNCA mencionés calorías al usuario.
 
 REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
@@ -114,7 +116,7 @@ REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
 - Balanceá las comidas: proteína repartida, no todos carbos juntos.
 - Variá: no repitas el mismo plato más de 2 veces en la semana.
 - Respetá las restricciones de ${name} absolutamente.
-- Excluí ingredientes que no le gustan.
+- SOLO usá IDs del catálogo provisto. NUNCA inventes IDs.
 - El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.
 - Si el usuario tiene historial, priorizá sus favoritos pero variá para no aburrir.`;
 }
@@ -161,6 +163,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const contextParts: string[] = [];
 
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
+
+    // Inject filtered ingredient catalog
+    if (body.catalog) {
+      contextParts.push(`CATÁLOGO DE INGREDIENTES DISPONIBLES (usá SOLO estos IDs):\n${body.catalog}\nIMPORTANTE: SOLO usá IDs de este catálogo. NUNCA inventes IDs que no estén aquí.`);
+    }
 
     if (body.context.weekDates) {
       const dates = body.context.weekDates;
