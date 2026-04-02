@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Download, Upload, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
-import { migratePayload } from '../../services/gistService';
+import { migratePayload } from '../../utils/migratePayload';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 
@@ -177,7 +177,7 @@ export const UserMenu = () => {
         title="Cerrar sesión"
       >
         <ConfirmDialog
-          message="Tus datos están guardados en este dispositivo. ¿Cerrar sesión?"
+          message="Tu información está guardada en la nube. Podés volver a entrar cuando quieras."
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
         />
@@ -188,7 +188,7 @@ export const UserMenu = () => {
         title="Cerrar sesión"
       >
         <ConfirmDialog
-          message="Tus datos están guardados en este dispositivo. ¿Cerrar sesión?"
+          message="Tu información está guardada en la nube. Podés volver a entrar cuando quieras."
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
         />

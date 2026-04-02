@@ -162,11 +162,6 @@ export async function sendMessage(
     throw new Error('Not authenticated');
   }
 
-  console.group('🤖 AI Request');
-  console.log('Message:', message);
-  console.log('Context:', context);
-  console.groupEnd();
-
   const res = await fetch(`${BASE_URL}/api/ai/chat`, {
     method: 'POST',
     headers: {
@@ -190,9 +185,6 @@ export async function sendMessage(
   }
 
   const data = await res.json();
-  console.group('🤖 AI Response');
-  console.log('Raw:', data);
-  console.groupEnd();
 
   return {
     text: data.text,

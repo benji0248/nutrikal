@@ -29,6 +29,7 @@ import {
   getNextWeekDates,
 } from '../../services/aiService';
 import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
+import { useGistSyncStore } from '../../store/useGistSyncStore';
 
 function makeId(): string {
   return generateId();
@@ -351,6 +352,9 @@ export function useChatEngine(): ChatEngineResult {
   }, [isLoading, profile, budget, planPreferences]);
 
   const handleApplyPlan = useCallback((plan: WeekPlan) => {
+    // Accedemos via getState() para evitar closures stale y asegurar el state más reciente
+    const calendarStore = useCalendarStore.getState();
+    const shoppingStore = useShoppingStore.getState();
     const allAiMeals: AiMeal[] = [];
 
     for (const day of plan.days) {
@@ -358,14 +362,14 @@ export function useChatEngine(): ChatEngineResult {
         const planned = day.meals[mt];
         if (!planned) continue;
 
-        upsertMeal(day.date, mt, aiMealToCalendarMeal(planned));
+        calendarStore.upsertMeal(day.date, mt, aiMealToCalendarMeal(planned));
         allAiMeals.push(planned);
       }
     }
 
     // Add all ingredients to shopping list
     const shoppingItems = createShoppingItemsFromAiMeals(allAiMeals);
-    addItemsToActiveList(shoppingItems);
+    shoppingStore.addItemsToActiveList(shoppingItems);
 
     // Fire-and-forget: embed all dishes for semantic search
     const dishesToEmbed = plan.days.flatMap((day) =>
@@ -374,6 +378,12 @@ export function useChatEngine(): ChatEngineResult {
         .map((mt) => aiMealToDishToEmbed(day.meals[mt]!, mt, day.date)),
     );
     submitDishesForEmbedding(dishesToEmbed);
+
+    // Garantizar persistencia en Supabase: llamamos schedulePush() UNA SOLA VEZ,
+    // después de que todos los upsertMeal se aplicaron al state.
+    // Esto evita el race condition del dynamic import en sync() y asegura
+    // que buildPayload() capture el estado completo y final del calendario.
+    useGistSyncStore.getState().schedulePush();
 
     setMessages((prev) => {
       const updated = [...prev];
@@ -397,7 +407,7 @@ export function useChatEngine(): ChatEngineResult {
       timestamp: new Date().toISOString(),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budget]);
+  }, []);
 
   const handleRegeneratePlan = useCallback(() => {
     setMessages((prev) => prev.filter((m) => m.type !== 'assistant-plan'));
