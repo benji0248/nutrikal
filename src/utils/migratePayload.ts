@@ -23,6 +23,7 @@ function emptyPayload(): AppPayload {
     shoppingLists: [],
     customDishes: [],
     favoriteDishes: [],
+    ingredientSignalLog: [],
   };
 }
 
@@ -75,5 +76,8 @@ export function migratePayload(data: unknown): AppPayload {
     favoriteDishes: Array.isArray(raw.favoriteDishes)
       ? (raw.favoriteDishes as string[])
       : base.favoriteDishes,
+    ingredientSignalLog: Array.isArray(raw.ingredientSignalLog)
+      ? (raw.ingredientSignalLog as AppPayload['ingredientSignalLog'])
+      : base.ingredientSignalLog,
   };
 }

@@ -5,6 +5,7 @@ import { migratePayload } from '../utils/migratePayload';
 import { useCalendarStore } from './useCalendarStore';
 import { useCalculatorStore } from './useCalculatorStore';
 import { useIngredientsStore } from './useIngredientsStore';
+import { useIngredientSignalStore } from './useIngredientSignalStore';
 
 const JWT_KEY = 'nutrikal-jwt';
 const DEBOUNCE_MS = 1500;
@@ -182,6 +183,7 @@ export const useGistSyncStore = create<SyncState>()((set, get) => ({
       shoppingLists,
       customDishes,
       favoriteDishes,
+      ingredientSignalLog: useIngredientSignalStore.getState().entries,
     };
   },
 
@@ -223,6 +225,7 @@ export const useGistSyncStore = create<SyncState>()((set, get) => ({
         favorites: payload.favoriteDishes ?? [],
       });
     });
+    useIngredientSignalStore.getState().setFromPayload(payload.ingredientSignalLog);
 
     // Apply theme
     if (payload.settings?.theme) {

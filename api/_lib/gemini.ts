@@ -27,16 +27,36 @@ export const SYSTEM_RULES = `REGLAS ABSOLUTAS:
 - NUNCA inventes IDs de ingredientes. Si no encontrás un ingrediente adecuado en el catálogo, elegí el más parecido.
 - NUNCA incluyas gramos, kcal, ni totalKcal. El sistema calcula las porciones exactas automáticamente.
 
-FORMATO DE COMIDA (AiMealLite):
-Cada comida que sugieras DEBE tener este formato exacto en las actions:
+FORMATO DE COMIDA — preferí SIEMPRE el CONTRATO (roles + proporciones relativas). El sistema calcula gramos en el dispositivo; vos solo razonás sentido culinario.
+Opción A — RECOMENDADA (dishContract):
+{
+  "name": "mismo nombre que en el contrato o más corto",
+  "prepMinutes": 20,
+  "humanPortion": "1 plato",
+  "dishContract": {
+    "contractVersion": 1,
+    "nombre": "Nombre del plato",
+    "descripcion_humana": "Una línea apetitosa",
+    "tipo_plato": "plato_base_cereal",
+    "ingredientes": [
+      { "id": "ing_xxx", "rol": "base", "proporcion": 0.40 },
+      { "id": "ing_yyy", "rol": "proteina", "proporcion": 0.30 }
+    ]
+  }
+}
+- "rol" ∈: base, proteina, liquido, vegetal, vegetal_hoja, aromatico, fruta_toque, grasa, lacteo, endulzante, toque.
+- "proporcion" es PESO RELATIVO (no calorías): deben sumar 1.0 entre todos los ítems (el sistema renorma si hay pequeños errores).
+- aromatico: cada ítem ≤ 0.10; toque y endulzante: cada ítem ≤ 0.05.
+- SOLO IDs del catálogo. Entre 4 y 10 ingredientes por plato.
+
+Opción B — compatibilidad (solo lista de IDs, sin proporciones):
 {
   "name": "nombre creativo de la comida",
   "ingredientIds": ["ing_005", "ing_040", "ing_156"],
   "prepMinutes": 20,
   "humanPortion": "1 plato"
 }
-- "ingredientIds" contiene SOLO IDs del catálogo provisto. Elegí entre 2 y 8 ingredientes por comida.
-- "humanPortion" es la porción en lenguaje humano: "1 plato", "2 tostadas", "1 taza".
+- "ingredientIds": 2 a 8 IDs del catálogo.
 - NO incluyas "ingredients", "grams", "kcal", ni "totalKcal". El sistema los calcula.
 
 FLUJO "ARMAME LA SEMANA" — REGLA ESTRICTA:
@@ -97,8 +117,8 @@ EJEMPLO INCORRECTO (NUNCA hacer esto):
   quickReplies: ["Planificar mi semana", "¿Qué como hoy?"] ← esto son ACCIONES, no respuestas a tu pregunta.
 
 Acciones disponibles:
-- { "type": "add_meal", "date": "YYYY-MM-DD", "mealType": "almuerzo", "meal": { "name": "...", "ingredientIds": [...], "prepMinutes": N, "humanPortion": "..." } }
-- { "type": "week_plan", "days": [{ "date": "YYYY-MM-DD", "meals": { "desayuno": { "name": "...", "ingredientIds": [...], "prepMinutes": N, "humanPortion": "..." }, ... } }] }
-- { "type": "swap_meal", "date": "YYYY-MM-DD", "mealType": "cena", "meal": { "name": "...", "ingredientIds": [...], "prepMinutes": N, "humanPortion": "..." } }
-- { "type": "suggest_meals", "meals": [{ "name": "...", "ingredientIds": [...], "prepMinutes": N, "humanPortion": "...", "reason": "razón corta" }] }
+- { "type": "add_meal", "date": "YYYY-MM-DD", "mealType": "almuerzo", "meal": { "name": "...", "dishContract": { ... } O "ingredientIds": [...], "prepMinutes": N, "humanPortion": "..." } }
+- { "type": "week_plan", "days": [{ "date": "YYYY-MM-DD", "meals": { "desayuno": { ...misma forma de meal... }, ... } }] }
+- { "type": "swap_meal", "date": "YYYY-MM-DD", "mealType": "cena", "meal": { ... } }
+- { "type": "suggest_meals", "meals": [{ ...meal..., "reason": "razón corta" }] }
 - { "type": "show_summary" }`;

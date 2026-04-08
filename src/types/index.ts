@@ -101,9 +101,74 @@ export interface AiMeal {
 /** Gemini's new lightweight response — creative only, no numbers */
 export interface AiMealLite {
   name: string;
-  ingredientIds: string[];
+  /** Legacy path: IDs only → portionEngine.computePortions */
+  ingredientIds?: string[];
+  /** Preferred path: roles + relative proportions → dishResolverService (local grams) */
+  dishContract?: DishContract;
   humanPortion?: string;
   prepMinutes?: number;
+}
+
+/** @see docs — IA devuelve solo sentido culinario; gramos = motor local */
+export const DISH_CONTRACT_VERSION = 1 as const;
+
+export type CulinaryRole =
+  | 'base'
+  | 'proteina'
+  | 'liquido'
+  | 'vegetal'
+  | 'vegetal_hoja'
+  | 'aromatico'
+  | 'fruta_toque'
+  | 'grasa'
+  | 'lacteo'
+  | 'endulzante'
+  | 'toque';
+
+export type DishContractType =
+  | 'plato_base_cereal'
+  | 'plato_base_proteina'
+  | 'ensalada'
+  | 'sopa_otro'
+  | 'desayuno'
+  | 'snack';
+
+export interface DishContractIngredient {
+  id: string;
+  rol: CulinaryRole;
+  /** Peso relativo; se normaliza a suma 1 en el cliente */
+  proporcion: number;
+}
+
+export interface DishContract {
+  contractVersion: number;
+  nombre: string;
+  descripcion_humana: string;
+  tipo_plato: DishContractType;
+  ingredientes: DishContractIngredient[];
+}
+
+/** Nivel de rotación semanal (1 estructural … 3 creativo) */
+export type IngredientLevel = 1 | 2 | 3;
+
+export interface WeeklyIngredientPool {
+  weekId: string;
+  structural: string[];
+  contextual: string[];
+  creative: string[];
+}
+
+export type IngredientSignalAction = 'aceptado' | 'modificado' | 'ignorado' | 'repetido';
+
+export interface IngredientSignalEntry {
+  id: string;
+  fecha: string;
+  comida: MealType;
+  ingredientes_sugeridos: string[];
+  ingredientes_finales: string[];
+  ingredientes_removidos: string[];
+  ingredientes_agregados: string[];
+  accion: IngredientSignalAction;
 }
 
 /** Macro role classification for portion engine */
@@ -199,6 +264,8 @@ export interface AppPayload {
   shoppingLists?: ShoppingList[];
   customDishes?: Dish[];
   favoriteDishes?: string[];
+  /** Señales implícitas para el motor de selección futuro (sin fricción) */
+  ingredientSignalLog?: IngredientSignalEntry[];
 }
 
 export type AuthState =
@@ -403,7 +470,7 @@ export interface AiShowSummaryAction {
   type: 'show_summary';
 }
 
-export interface PlannedMeal extends AiMeal {}
+export type PlannedMeal = AiMeal;
 
 export interface PlannedDay {
   date: string;

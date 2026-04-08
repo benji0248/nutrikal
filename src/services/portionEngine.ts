@@ -18,22 +18,22 @@ const SLOT_PERCENTAGES: Record<MealType, number> = {
   snack: 0.10,
 };
 
-// ── Macro-role budget distribution within a single meal ──
+// ── Base grams per role to establish proportions ──
 
-const ROLE_PERCENTAGES: Record<MacroRole, number> = {
-  protein: 0.30,
-  energy: 0.40,
-  fat: 0.20,
-  volume: 0.10,
+const ROLE_BASE_GRAMS: Record<MacroRole, number> = {
+  protein: 150,
+  energy: 80,
+  fat: 15,
+  volume: 100,
 };
 
 // ── Per-role gram clamps (min, max) ──
 
 const ROLE_GRAM_LIMITS: Record<MacroRole, { min: number; max: number }> = {
   protein: { min: 50, max: 400 },
-  energy: { min: 30, max: 400 },
-  fat: { min: 5, max: 60 },
-  volume: { min: 30, max: 300 },
+  energy: { min: 20, max: 300 },
+  fat: { min: 5, max: 50 },
+  volume: { min: 20, max: 200 },
 };
 
 /**
@@ -83,13 +83,14 @@ export function classifyMacroRole(ingredient: Ingredient): MacroRole {
 
 /**
  * Compute exact gram portions for a set of ingredients to hit a target
- * caloric budget. Groups by macro role, distributes budget proportionally,
- * then solves: Grams = (kcalTarget / kcalPer100g) × 100.
+ * caloric budget. It establishes a "base plate" using sensible gram
+ * proportions for each macro role, computes the implicit calories of that
+ * base plate, and scales the entire plate proportionally to hit the budget.
  *
  * @param ingredientIds - IDs from INGREDIENTS_DB
  * @param mealBudgetKcal - Target calories for this meal
  * @param allIngredients - Full ingredient database
- * @returns Array of HydratedIngredient with exact grams, or null if an ID is invalid
+ * @returns Array of HydratedIngredient with exact grams
  */
 export function computePortions(
   ingredientIds: string[],
@@ -119,84 +120,64 @@ export function computePortions(
     groups.set(item.role, group);
   }
 
-  // Compute effective role percentages (redistribute if some roles are missing)
-  const presentRoles = Array.from(groups.keys());
-  const totalPresentPercent = presentRoles.reduce(
-    (sum, role) => sum + ROLE_PERCENTAGES[role],
-    0,
-  );
-
-  const results: HydratedIngredient[] = [];
+  const baseResults: HydratedIngredient[] = [];
+  let baseTotalKcal = 0;
 
   for (const [role, members] of groups) {
-    // Proportional budget for this role, normalized by present roles
-    const roleBudget =
-      (ROLE_PERCENTAGES[role] / totalPresentPercent) * mealBudgetKcal;
-    const perIngredientBudget = roleBudget / members.length;
-    const limits = ROLE_GRAM_LIMITS[role];
+    // Determine the base grams for each ingredient in this role
+    const perIngredientBaseGrams = ROLE_BASE_GRAMS[role] / members.length;
 
     for (const { ingredient } of members) {
-      let grams: number;
-
       if (ingredient.calories <= 0) {
-        // Zero-cal garnish (salt, stevia): fixed small amount
-        grams = 2;
+        // Zero-cal garnish
+        baseResults.push({
+          ingredientId: ingredient.id,
+          name: ingredient.name,
+          grams: 2,
+          kcal: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          macroRole: role,
+        });
       } else {
-        // Core formula: Grams = (kcalTarget / kcalPer100g) × 100
-        grams = (perIngredientBudget / ingredient.calories) * 100;
-        // Clamp to reasonable range
-        grams = Math.max(limits.min, Math.min(limits.max, grams));
+        const kcalForBaseGrams = (perIngredientBaseGrams / 100) * ingredient.calories;
+        baseTotalKcal += kcalForBaseGrams;
+        
+        baseResults.push({
+          ingredientId: ingredient.id,
+          name: ingredient.name,
+          grams: perIngredientBaseGrams,
+          kcal: kcalForBaseGrams,
+          protein: (ingredient.protein * perIngredientBaseGrams) / 100,
+          carbs: (ingredient.carbs * perIngredientBaseGrams) / 100,
+          fat: (ingredient.fat * perIngredientBaseGrams) / 100,
+          macroRole: role,
+        });
       }
-
-      grams = Math.round(grams);
-
-      const factor = grams / 100;
-      const kcal = Math.round(ingredient.calories * factor);
-      const protein = Math.round(ingredient.protein * factor * 10) / 10;
-      const carbs = Math.round(ingredient.carbs * factor * 10) / 10;
-      const fat = Math.round(ingredient.fat * factor * 10) / 10;
-
-      results.push({
-        ingredientId: ingredient.id,
-        name: ingredient.name,
-        grams,
-        kcal,
-        protein,
-        carbs,
-        fat,
-        macroRole: role,
-      });
     }
   }
 
-  // ── Final correction pass ──
-  // If total kcal deviates from budget by > 5%, scale proportionally
-  const totalKcal = results.reduce((s, r) => s + r.kcal, 0);
-  const deviation = Math.abs(totalKcal - mealBudgetKcal) / mealBudgetKcal;
+  // ── Scale to target budget ──
+  const scaleFactor = baseTotalKcal > 0 ? mealBudgetKcal / baseTotalKcal : 1;
 
-  if (deviation > 0.05 && totalKcal > 0) {
-    const scaleFactor = mealBudgetKcal / totalKcal;
-
-    for (const r of results) {
-      if (r.kcal <= 0) continue; // Don't scale garnishes
-
-      const ingredient = allIngredients.find((i) => i.id === r.ingredientId);
-      if (!ingredient || ingredient.calories <= 0) continue;
-
-      const limits = ROLE_GRAM_LIMITS[r.macroRole];
-      let newGrams = Math.round(r.grams * scaleFactor);
-      newGrams = Math.max(limits.min, Math.min(limits.max, newGrams));
-      r.grams = newGrams;
-
-      const factor = newGrams / 100;
-      r.kcal = Math.round(ingredient.calories * factor);
-      r.protein = Math.round(ingredient.protein * factor * 10) / 10;
-      r.carbs = Math.round(ingredient.carbs * factor * 10) / 10;
-      r.fat = Math.round(ingredient.fat * factor * 10) / 10;
-    }
+  for (const r of baseResults) {
+    const origIngredient = allIngredients.find((i) => i.id === r.ingredientId);
+    if (!origIngredient || origIngredient.calories <= 0) continue;
+    
+    const limits = ROLE_GRAM_LIMITS[r.macroRole];
+    let finalGrams = Math.round(r.grams * scaleFactor);
+    finalGrams = Math.max(limits.min, Math.min(limits.max, finalGrams));
+    
+    r.grams = finalGrams;
+    const factor = finalGrams / 100;
+    r.kcal = Math.round(origIngredient.calories * factor);
+    r.protein = Math.round(origIngredient.protein * factor * 10) / 10;
+    r.carbs = Math.round(origIngredient.carbs * factor * 10) / 10;
+    r.fat = Math.round(origIngredient.fat * factor * 10) / 10;
   }
 
-  return results;
+  return baseResults;
 }
 
 /**
@@ -208,7 +189,7 @@ export function hydrateMeal(
   allIngredients: Ingredient[],
 ): HydratedMeal {
   const ingredients = computePortions(
-    mealLite.ingredientIds,
+    mealLite.ingredientIds ?? [],
     mealBudgetKcal,
     allIngredients,
   );

@@ -7,7 +7,6 @@ import type {
   EnergyLevel,
   AiAction,
   AiMeal,
-  AiMealLite,
   WeekPlan,
   PlanPreferences,
   PlannedDay,
@@ -39,6 +38,12 @@ import {
   hydratedToAiMeal,
   getMealSlotBudget,
 } from '../../services/portionEngine';
+import {
+  resolveDishContract,
+  pickDishContractFromMeal,
+} from '../../services/dishResolverService';
+import { recordWeekPlanApplied } from '../../services/signalLogService';
+import type { AiMealLite, DishContract } from '../../types';
 import {
   filterIngredientsForUser,
   buildCatalogForPrompt,
@@ -154,15 +159,14 @@ export function useChatEngine(): ChatEngineResult {
   }, [profile, allIngredients]);
 
   /**
-   * Detect whether a raw meal object from Gemini is the new lite format
-   * (ingredientIds only) or the legacy format (full ingredients array).
+   * Formato lite con IDs (motor de porciones por rol nutricional).
    */
   function isLiteFormat(meal: unknown): meal is AiMealLite {
     return (
       typeof meal === 'object' &&
       meal !== null &&
-      'ingredientIds' in meal &&
-      Array.isArray((meal as AiMealLite).ingredientIds)
+      Array.isArray((meal as AiMealLite).ingredientIds) &&
+      (meal as AiMealLite).ingredientIds!.length > 0
     );
   }
 
@@ -178,9 +182,38 @@ export function useChatEngine(): ChatEngineResult {
   ): AiMeal | null {
     if (!raw || typeof raw !== 'object') return null;
 
+    const effectiveBudget = dailyBudgetOverride ?? budget;
+    const slotBudget = getMealSlotBudget(effectiveBudget, mealType);
+    const allowedIds = new Set(allIngredients.map((i) => i.id));
+
+    const dc = pickDishContractFromMeal(raw);
+    if (dc) {
+      const nameTop =
+        typeof (raw as { name?: string }).name === 'string'
+          ? (raw as { name: string }).name.trim()
+          : '';
+      const mergedContract: DishContract = {
+        ...dc,
+        nombre: dc.nombre.trim() || nameTop || 'Comida',
+      };
+      const resolved = resolveDishContract(
+        mergedContract,
+        slotBudget,
+        allIngredients,
+        allowedIds,
+      );
+      if (resolved.ok) {
+        const prep = (raw as { prepMinutes?: number }).prepMinutes;
+        const portion = (raw as { humanPortion?: string }).humanPortion;
+        return hydratedToAiMeal({
+          ...resolved.hydrated,
+          prepMinutes: prep,
+          humanPortion: portion,
+        });
+      }
+    }
+
     if (isLiteFormat(raw)) {
-      const effectiveBudget = dailyBudgetOverride ?? budget;
-      const slotBudget = getMealSlotBudget(effectiveBudget, mealType);
       const hydrated = hydrateMeal(raw, slotBudget, allIngredients);
       return hydratedToAiMeal(hydrated);
     }
@@ -468,6 +501,8 @@ export function useChatEngine(): ChatEngineResult {
     );
     submitDishesForEmbedding(dishesToEmbed);
 
+    recordWeekPlanApplied(plan);
+
     // Garantizar persistencia en Supabase: llamamos schedulePush() UNA SOLA VEZ,
     // después de que todos los upsertMeal se aplicaron al state.
     // Esto evita el race condition del dynamic import en sync() y asegura
@@ -495,7 +530,6 @@ export function useChatEngine(): ChatEngineResult {
       text: '¡Listo! Ya apliqué el plan a tu calendario y agregué todo a la lista de compras.',
       timestamp: new Date().toISOString(),
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRegeneratePlan = useCallback(() => {
