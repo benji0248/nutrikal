@@ -285,6 +285,11 @@ export function useChatEngine(): ChatEngineResult {
           });
 
           const weekPlan: WeekPlan = { days: rehydratedDays, applied: false };
+
+          if (import.meta.env.DEV) {
+            console.log('DEBUG: Generated Week Plan JSON:\n', JSON.stringify(weekPlan, null, 2));
+          }
+
           addMessages({
             id: makeId(),
             type: 'assistant-plan',
