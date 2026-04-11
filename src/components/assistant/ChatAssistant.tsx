@@ -51,7 +51,9 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
     }, 50);
     return () => clearTimeout(timer);
   }, [messages]);
