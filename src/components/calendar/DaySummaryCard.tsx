@@ -17,66 +17,43 @@ export function DaySummaryCard({ consumedKcal, budgetKcal, showCalories }: DaySu
   const quote = QUOTES[Math.abs(Math.floor(consumedKcal + budgetKcal)) % QUOTES.length];
   const remaining = Math.max(0, Math.round(budgetKcal - consumedKcal));
   const pct = getMacroPercent(consumedKcal, budgetKcal);
-  const radius = 44;
-  const c = 2 * Math.PI * radius;
-  const dash = (pct / 100) * c;
 
   if (!showCalories) {
     return (
-      <div
-        className="rounded-[2rem] p-6 text-[#f8faf6] shadow-ambient"
-        style={{ background: 'linear-gradient(145deg, #226046 0%, #1a4a36 100%)' }}
-      >
-        <p className="text-[10px] font-semibold tracking-[0.2em] uppercase opacity-90">Resumen del día</p>
-        <p className="mt-4 font-body text-sm leading-relaxed italic opacity-95">&ldquo;{quote}&rdquo;</p>
-        <p className="mt-4 text-xs opacity-75">Activá &ldquo;Mostrar calorías&rdquo; en ajustes para ver tu energía.</p>
+      <div className="bg-[#226046] text-white p-8 rounded-3xl shadow-[0px_20px_40px_rgba(34,96,70,0.15)] flex flex-col justify-between overflow-hidden relative group h-full">
+        <div className="absolute -right-12 -top-12 w-48 h-48 bg-[#b1f0ce] rounded-full opacity-20 group-hover:scale-110 transition-transform duration-700" />
+        <div className="relative z-10 flex flex-col h-full">
+          <p className="text-[#b1f0ce] font-bold text-sm uppercase tracking-widest mb-4">Resumen del Día</p>
+          <h3 className="text-3xl font-bold leading-tight mb-8 italic">"{quote}"</h3>
+          <div className="mt-auto">
+             <p className="text-xs opacity-75">Activa "Mostrar calorías" para ver tu energía.</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="rounded-[2rem] p-6 text-[#f8faf6] shadow-ambient flex flex-col min-h-[280px]"
-      style={{ background: 'linear-gradient(145deg, #226046 0%, #1a4a36 100%)' }}
-    >
-      <p className="text-[10px] font-semibold tracking-[0.2em] uppercase opacity-90">Resumen del día</p>
-      <p className="mt-3 font-body text-base leading-snug italic opacity-95 flex-1">&ldquo;{quote}&rdquo;</p>
-
-      <div className="mt-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-3xl font-heading font-bold tabular-nums">{remaining.toLocaleString('es-AR')}</p>
-          <p className="text-xs opacity-85 mt-1">kcal disponibles</p>
-        </div>
-        <div className="relative h-24 w-24 shrink-0">
-          <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden>
-            <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(248,250,241,0.15)" strokeWidth="10" />
-            <circle
-              cx="50"
-              cy="50"
-              r={radius}
-              fill="none"
-              stroke="#f8faf6"
-              strokeWidth="10"
-              strokeLinecap="round"
-              strokeDasharray={`${dash} ${c}`}
-              className="transition-all duration-700"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-heading font-bold tabular-nums">{pct}%</span>
+    <div className="bg-[#226046] text-white p-8 rounded-3xl shadow-[0px_20px_40px_rgba(34,96,70,0.15)] flex flex-col justify-between overflow-hidden relative group h-full">
+      <div className="absolute -right-12 -top-12 w-48 h-48 bg-[#b1f0ce] rounded-full opacity-20 group-hover:scale-110 transition-transform duration-700" />
+      <div className="relative z-10 flex flex-col h-full">
+        <p className="text-[#b1f0ce] font-bold text-sm uppercase tracking-widest mb-4">Resumen del Día</p>
+        <h3 className="text-3xl font-bold leading-tight mb-8 italic">"{quote}"</h3>
+        <div className="space-y-6 mt-auto">
+          <div className="flex justify-between items-end">
+            <div>
+              <span className="text-5xl font-extrabold tracking-tighter">{remaining.toLocaleString('es-AR')}</span>
+              <span className="text-[#b1f0ce] font-medium ml-1">kcal restantes</span>
+            </div>
+            <div className="w-12 h-12 rounded-full border-4 border-[#b1f0ce]/30 border-t-[#b1f0ce] flex items-center justify-center shrink-0" style={{ transform: `rotate(${(pct / 100) * 360}deg)` }}>
+              <span className="text-xs font-bold" style={{ transform: `rotate(-${(pct / 100) * 360}deg)` }}>{pct}%</span>
+            </div>
+          </div>
+          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full bg-[#b1f0ce] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
         </div>
       </div>
-
-      <div className="mt-4 h-1.5 rounded-full bg-white/15 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-[#f8faf6]/90 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <p className="text-[11px] opacity-75 mt-2">
-        {Math.round(consumedKcal)} / {Math.round(budgetKcal)} kcal registradas
-      </p>
     </div>
   );
 }

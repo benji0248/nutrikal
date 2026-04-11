@@ -96,9 +96,9 @@ function AuthenticatedApp() {
     <div className="min-h-dvh bg-bg text-text-primary">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="md:ml-60 relative z-10">
+      <main className="md:ml-72 relative z-10 min-h-screen">
         <header className="sticky top-0 z-30 bg-surface/75 backdrop-blur-xl border-b border-border/30 no-print">
-          <div className="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto">
+          <div className="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
             <div className="flex items-center gap-3 md:hidden">
               <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center">
                 <span className="text-accent font-heading font-bold text-sm">N</span>
@@ -167,7 +167,7 @@ function AuthenticatedApp() {
           </div>
         </header>
 
-        <div className="px-4 py-6 pb-24 md:pb-6 max-w-4xl mx-auto">
+        <div className="px-4 md:px-12 py-6 pb-24 md:pb-12 max-w-7xl mx-auto">
           {activeTab === 'calendar' && view === 'day' && <DayView onNavigateToAssistant={() => setActiveTab('assistant')} />}
           {activeTab === 'calendar' && view === 'week' && <WeekView onNavigateToAssistant={() => setActiveTab('assistant')} />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}

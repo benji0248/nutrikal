@@ -38,9 +38,6 @@ const MEAL_TIME_LABELS: Record<MealType, string> = {
   snack: 'Todo el día',
 };
 
-const MAIN_MEALS: MealType[] = ['desayuno', 'almuerzo'];
-const SIDE_MEALS: MealType[] = ['snack', 'cena'];
-
 function getCurrentMealType(): MealType | null {
   const hour = new Date().getHours();
   if (hour >= 6 && hour < 11) return 'desayuno';
@@ -277,65 +274,63 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
         </div>
       </div>
 
-      {/* ——— Desktop: hero + nav en pill ——— */}
-      <div className="mb-8 hidden items-start justify-between gap-6 md:flex">
+      {/* ——— Desktop: cabecera estilo bento ——— */}
+      <header className="mb-12 hidden items-center justify-between md:flex no-print">
         <div>
-          <h1 className="font-heading text-2xl font-bold capitalize leading-tight text-accent lg:text-3xl">
+          <h2 className="mb-2 font-heading text-4xl font-extrabold tracking-tighter text-[#226046] capitalize">
             {formatDayFull(date)}
-          </h1>
-          <p className="mt-2 text-sm text-muted">
-            Semana {weekNum} · Tu plan nutricional
-          </p>
-        </div>
-        <div className="flex items-center gap-1 rounded-2xl bg-surface2/80 p-1 shadow-ambient">
-          <button
-            type="button"
-            onClick={() => navDay('prev')}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl transition-colors hover:bg-surface"
-            aria-label="Día anterior"
-          >
-            <ChevronLeft size={20} className="text-muted" />
-          </button>
-          <button
-            type="button"
-            onClick={goToToday}
-            className="rounded-xl px-4 py-2 text-xs font-semibold text-accent hover:bg-accent/10"
-          >
-            Hoy
-          </button>
-          <button
-            type="button"
-            onClick={() => navDay('next')}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl transition-colors hover:bg-surface"
-            aria-label="Día siguiente"
-          >
-            <ChevronRight size={20} className="text-muted" />
-          </button>
-        </div>
-      </div>
-
-      {/* ——— Desktop: grid resumen + comidas ——— */}
-      <div className="hidden gap-5 md:grid md:grid-cols-12">
-        <aside className="space-y-4 md:col-span-5 lg:col-span-4">
-          <DaySummaryCard consumedKcal={totalCals} budgetKcal={budgetKcal} showCalories={showCalories} />
-          <HydrationCard />
-        </aside>
-
-        <div className="space-y-4 md:col-span-7 lg:col-span-8">
-          {emptyNutriBanner}
-          {activeMealBanner}
-
-          {MAIN_MEALS.map((mt) => (
-            <MealColumn key={mt} mt={mt} {...mealStackProps} />
-          ))}
-
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {SIDE_MEALS.map((mt) => (
-              <MealColumn key={mt} mt={mt} {...mealStackProps} />
-            ))}
+          </h2>
+          <div className="flex items-center gap-2 text-[#5a6258]">
+            <span className="text-sm font-medium">Semana {weekNum} · Plan Nutricional</span>
           </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex bg-[#f3f5eb] rounded-full p-1 shadow-sm items-center">
+            <button
+              onClick={() => navDay('prev')}
+              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-[#edefe6]"
+            >
+              <ChevronLeft size={20} className="text-[#5a6258]" />
+            </button>
+            <button
+              onClick={goToToday}
+              className="px-6 text-sm font-bold text-[#226046]"
+            >
+              Hoy
+            </button>
+            <button
+              onClick={() => navDay('next')}
+              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-[#edefe6]"
+            >
+              <ChevronRight size={20} className="text-[#5a6258]" />
+            </button>
+          </div>
+        </div>
+      </header>
 
-          {notesSection}
+      {/* ——— Bento Grid Layout ——— */}
+      <div className="hidden gap-8 md:grid md:grid-cols-12">
+        {/* Daily Summary */}
+        <div className="col-span-12 lg:col-span-4 rounded-3xl overflow-hidden flex flex-col">
+          <DaySummaryCard consumedKcal={totalCals} budgetKcal={budgetKcal} showCalories={showCalories} />
+        </div>
+
+        {/* Breakfast */}
+        <div className="col-span-12 lg:col-span-8">
+          <MealColumn mt="desayuno" {...mealStackProps} />
+        </div>
+
+        {/* Lunch */}
+        <div className="col-span-12 lg:col-span-6">
+          <MealColumn mt="almuerzo" {...mealStackProps} />
+        </div>
+
+        {/* Snack & Dinner Column */}
+        <div className="col-span-12 lg:col-span-6 space-y-8">
+          <MealColumn mt="snack" {...mealStackProps} />
+          <MealColumn mt="cena" {...mealStackProps} />
+          <HydrationCard />
         </div>
       </div>
 
