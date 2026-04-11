@@ -68,7 +68,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   if (!hasProfile) {
     return (
-      <div className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-[#f8faf1] text-[#191c17]">
+      <div className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-transparent text-[#191c17]">
         <div className="flex max-w-sm flex-col items-center space-y-6 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#226046]/15 shadow-sm">
             <span className="font-heading text-3xl font-bold text-[#226046]">
@@ -101,11 +101,11 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
   }
 
   return (
-    <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-[#f8faf1] text-[#191c17]">
+    <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-transparent text-[#191c17]">
 
       <div
         ref={scrollContainerRef}
-        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
+        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-24 pb-32 md:pt-6 md:pb-32"
       >
         {messages.map((msg) => (
           <ChatMessageBubble
