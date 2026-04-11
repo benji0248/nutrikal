@@ -61,7 +61,7 @@ export function LoadingScreen() {
           style={{ boxShadow: TOKENS.ambientShadow }}
         >
           <span
-            className="font-sans text-[2.25rem] font-semibold leading-none tracking-tight"
+            className="font-heading text-[2.25rem] font-bold leading-none tracking-tight"
             style={{ color: TOKENS.primary }}
           >
             N
@@ -71,7 +71,7 @@ export function LoadingScreen() {
         <JournalRingLoader />
 
         <p
-          className="text-center font-sans text-[15px] font-medium leading-relaxed"
+          className="text-center font-body text-[15px] font-medium leading-relaxed"
           style={{ color: TOKENS.onSurface, opacity: 0.78 }}
         >
           Verificando sesión...

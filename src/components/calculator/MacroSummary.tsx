@@ -59,7 +59,7 @@ function MacroRing({ value, max, label, unit, color, strokeColor }: RingProps) {
 
 export function MacroSummary({ totals }: MacroSummaryProps) {
   return (
-    <div className="bg-surface2/50 rounded-3xl border border-border/50 p-5">
+    <div className="bg-surface rounded-[2rem] shadow-ambient p-5">
       <h3 className="text-sm font-heading font-bold text-text-primary mb-4">Resumen nutricional</h3>
       <div className="grid grid-cols-4 gap-2">
         <MacroRing
@@ -68,7 +68,7 @@ export function MacroSummary({ totals }: MacroSummaryProps) {
           label="Calorías"
           unit="kcal"
           color="text-accent"
-          strokeColor="#7c6aff"
+          strokeColor="var(--accent)"
         />
         <MacroRing
           value={totals.protein}

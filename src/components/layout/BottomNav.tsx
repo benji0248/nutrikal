@@ -17,7 +17,7 @@ const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-surface/85 backdrop-blur-xl border-t border-border safe-bottom no-print">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-surface/90 backdrop-blur-xl border-t border-border/40 shadow-[0_-8px_32px_rgba(25,28,23,0.06)] safe-bottom no-print">
       <div className="flex items-center justify-around px-0.5 py-1.5">
         {TABS.map(({ tab, label, icon: Icon }) => {
           const active = activeTab === tab;

@@ -98,7 +98,7 @@ function AuthenticatedApp() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
       <main className="md:ml-60 relative z-10">
-        <header className="sticky top-0 z-30 bg-bg/80 backdrop-blur-xl border-b border-border/40 no-print">
+        <header className="sticky top-0 z-30 bg-surface/75 backdrop-blur-xl border-b border-border/30 no-print">
           <div className="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto">
             <div className="flex items-center gap-3 md:hidden">
               <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center">
@@ -284,7 +284,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
 
       {/* Account section */}
       {user && (
-        <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
+        <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
           <h3 className="text-sm font-heading font-bold text-text-primary">Cuenta</h3>
 
           <div className="flex items-center gap-3">
@@ -326,7 +326,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
         </div>
       )}
 
-      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
+      <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Perfil nutricional</h3>
         {settingsProfile ? (
           <div className="space-y-2">
@@ -348,7 +348,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
         )}
       </div>
 
-      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
+      <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Apariencia</h3>
         <div className="flex items-center justify-between">
           <span className="text-sm font-body text-muted">Tema</span>
@@ -357,7 +357,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
         <CaloriesToggle />
       </div>
 
-      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
+      <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Datos</h3>
         <div className="flex flex-col gap-2">
           <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>

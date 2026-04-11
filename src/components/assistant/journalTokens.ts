@@ -1,6 +1,6 @@
 /**
  * Tokens visuales Nutri / “Living Journal” (DESIGN.md + guía de producto).
- * El shell global puede seguir en tema violeta; esta sección va en modo editorial verde.
+ * Tokens compartidos con el tema global (DESIGN.md); Nutri/planner/perfil los reutilizan.
  */
 export const JOURNAL = {
   surface: '#f8faf1',

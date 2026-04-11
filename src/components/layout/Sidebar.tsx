@@ -18,7 +18,7 @@ const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
-    <aside className="hidden md:flex flex-col w-60 h-dvh bg-surface border-r border-border fixed left-0 top-0 p-4 gap-1 no-print">
+    <aside className="hidden md:flex flex-col w-60 h-dvh bg-surface2/90 backdrop-blur-md border-r border-border/40 fixed left-0 top-0 p-4 gap-1 no-print shadow-ambient">
       <div className="flex items-center gap-3 px-3 py-4 mb-4">
         <div className="w-10 h-10 rounded-2xl bg-accent/20 flex items-center justify-center">
           <span className="text-accent font-heading font-bold text-lg">N</span>

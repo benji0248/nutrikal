@@ -1,5 +1,3 @@
-@import '@fontsource/syne/400.css';
-@import '@fontsource/syne/700.css';
 @import '@fontsource/plus-jakarta-sans/400.css';
 @import '@fontsource/plus-jakarta-sans/500.css';
 @import '@fontsource/plus-jakarta-sans/600.css';
@@ -11,31 +9,36 @@
 @tailwind utilities;
 
 @layer base {
-  :root,
-  [data-theme='dark'] {
-    --bg: #0c0c11;
-    --surface: #14141c;
-    --surface2: #1c1c28;
-    --border: #252535;
-    --text-primary: #f0f0f5;
-    --muted: #606080;
-    --accent: #7c6aff;
-    --pink: #ff6b9d;
-    --green: #34d399;
-    --amber: #fbbf24;
+  /**
+   * Living Journal (light) — DESIGN.md
+   * Night Journal (dark) — bosques profundos, acento verde legible
+   */
+  :root {
+    --bg: #f8faf1;
+    --surface: #ffffff;
+    --surface2: #f3f5eb;
+    --border: rgba(25, 28, 23, 0.1);
+    --text-primary: #191c17;
+    --muted: #5a6258;
+    --accent: #226046;
+    --secondary: #895100;
+    --pink: #b84d6f;
+    --green: #2f7d54;
+    --amber: #b8860b;
   }
 
-  [data-theme='light'] {
-    --bg: #f6f5f2;
-    --surface: #ffffff;
-    --surface2: #eeedf8;
-    --border: #dddcef;
-    --text-primary: #1a1a2e;
-    --muted: #8080a8;
-    --accent: #7c6aff;
-    --pink: #ff6b9d;
-    --green: #34d399;
-    --amber: #fbbf24;
+  [data-theme='dark'] {
+    --bg: #0e120f;
+    --surface: #161a17;
+    --surface2: #1f2520;
+    --border: rgba(232, 237, 230, 0.12);
+    --text-primary: #eef1eb;
+    --muted: #8f978f;
+    --accent: #6bcf9c;
+    --secondary: #daa06d;
+    --pink: #e891a8;
+    --green: #5fd39a;
+    --amber: #f0c14d;
   }
 
   * {
@@ -71,8 +74,8 @@
   }
 
   ::selection {
-    background: var(--accent);
-    color: white;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--text-primary);
   }
 
   ::-webkit-scrollbar {
@@ -109,7 +112,12 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .font-heading {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  /** DESIGN.md §4 — sombra ambiental */
+  .shadow-ambient {
+    box-shadow: 0px 20px 40px rgba(25, 28, 23, 0.06);
   }
 }
 

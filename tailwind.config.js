@@ -8,7 +8,8 @@ export default {
         surface: 'var(--surface)',
         surface2: 'var(--surface2)',
         border: 'var(--border)',
-        accent: '#7c6aff',
+        accent: 'var(--accent)',
+        secondary: 'var(--secondary)',
         pink: '#ff6b9d',
         green: '#34d399',
         amber: '#fbbf24',
@@ -18,7 +19,7 @@ export default {
         'text-muted': 'var(--muted)',
       },
       fontFamily: {
-        sans: ['Syne', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         body: ['"Plus Jakarta Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
