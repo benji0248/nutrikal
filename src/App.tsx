@@ -23,7 +23,7 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
 import { UserMenu } from './components/auth/UserMenu';
-import { getWeekRange, getMonthLabel } from './utils/dateHelpers';
+
 import type { AppTab } from './types';
 
 function App() {
@@ -57,7 +57,7 @@ function AuthenticatedApp() {
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
-  const currentDate = useCalendarStore((s) => s.currentDate);
+
   const initialLoad = useGistSyncStore((s) => s.initialLoad);
 
   const [showRecalibrate, setShowRecalibrate] = useState(false);
@@ -86,8 +86,6 @@ function AuthenticatedApp() {
     }
   }, [profile, needsRecalibration]);
 
-  const headerLabel = view === 'day' ? '' : view === 'week' ? getWeekRange(currentDate) : getMonthLabel(currentDate);
-
   if (!ready) {
     return <LoadingScreen />;
   }
@@ -97,27 +95,22 @@ function AuthenticatedApp() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
       <main className="md:ml-72 relative z-10 min-h-screen">
-        <header className="sticky top-0 z-30 bg-surface/75 backdrop-blur-xl border-b border-border/30 no-print">
-          <div className="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
+        <header className="fixed md:sticky top-0 w-full md:w-auto z-30 bg-[#f8faf1]/80 backdrop-blur-xl md:border-b md:border-border/30 no-print">
+          <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto md:px-12 md:py-3">
             <div className="flex items-center gap-3 md:hidden">
-              <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center">
-                <span className="text-accent font-heading font-bold text-sm">N</span>
+              <div className="w-10 h-10 rounded-full bg-[#e1e3da] flex items-center justify-center overflow-hidden">
+                <span className="text-[#226046] font-heading font-extrabold text-sm">NK</span>
               </div>
-              <h1 className="font-heading font-bold text-text-primary text-sm">NutriKal</h1>
+              <span className="font-heading font-bold text-xl tracking-tight text-[#226046]">NutriKal</span>
             </div>
-
-            {activeTab === 'calendar' && (
-              <div className="hidden md:block">
-                <span className="text-sm font-heading font-bold text-text-primary capitalize">
-                  {headerLabel}
-                </span>
-              </div>
-            )}
-
+            <div className="hidden md:flex items-center gap-3" />
             <div className="flex items-center gap-2">
+              <button className="md:hidden w-10 h-10 flex items-center justify-center rounded-full bg-[#f3f5eb] text-[#226046] active:scale-95 transition-transform" aria-label="Sync">
+                <RotateCcw size={18} />
+              </button>
               {activeTab === 'calendar' && (
                 <>
-                  <div className="flex items-center gap-0.5 bg-surface2 rounded-xl p-0.5">
+                  <div className="hidden md:flex items-center gap-0.5 bg-surface2 rounded-xl p-0.5">
                     <button
                       onClick={() => setView('day')}
                       className={clsx(

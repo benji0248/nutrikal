@@ -9,10 +9,8 @@ import {
   parseDate,
   isToday,
   formatDayFull,
-  todayKey,
   getWeekDays,
   formatDateKey,
-  DAY_LABELS,
 } from '../../utils/dateHelpers';
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
@@ -139,7 +137,7 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
     0,
   );
 
-  const isCurrentDay = currentDate === todayKey();
+
 
   const mobileDateTitle = format(date, "d 'de' MMMM", { locale: es });
   const weekNum = getISOWeek(date);
@@ -210,67 +208,41 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
 
   return (
     <div className="relative pb-28 md:pb-0">
-      {/* ——— Mobile: cabecera estilo app móvil ——— */}
-      <div className="mb-5 space-y-4 md:hidden">
-        {today && (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-secondary">Hoy</p>
-        )}
-        <h1 className="font-heading text-3xl font-bold capitalize leading-tight text-text-primary">
-          {mobileDateTitle}
-        </h1>
+      {/* ——— Mobile: cabecera interactiva ——— */}
+      <div className="mb-6 space-y-6 md:hidden">
+        <div className="flex items-end justify-between">
+          <div className="space-y-1">
+            <p className="text-[#895100] font-medium text-sm uppercase tracking-widest">Hoy</p>
+            <h1 className="font-heading font-extrabold text-4xl text-[#191c17]">{mobileDateTitle}</h1>
+          </div>
+          <div className="flex bg-[#f3f5eb] p-1 rounded-full">
+            <button className="px-4 py-2 rounded-full text-xs font-bold bg-[#226046] text-[#ffffff] shadow-sm">Día</button>
+          </div>
+        </div>
 
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {weekDays.map((d, idx) => {
+        <div className="flex justify-between items-center overflow-x-auto hide-scrollbar py-2">
+          {[-3, -2, -1, 0, 1, 2, 3].map((offset) => {
+            const d = new Date(date);
+            d.setDate(d.getDate() + offset);
+            const isSelected = offset === 0;
             const key = formatDateKey(d);
-            const selected = key === currentDate;
-            const isD = isToday(d);
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => setCurrentDate(key)}
                 className={clsx(
-                  'flex min-w-[3.25rem] flex-shrink-0 flex-col items-center rounded-2xl px-2 py-2 transition-all',
-                  selected
-                    ? 'bg-accent text-white shadow-ambient'
-                    : 'bg-surface2/60 text-muted hover:bg-surface2',
-                  isD && !selected && 'ring-1 ring-accent/30',
+                  "flex flex-col items-center gap-2 py-4 rounded-2xl transition-all border-none outline-none",
+                  isSelected
+                    ? "px-5 bg-[#226046] text-[#ffffff] shadow-lg scale-110 ring-4 ring-[#f8faf1]"
+                    : "px-3 text-[#40493d]"
                 )}
-                aria-label={`${DAY_LABELS[idx]} ${format(d, 'd')}`}
               >
-                <span className="text-[9px] font-medium uppercase">{DAY_LABELS[idx].slice(0, 3)}</span>
-                <span className="mt-0.5 text-sm font-semibold tabular-nums">{format(d, 'd')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-tighter">{format(d, 'EEE', { locale: es }).slice(0, 3)}</span>
+                <span className={clsx("font-bold", isSelected ? "text-xl font-black" : "text-lg")}>{format(d, 'dd')}</span>
               </button>
             );
           })}
-        </div>
-
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => navDay('prev')}
-            className="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-2xl bg-surface2/70 transition-colors hover:bg-surface2"
-            aria-label="Día anterior"
-          >
-            <ChevronLeft size={20} className="text-muted" />
-          </button>
-          <button
-            type="button"
-            onClick={() => navDay('next')}
-            className="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-2xl bg-surface2/70 transition-colors hover:bg-surface2"
-            aria-label="Día siguiente"
-          >
-            <ChevronRight size={20} className="text-muted" />
-          </button>
-          {!isCurrentDay && (
-            <button
-              type="button"
-              onClick={goToToday}
-              className="ml-auto min-h-[40px] rounded-full bg-surface2 px-4 text-xs font-semibold text-accent"
-            >
-              Hoy
-            </button>
-          )}
         </div>
       </div>
 
@@ -348,14 +320,14 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
 
       {/* CTA móvil flotante */}
       {onNavigateToAssistant && (
-        <div className="pointer-events-none fixed bottom-20 left-0 right-0 z-30 px-4 md:hidden safe-bottom">
+        <div className="pointer-events-none fixed bottom-[5.5rem] left-0 right-0 z-30 px-6 md:hidden safe-bottom pb-6">
           <button
             type="button"
             onClick={onNavigateToAssistant}
-            className="pointer-events-auto flex w-full min-h-[52px] items-center justify-center gap-2 rounded-[1.75rem] bg-accent py-3.5 text-base font-semibold text-white shadow-[0px_16px_40px_rgba(34,96,70,0.25)] active:scale-[0.99] transition-transform"
+            className="pointer-events-auto w-full bg-[#226046] text-[#ffffff] font-heading font-bold py-5 px-8 rounded-xl shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
           >
-            <Plus size={22} strokeWidth={2.25} />
-            Agregar comida
+            <Plus size={24} strokeWidth={2.5} />
+            Agregar Comida
           </button>
         </div>
       )}
