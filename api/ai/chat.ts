@@ -5,8 +5,10 @@ import { checkRateLimit } from '../_lib/rateLimit.js';
 
 interface ChatRequestBody {
   message: string;
-  /** Filtered ingredient catalog (id: name) pre-built on the frontend */
+  /** Filtered ingredient catalog (id: name) — todos los IDs válidos */
   catalog?: string;
+  /** Pool semanal reducido (ancla de variedad), pre-built on the frontend */
+  catalogAnchor?: string;
   context: {
     profile: {
       name: string;
@@ -101,13 +103,15 @@ PERSONALIDAD:
 - Mensajes CORTOS: 1-3 oraciones máximo. No expliques de más.
 
 DATOS DE ${name.toUpperCase()}:
-${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Restricciones: ${restrictions}
+${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Objetivo nutricional: ${goalText}
+- Restricciones: ${restrictions}
 - A ${name} NO le gustan estos ingredientes (NUNCA los incluyas en ninguna comida): ${disliked}
 
 PORCIONES Y CALORÍAS:
-- NO calculés gramos ni calorías. El sistema NutriKal calcula las porciones exactas a partir de los ingredientes que elegís.
-- Tu trabajo es elegir combinaciones de ingredientes sabrosas y balanceadas.
-- Intentá que cada comida tenga al menos una fuente de proteína, una de carbohidratos y verduras.
+- NO calculés gramos ni calorías. El sistema NutriKal calcula gramos y kcal en el dispositivo (redondea hacia abajo para no pasarse del objetivo).
+- Tu trabajo es sentido culinario: combinaciones sabrosas y plausibles.
+- El POOL SEMANAL es guía de variedad (ejes de la semana), no la lista cerrada de un solo plato. Completá con otros IDs del catálogo (lácteos, líquidos, grasas, frutos secos, aromáticos) cuando haga falta.
+- Intentá que cada comida tenga al menos una fuente de proteína, una de carbohidratos y verduras cuando corresponda.
 - El domingo es CHEAT DAY: podés incluir ingredientes más indulgentes (ultraprocesados, postres, etc.).
 NUNCA mencionés calorías al usuario.
 
@@ -116,7 +120,7 @@ REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
 - Balanceá las comidas: proteína repartida, no todos carbos juntos.
 - Variá: no repitas el mismo plato más de 2 veces en la semana.
 - Respetá las restricciones de ${name} absolutamente.
-- SOLO usá IDs del catálogo provisto. NUNCA inventes IDs.
+- SOLO usá IDs del CATÁLOGO COMPLETO (mensaje de contexto). NUNCA inventes IDs.
 - El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.
 - Si el usuario tiene historial, priorizá sus favoritos pero variá para no aburrir.`;
 }
@@ -164,9 +168,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
 
-    // Inject filtered ingredient catalog
+    if (body.catalogAnchor) {
+      contextParts.push(
+        `POOL SEMANAL (ANCLA DE VARIEDAD — no es la lista única de cada plato):\n${body.catalogAnchor}\n` +
+          `Usá estos ingredientes para dar variedad y eje a la semana. Los platos completos pueden y deben incluir más IDs del CATÁLOGO COMPLETO (leche, almendras, manteca, hierbas, etc.) cuando mejore el sentido culinario.`,
+      );
+    }
     if (body.catalog) {
-      contextParts.push(`CATÁLOGO DE INGREDIENTES DISPONIBLES (usá SOLO estos IDs):\n${body.catalog}\nIMPORTANTE: SOLO usá IDs de este catálogo. NUNCA inventes IDs que no estén aquí.`);
+      contextParts.push(
+        `CATÁLOGO COMPLETO — TODOS los IDs válidos (elegí SOLO de aquí, también para completar platos):\n${body.catalog}\n` +
+          `IMPORTANTE: Ningún ID fuera de esta lista. El pool semanal es complementario, no sustituto.`,
+      );
     }
 
     if (body.context.weekDates) {

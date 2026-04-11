@@ -25,6 +25,7 @@ import {
 import { getEnergyLevel, getEnergyRatio } from '../../services/metabolicService';
 import { createShoppingItemsFromAiMeals } from '../../services/shoppingService';
 import { todayKey, generateId } from '../../utils/dateHelpers';
+import { format, parseISO, getISOWeek, getISOWeekYear } from 'date-fns';
 import {
   sendMessage,
   buildContext,
@@ -49,6 +50,15 @@ import {
   buildCatalogForPrompt,
   catalogToPromptString,
 } from '../../services/ingredientFilter';
+import {
+  buildWeeklyIngredientPool,
+  formatWeeklyPoolForPrompt,
+} from '../../services/ingredientSelectionService';
+
+function isoWeekIdFromYmd(ymd: string): string {
+  const d = parseISO(`${ymd}T12:00:00`);
+  return `${getISOWeekYear(d)}-W${String(getISOWeek(d)).padStart(2, '0')}`;
+}
 
 function makeId(): string {
   return generateId();
@@ -150,13 +160,6 @@ export function useChatEngine(): ChatEngineResult {
   function addMessages(...msgs: ChatMessage[]) {
     setMessages((prev) => [...prev, ...msgs]);
   }
-
-  // ── Pre-compute filtered catalog for Gemini ──
-  const catalogString = useMemo(() => {
-    if (!profile) return '';
-    const filtered = filterIngredientsForUser(allIngredients, profile);
-    return catalogToPromptString(buildCatalogForPrompt(filtered));
-  }, [profile, allIngredients]);
 
   /**
    * Formato lite con IDs (motor de porciones por rol nutricional).
@@ -386,7 +389,22 @@ export function useChatEngine(): ChatEngineResult {
         favorites: useHistorialStore.getState().favorites,
       });
 
-      const response = await sendMessage(text, context, catalogString);
+      const anchorWeekId =
+        weekDates && weekDates.length > 0
+          ? isoWeekIdFromYmd(weekDates[0])
+          : isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd'));
+
+      const filtered = filterIngredientsForUser(allIngredients, profile);
+      const catalogFull = catalogToPromptString(buildCatalogForPrompt(filtered));
+      const weeklyPool = buildWeeklyIngredientPool(allIngredients, profile, {
+        weekId: anchorWeekId,
+      });
+      const catalogAnchor = formatWeeklyPoolForPrompt(weeklyPool, allIngredients);
+
+      const response = await sendMessage(text, context, {
+        catalog: catalogFull,
+        catalogAnchor,
+      });
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
 

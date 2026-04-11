@@ -7,7 +7,12 @@ import type {
   Ingredient,
 } from '../types';
 import { DISH_CONTRACT_VERSION } from '../types';
-import { classifyMacroRole } from './portionEngine';
+import { classifyMacroRole, ROLE_GRAM_LIMITS } from './portionEngine';
+import {
+  floorGramsToStep,
+  floorKcalFromGrams,
+  trimHydratedUnderCalorieBudget,
+} from './portionRounding';
 
 /** Gramos min/max por rol culinario (plato doméstico) */
 const ROLE_GRAM_BOUNDS: Record<CulinaryRole, { min: number; max: number }> = {
@@ -89,16 +94,20 @@ function buildHydratedLine(
   ing: Ingredient,
   grams: number,
 ): HydratedIngredient {
-  const factor = grams / 100;
-  const kcal = Math.round(ing.calories * factor);
+  const g =
+    ing.calories <= 0
+      ? Math.max(2, Math.min(12, Math.round(grams)))
+      : floorGramsToStep(grams);
+  const factor = g / 100;
+  const kcal = floorKcalFromGrams(ing.calories, g);
   return {
     ingredientId: ing.id,
     name: ing.name,
-    grams: Math.round(grams),
+    grams: g,
     kcal,
-    protein: Math.round(ing.protein * factor * 10) / 10,
-    carbs: Math.round(ing.carbs * factor * 10) / 10,
-    fat: Math.round(ing.fat * factor * 10) / 10,
+    protein: Math.floor(ing.protein * factor * 10) / 10,
+    carbs: Math.floor(ing.carbs * factor * 10) / 10,
+    fat: Math.floor(ing.fat * factor * 10) / 10,
     macroRole: classifyMacroRole(ing),
   };
 }
@@ -110,6 +119,7 @@ function buildHydratedLine(
 function clampAndRepair(
   lines: Array<{ ing: Ingredient; rol: CulinaryRole; proporcion: number }>,
   mealBudgetKcal: number,
+  allIngredients: Ingredient[],
 ): HydratedIngredient[] | null {
   const bounds = (rol: CulinaryRole) => ROLE_GRAM_BOUNDS[rol];
 
@@ -135,6 +145,17 @@ function clampAndRepair(
   let totalKcal = hydrated.reduce((s, h) => s + h.kcal, 0);
   const target = mealBudgetKcal;
   let delta = target - totalKcal;
+  if (totalKcal > mealBudgetKcal) {
+    const trimmed = trimHydratedUnderCalorieBudget(
+      hydrated,
+      mealBudgetKcal,
+      allIngredients,
+      ROLE_GRAM_LIMITS,
+    );
+    hydrated.splice(0, hydrated.length, ...trimmed);
+    totalKcal = hydrated.reduce((s, h) => s + h.kcal, 0);
+    delta = target - totalKcal;
+  }
   if (Math.abs(delta) < 15) {
     return hydrated;
   }
@@ -153,7 +174,8 @@ function clampAndRepair(
       if (ing.calories <= 0) continue;
       const { min, max } = bounds(rol);
       const step = sign * 5;
-      const nextG = Math.max(min, Math.min(max, h.grams + step));
+      let nextG = Math.max(min, Math.min(max, h.grams + step));
+      nextG = ing.calories <= 0 ? nextG : floorGramsToStep(nextG);
       if (nextG === h.grams) continue;
       const rebuilt = buildHydratedLine(ing, nextG);
       hydrated[i] = rebuilt;
@@ -162,6 +184,17 @@ function clampAndRepair(
     totalKcal = hydrated.reduce((s, h) => s + h.kcal, 0);
     delta = target - totalKcal;
     if (!changed) break;
+  }
+
+  totalKcal = hydrated.reduce((s, h) => s + h.kcal, 0);
+  if (totalKcal > mealBudgetKcal) {
+    const trimmed = trimHydratedUnderCalorieBudget(
+      hydrated,
+      mealBudgetKcal,
+      allIngredients,
+      ROLE_GRAM_LIMITS,
+    );
+    hydrated.splice(0, hydrated.length, ...trimmed);
   }
 
   return hydrated;
@@ -220,7 +253,7 @@ export function resolveDishContract(
     proporcion: l.proporcion / sumP,
   }));
 
-  const hydrated = clampAndRepair(renorm, mealBudgetKcal);
+  const hydrated = clampAndRepair(renorm, mealBudgetKcal, allIngredients);
   if (!hydrated) {
     return { ok: false, reason: 'No se pudo calcular densidad calórica' };
   }

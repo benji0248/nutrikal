@@ -8,6 +8,11 @@ import type {
   HydratedMeal,
   MealType,
 } from '../types';
+import {
+  floorGramsToStep,
+  floorKcalFromGrams,
+  trimHydratedUnderCalorieBudget,
+} from './portionRounding';
 
 // ── Meal-slot budget distribution (% of dailyBudget) ──
 
@@ -29,7 +34,8 @@ const ROLE_BASE_GRAMS: Record<MacroRole, number> = {
 
 // ── Per-role gram clamps (min, max) ──
 
-const ROLE_GRAM_LIMITS: Record<MacroRole, { min: number; max: number }> = {
+/** Límites por rol macro (porciones automáticas + recorte bajo techo calórico). */
+export const ROLE_GRAM_LIMITS: Record<MacroRole, { min: number; max: number }> = {
   protein: { min: 50, max: 400 },
   energy: { min: 20, max: 300 },
   fat: { min: 5, max: 50 },
@@ -164,17 +170,31 @@ export function computePortions(
   for (const r of baseResults) {
     const origIngredient = allIngredients.find((i) => i.id === r.ingredientId);
     if (!origIngredient || origIngredient.calories <= 0) continue;
-    
+
     const limits = ROLE_GRAM_LIMITS[r.macroRole];
-    let finalGrams = Math.round(r.grams * scaleFactor);
-    finalGrams = Math.max(limits.min, Math.min(limits.max, finalGrams));
-    
+    let scaled = r.grams * scaleFactor;
+    scaled = Math.max(limits.min, Math.min(limits.max, scaled));
+    let finalGrams = floorGramsToStep(scaled);
+    if (finalGrams < limits.min) {
+      finalGrams = Math.min(limits.max, limits.min);
+    }
+
     r.grams = finalGrams;
     const factor = finalGrams / 100;
-    r.kcal = Math.round(origIngredient.calories * factor);
-    r.protein = Math.round(origIngredient.protein * factor * 10) / 10;
-    r.carbs = Math.round(origIngredient.carbs * factor * 10) / 10;
-    r.fat = Math.round(origIngredient.fat * factor * 10) / 10;
+    r.kcal = floorKcalFromGrams(origIngredient.calories, finalGrams);
+    r.protein = Math.floor(origIngredient.protein * factor * 10) / 10;
+    r.carbs = Math.floor(origIngredient.carbs * factor * 10) / 10;
+    r.fat = Math.floor(origIngredient.fat * factor * 10) / 10;
+  }
+
+  const totalKcal = baseResults.reduce((s, r) => s + r.kcal, 0);
+  if (totalKcal > mealBudgetKcal) {
+    return trimHydratedUnderCalorieBudget(
+      baseResults,
+      mealBudgetKcal,
+      allIngredients,
+      ROLE_GRAM_LIMITS,
+    );
   }
 
   return baseResults;
@@ -220,7 +240,7 @@ export function hydrateDayMeals(
     const lite = meals[mealType];
     if (!lite) continue;
 
-    const slotBudget = Math.round(dailyBudget * SLOT_PERCENTAGES[mealType]);
+    const slotBudget = Math.floor(dailyBudget * SLOT_PERCENTAGES[mealType]);
     result[mealType] = hydrateMeal(lite, slotBudget, allIngredients);
   }
 
@@ -255,5 +275,5 @@ export function getMealSlotBudget(
   dailyBudget: number,
   mealType: MealType,
 ): number {
-  return Math.round(dailyBudget * SLOT_PERCENTAGES[mealType]);
+  return Math.floor(dailyBudget * SLOT_PERCENTAGES[mealType]);
 }

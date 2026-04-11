@@ -183,13 +183,21 @@ export function buildContext(params: BuildContextParams): AiChatContext {
   };
 }
 
+/** Catálogos para Gemini: lista completa + pool semanal (ancla). */
+export interface SendMessageCatalogOptions {
+  /** Todos los IDs válidos según perfil (completar platos). */
+  catalog: string;
+  /** Subconjunto semanal rotado (variedad / núcleo de la semana). */
+  catalogAnchor: string;
+}
+
 /**
  * Send a message to the AI chat endpoint.
  */
 export async function sendMessage(
   message: string,
   context: AiChatContext,
-  catalog?: string,
+  catalogs: SendMessageCatalogOptions,
 ): Promise<AiChatResponse> {
   const token = getToken();
   if (!token) {
@@ -202,7 +210,12 @@ export async function sendMessage(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message, context, catalog }),
+    body: JSON.stringify({
+      message,
+      context,
+      catalog: catalogs.catalog,
+      catalogAnchor: catalogs.catalogAnchor,
+    }),
   });
 
   if (!res.ok) {

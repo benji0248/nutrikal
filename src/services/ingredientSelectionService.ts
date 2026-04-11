@@ -165,3 +165,31 @@ export function formatMealSubsetForPrompt(subset: MealSubset): string {
   ];
   return lines.join('\n');
 }
+
+/**
+ * Pool semanal con IDs y nombres para el prompt del asistente (ancla de variedad).
+ */
+export function formatWeeklyPoolForPrompt(
+  pool: WeeklyIngredientPool,
+  allIngredients: Ingredient[],
+): string {
+  const map = new Map(allIngredients.map((i) => [i.id, i] as const));
+  const idLines = (ids: string[]): string =>
+    ids
+      .map((id) => {
+        const ing = map.get(id);
+        return ing ? `${ing.id}: ${ing.name}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+
+  return [
+    'POOL SEMANAL (priorizá variedad usando estos ingredientes a lo largo de la semana):',
+    'ESTRUCTURALES:',
+    idLines(pool.structural),
+    'CONTEXTUALES:',
+    idLines(pool.contextual),
+    'CREATIVOS:',
+    idLines(pool.creative),
+  ].join('\n');
+}

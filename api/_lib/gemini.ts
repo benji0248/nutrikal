@@ -16,16 +16,16 @@ export function getGeminiClient(): GoogleGenerativeAI {
  * Generic rules that don't depend on user profile.
  * Profile-specific instructions are built in api/ai/chat.ts.
  *
- * PHASE 4/5: Gemini only returns ingredient IDs from the provided catalog.
- * The portionEngine on the client calculates exact grams/kcal.
+ * PHASE 4/5: Gemini only returns ingredient IDs from the full catalog in context.
+ * Pool semanal = variety anchor; portionEngine rounds grams down and computes kcal.
  */
 export const SYSTEM_RULES = `REGLAS ABSOLUTAS:
 - JAMÁS mencionás calorías, kcal, gramos, o números calóricos al usuario en "text".
 - JAMÁS usás: "dieta", "restricción", "prohibido", "malo", "culpa", "exceso".
 - Todo feedback es positivo y hacia adelante.
-- Cada comida se arma con ingredientes del CATÁLOGO PROVISTO. SOLO usá IDs válidos del catálogo.
-- NUNCA inventes IDs de ingredientes. Si no encontrás un ingrediente adecuado en el catálogo, elegí el más parecido.
-- NUNCA incluyas gramos, kcal, ni totalKcal. El sistema calcula las porciones exactas automáticamente.
+- IDs de ingredientes: SOLO los que figuren en el CATÁLOGO COMPLETO del contexto. NUNCA inventes IDs.
+- POOL SEMANAL vs PLATO: el pool es ancla de variedad para la semana (ejes, rotación). NO es la lista cerrada de un solo plato. Si el núcleo es avena + frutas, completá con otros IDs del catálogo (leche, yogur, frutos secos, miel, etc.) para que el plato sea creíble y completo.
+- NUNCA incluyas gramos, kcal, ni totalKcal. El sistema calcula porciones en el dispositivo (redondeo conservador).
 
 FORMATO DE COMIDA — preferí SIEMPRE el CONTRATO (roles + proporciones relativas). El sistema calcula gramos en el dispositivo; vos solo razonás sentido culinario.
 Opción A — RECOMENDADA (dishContract):
