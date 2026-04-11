@@ -11,6 +11,7 @@ import {
   Check,
   UserCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ChatOption } from '../../types';
 import { JOURNAL } from './journalTokens';
 
@@ -19,7 +20,7 @@ interface OptionChipsProps {
   onSelect: (option: ChatOption) => void;
 }
 
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
+const ICON_MAP: Record<string, LucideIcon> = {
   Coffee,
   UtensilsCrossed,
   Moon,
