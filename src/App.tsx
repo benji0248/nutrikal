@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sun, CalendarDays, LayoutGrid, Download, Printer, UserCircle, RotateCcw } from 'lucide-react';
+import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
@@ -196,41 +196,10 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
-  const buildPayload = useGistSyncStore((s) => s.buildPayload);
-  const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
   const showCalories = useSettingsStore((s) => s.showCalories);
   const setShowCalories = useSettingsStore((s) => s.setShowCalories);
 
-  const handleExportJSON = () => {
-    const payload = buildPayload();
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `nutrikal-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const raw = JSON.parse(reader.result as string);
-        const { migratePayload } = await import('./utils/migratePayload');
-        const payload = migratePayload(raw);
-        if (confirm('¿Reemplazar todos tus datos actuales?')) {
-          hydrateAllStores(payload);
-        }
-      } catch {
-        alert('Archivo JSON inválido');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
+  const [useGrams, setUseGrams] = useState(true);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -299,19 +268,22 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
       <section className="space-y-4">
         <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Preferencias</h2>
         <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-2">
-          {/* Theme Toggle - Static */}
-          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl">
+          {/* Measurement Toggle */}
+          <div
+            onClick={() => setUseGrams(!useGrams)}
+            className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-pointer"
+          >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-[#a05d22]/10 flex items-center justify-center text-[#824509]">
-                <Sun size={24} />
+                <Scale size={24} />
               </div>
               <div>
-                <p className="font-semibold text-[#191c17]">Apariencia</p>
-                <p className="text-sm text-[#40493d]">Modo Claro activado</p>
+                <p className="font-semibold text-[#191c17]">Sistema de Medición</p>
+                <p className="text-sm text-[#40493d]">{useGrams ? 'Gramos exactos' : 'Medidas caseras'}</p>
               </div>
             </div>
-            <div className="w-12 h-6 bg-[#e7e9e0] rounded-full relative p-1 flex items-center cursor-default">
-              <div className="w-4 h-4 bg-[#226046] rounded-full shadow-sm translate-x-0 transition-transform" />
+            <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', useGrams ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
+              <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', useGrams ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
             </div>
           </div>
 
@@ -337,20 +309,33 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Datos y Privacidad</h2>
-        <div className="bg-[#f3f5eb] rounded-lg p-2 grid grid-cols-2 gap-2">
-          <button
-            onClick={handleExportJSON}
-            className="flex flex-col items-center justify-center gap-3 p-6 bg-[#ffffff] rounded-xl hover:bg-[#226046]/5 transition-colors"
-          >
-            <Download className="text-[#226046]" size={32} />
-            <span className="text-sm font-semibold text-[#191c17]">Exportar JSON</span>
-          </button>
-          <label className="flex flex-col items-center justify-center gap-3 p-6 bg-[#ffffff] rounded-xl hover:bg-[#226046]/5 transition-colors cursor-pointer">
-            <Printer className="text-[#226046]" size={32} />
-            <span className="text-sm font-semibold text-[#191c17]">Importar JSON</span>
-            <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-          </label>
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Próximamente</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-2 opacity-70">
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-not-allowed">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#4a5568]/10 flex items-center justify-center text-[#2d3748]">
+                <Bell size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Notificaciones de Hábitos</p>
+                <p className="text-sm text-[#40493d]">Recordatorios de agua y comidas</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-[#707a6c] uppercase tracking-widest">Pronto</span>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-not-allowed">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#2b6cb0]/10 flex items-center justify-center text-[#2b6cb0]">
+                <Smartphone size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Sincronización Fit</p>
+                <p className="text-sm text-[#40493d]">Apple Health & Google Fit</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-[#707a6c] uppercase tracking-widest">Pronto</span>
+          </div>
         </div>
       </section>
 
