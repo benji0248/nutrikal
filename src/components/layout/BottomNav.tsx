@@ -1,4 +1,4 @@
-import { Calendar, Settings, Sparkles, ShoppingCart, Heart } from 'lucide-react';
+import { Calendar, Settings, Sparkles, Heart } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { AppTab } from '../../types';
 
@@ -7,11 +7,10 @@ interface BottomNavProps {
   onTabChange: (tab: AppTab) => void;
 }
 
-const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
+const TABS: { tab: AppTab; label: string; icon: any }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
-  { tab: 'assistant', label: 'Nutri', icon: Sparkles },
-  { tab: 'historial', label: 'Historial', icon: Heart },
-  { tab: 'shopping', label: 'Compras', icon: ShoppingCart },
+  { tab: 'assistant', label: 'NutriKal', icon: Sparkles },
+  { tab: 'historial', label: 'Favoritos', icon: Heart },
   { tab: 'settings', label: 'Ajustes', icon: Settings },
 ];
 
