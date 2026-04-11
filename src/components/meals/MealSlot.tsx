@@ -18,6 +18,8 @@ interface MealSlotProps {
   date: string;
   mealType: MealType;
   meals: Meal[];
+  /** Ancla para scroll / diseño (ej. #meal-desayuno) */
+  domId?: string;
 }
 
 const MEAL_ICONS: Record<MealType, string> = {
@@ -27,7 +29,7 @@ const MEAL_ICONS: Record<MealType, string> = {
   snack: '🍎',
 };
 
-export function MealSlot({ date, mealType, meals }: MealSlotProps) {
+export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
   const [expanded, setExpanded] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
@@ -67,7 +69,10 @@ export function MealSlot({ date, mealType, meals }: MealSlotProps) {
   );
 
   return (
-    <div className="bg-surface2/40 backdrop-blur-sm rounded-2xl border border-border/40 overflow-hidden transition-all">
+    <div
+      id={domId}
+      className="overflow-hidden rounded-[1.25rem] bg-surface shadow-ambient transition-all"
+    >
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface2/60 transition-colors min-h-[48px]"

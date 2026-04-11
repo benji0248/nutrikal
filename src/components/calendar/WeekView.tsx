@@ -80,21 +80,20 @@ export function WeekView({ onNavigateToAssistant }: WeekViewProps) {
               key={formatDateKey(day)}
               onClick={() => setActiveDayIdx(idx)}
               className={clsx(
-                'flex-1 flex flex-col items-center py-2 rounded-xl transition-all min-h-[48px]',
-                active ? 'bg-accent/10' : 'hover:bg-surface2/50',
+                'flex-1 flex flex-col items-center py-2 rounded-2xl transition-all min-h-[48px]',
+                active ? 'bg-accent text-white shadow-ambient' : 'hover:bg-surface2/50 text-muted',
               )}
               aria-label={`${DAY_LABELS[idx]} ${format(day, 'd')}`}
             >
-              <span className={clsx('text-[10px] font-body', active ? 'text-accent font-medium' : 'text-muted')}>
-                {DAY_LABELS[idx]}
+              <span className={clsx('text-[9px] font-medium uppercase', active ? 'text-white' : '')}>
+                {DAY_LABELS[idx].slice(0, 3)}
               </span>
               <span className={clsx(
-                'text-sm font-mono mt-0.5',
-                today ? 'text-accent font-bold' : active ? 'text-text-primary' : 'text-muted',
-              )}>
+                'text-sm font-semibold tabular-nums mt-0.5',
+                active ? 'text-white' : today ? 'text-accent font-bold' : 'text-text-primary',
+              )}              >
                 {format(day, 'd')}
               </span>
-              {active && <div className="w-1 h-1 rounded-full bg-accent mt-1" />}
             </button>
           );
         })}
