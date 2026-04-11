@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Check, Sparkles, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, Plus } from 'lucide-react';
 import { format, getISOWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { clsx } from 'clsx';
@@ -59,18 +59,12 @@ function MealColumn({
   dayPlan,
   today,
   activeMealType,
-  showCalories,
-  allIngredients,
-  toggleMealCompleted,
 }: {
   currentDate: string;
   mt: MealType;
   dayPlan: ReturnType<typeof createEmptyDayPlan>;
   today: boolean;
   activeMealType: MealType | null;
-  showCalories: boolean;
-  allIngredients: typeof INGREDIENTS_DB;
-  toggleMealCompleted: (d: string, t: MealType, id: string) => void;
 }) {
   const isActive = today && activeMealType === mt;
   const meals = dayPlan.meals[mt];
@@ -82,43 +76,6 @@ function MealColumn({
         isActive && 'ring-2 ring-accent/40 shadow-[0px_12px_32px_rgba(34,96,70,0.12)]',
       )}
     >
-      {meals.length > 0 && (
-        <div className="mb-1 px-1">
-          {meals.map((meal) => (
-            <button
-              key={meal.id}
-              type="button"
-              onClick={() => toggleMealCompleted(currentDate, mt, meal.id)}
-              className={clsx(
-                'flex w-full items-center gap-2 rounded-xl px-3 py-1.5 text-left transition-colors',
-                meal.completed ? 'opacity-60' : 'hover:bg-surface2/50',
-              )}
-            >
-              <div
-                className={clsx(
-                  'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 transition-all',
-                  meal.completed
-                    ? 'border-green-500 bg-green-500'
-                    : 'border-border hover:border-accent/50',
-                )}
-              >
-                {meal.completed && <Check size={12} className="text-white" />}
-              </div>
-              <span
-                className={clsx(
-                  'truncate text-xs font-body',
-                  meal.completed ? 'text-muted line-through' : 'text-text-primary',
-                )}
-              >
-                {meal.name}
-                {showCalories && getMealCalories(meal, allIngredients) !== undefined && (
-                  <span className="ml-1 text-muted">({getMealCalories(meal, allIngredients)} kcal)</span>
-                )}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
       <MealSlot date={currentDate} mealType={mt} meals={meals} domId={`meal-${mt}`} />
       {isActive && meals.length === 0 && (
         <p className="py-1 text-center text-[10px] font-body text-accent/80">
@@ -138,7 +95,6 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
   const storedPlan = dayPlans[currentDate];
   const dayPlan = useMemo(() => storedPlan ?? createEmptyDayPlan(currentDate), [storedPlan, currentDate]);
   const setNotes = useCalendarStore((s) => s.setNotes);
-  const toggleMealCompleted = useCalendarStore((s) => s.toggleMealCompleted);
   const getMetabolicResult = useProfileStore((s) => s.getMetabolicResult);
 
   const date = useMemo(() => parseDate(currentDate), [currentDate]);
@@ -253,9 +209,6 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
     dayPlan,
     today,
     activeMealType,
-    showCalories,
-    allIngredients,
-    toggleMealCompleted,
   };
 
   return (
