@@ -18,7 +18,7 @@ import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
 import { SyncIndicator } from './components/ui/SyncIndicator';
-import { Button } from './components/ui/Button';
+
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
@@ -192,49 +192,14 @@ function AuthenticatedApp() {
   );
 }
 
-function CaloriesToggle() {
-  const showCalories = useSettingsStore((s) => s.showCalories);
-  const setShowCalories = useSettingsStore((s) => s.setShowCalories);
-
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex-1 min-w-0 mr-3">
-        <span className="text-sm font-body text-muted block">Mostrar calorías</span>
-        <span className="text-[11px] font-body text-muted/60">
-          Ver las calorías de cada comida y el total del día
-        </span>
-      </div>
-      <button
-        role="switch"
-        aria-checked={showCalories}
-        onClick={() => setShowCalories(!showCalories)}
-        className="relative shrink-0 min-w-[48px] min-h-[48px] flex items-center justify-center"
-      >
-        <span
-          className={clsx(
-            'block h-7 w-12 rounded-full transition-colors',
-            showCalories ? 'bg-accent' : 'bg-border',
-          )}
-        />
-        <span
-          className={clsx(
-            'absolute block h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
-            showCalories ? 'translate-x-[10px]' : '-translate-x-[10px]',
-          )}
-        />
-      </button>
-    </div>
-  );
-}
-
 function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
-  const clearProfile = useProfileStore((s) => s.clearProfile);
   const logout = useAuthStore((s) => s.logout);
   const buildPayload = useGistSyncStore((s) => s.buildPayload);
   const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
-  const schedulePush = useGistSyncStore((s) => s.schedulePush);
+  const showCalories = useSettingsStore((s) => s.showCalories);
+  const setShowCalories = useSettingsStore((s) => s.setShowCalories);
 
   const handleExportJSON = () => {
     const payload = buildPayload();
@@ -268,97 +233,133 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   };
 
   return (
-    <div className="space-y-6 max-w-lg">
-      <h2 className="text-xl font-heading font-bold text-text-primary">Ajustes</h2>
+    <div className="space-y-8 animate-fade-in">
+      <section className="space-y-1">
+        <h1 className="text-3xl font-heading font-bold text-[#226046] tracking-tight">Ajustes</h1>
+        <p className="text-[#40493d] font-body">Personaliza tu experiencia de bienestar y nutrición.</p>
+      </section>
 
-      {/* Account section */}
       {user && (
-        <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
-          <h3 className="text-sm font-heading font-bold text-text-primary">Cuenta</h3>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
-              <span className="text-white font-heading font-bold text-sm">
-                {(user.displayName || user.username).charAt(0).toUpperCase()}
+        <section className="space-y-4">
+          <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Cuenta</h2>
+          <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-1">
+            <div
+              onClick={() => { if (confirm('¿Cerrar sesión?')) logout(); }}
+              className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl hover:bg-[#edefe6] transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#3d795d]/10 flex items-center justify-center text-[#226046]">
+                  <UserCircle size={24} />
+                </div>
+                <div>
+                  <p className="font-semibold text-[#191c17]">{user.displayName || user.username}</p>
+                  <p className="text-sm text-[#40493d]">{user.email}</p>
+                </div>
+              </div>
+              <span className="text-[#707a6c] font-bold text-xs group-hover:translate-x-1 transition-transform uppercase tracking-widest">
+                Salir
               </span>
             </div>
-            <div>
-              <p className="text-sm font-body font-medium text-text-primary">@{user.username}</p>
-              <p className="text-[10px] font-body text-muted">{user.email}</p>
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Perfil Nutricional</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2">
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#fd9d1a]/10 flex items-center justify-center text-[#895100]">
+                <UserCircle size={24} />
+              </div>
+              {settingsProfile ? (
+                <div>
+                  <p className="font-semibold text-[#191c17] text-sm">Objetivo de Salud</p>
+                  <p className="text-xs text-[#40493d]">
+                    {settingsProfile.heightCm} cm • {settingsProfile.weightKg} kg
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="font-semibold text-[#191c17]">Sin Perfil</p>
+                  <p className="text-sm text-[#40493d]">Crea tu perfil</p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={onEditProfile}
+              className="bg-[#226046] text-[#ffffff] px-4 py-2 rounded-full text-sm font-medium hover:scale-95 transition-transform"
+            >
+              {settingsProfile ? 'Editar' : 'Crear'}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Preferencias</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-2">
+          {/* Theme Toggle - Static */}
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#a05d22]/10 flex items-center justify-center text-[#824509]">
+                <Sun size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Apariencia</p>
+                <p className="text-sm text-[#40493d]">Modo Claro activado</p>
+              </div>
+            </div>
+            <div className="w-12 h-6 bg-[#e7e9e0] rounded-full relative p-1 flex items-center cursor-default">
+              <div className="w-4 h-4 bg-[#226046] rounded-full shadow-sm translate-x-0 transition-transform" />
             </div>
           </div>
 
-          <p className="text-[10px] font-body text-muted/60">
-            Datos sincronizados en la nube
-          </p>
-
-          <div className="flex flex-col gap-2">
-            <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
-              Exportar backup JSON
-            </Button>
-            <label className="w-full">
-              <Button variant="secondary" icon={<Printer size={16} />} onClick={() => document.getElementById('import-input')?.click()} fullWidth>
-                Importar backup JSON
-              </Button>
-              <input
-                id="import-input"
-                type="file"
-                accept=".json"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </label>
-            <Button variant="danger" onClick={() => { if (confirm('Tu información está guardada en la nube. ¿Cerrar sesión?')) logout(); }} fullWidth>
-              Cerrar sesión
-            </Button>
+          {/* Calories Toggle */}
+          <div
+            onClick={() => setShowCalories(!showCalories)}
+            className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-pointer"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#3d795d]/10 flex items-center justify-center text-[#226046]">
+                <LayoutGrid size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Mostrar Calorías</p>
+                <p className="text-sm text-[#40493d]">Visibles en el feed personal</p>
+              </div>
+            </div>
+            <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', showCalories ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
+              <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', showCalories ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
+            </div>
           </div>
         </div>
-      )}
+      </section>
 
-      <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
-        <h3 className="text-sm font-heading font-bold text-text-primary">Perfil nutricional</h3>
-        {settingsProfile ? (
-          <div className="space-y-2">
-            <p className="text-sm font-body text-text-primary">{settingsProfile.name}</p>
-            <p className="text-xs font-body text-muted">
-              {settingsProfile.heightCm} cm · {settingsProfile.weightKg} kg
-            </p>
-            <Button variant="secondary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
-              Editar perfil
-            </Button>
-            <Button variant="danger" icon={<RotateCcw size={16} />} onClick={() => { if (confirm('¿Resetear tu perfil? Vas a tener que crearlo de nuevo.')) { clearProfile(); schedulePush(); } }} fullWidth>
-              Resetear perfil
-            </Button>
-          </div>
-        ) : (
-          <Button variant="primary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
-            Crear perfil
-          </Button>
-        )}
-      </div>
-
-      <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
-        <h3 className="text-sm font-heading font-bold text-text-primary">Apariencia</h3>
-        <CaloriesToggle />
-      </div>
-
-      <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
-        <h3 className="text-sm font-heading font-bold text-text-primary">Datos</h3>
-        <div className="flex flex-col gap-2">
-          <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
-            Exportar datos (JSON)
-          </Button>
-          <Button variant="secondary" icon={<Printer size={16} />} onClick={() => window.print()} fullWidth>
-            Imprimir semana actual
-          </Button>
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Datos y Privacidad</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={handleExportJSON}
+            className="flex flex-col items-center justify-center gap-3 p-6 bg-[#ffffff] rounded-xl hover:bg-[#226046]/5 transition-colors"
+          >
+            <Download className="text-[#226046]" size={32} />
+            <span className="text-sm font-semibold text-[#191c17]">Exportar JSON</span>
+          </button>
+          <label className="flex flex-col items-center justify-center gap-3 p-6 bg-[#ffffff] rounded-xl hover:bg-[#226046]/5 transition-colors cursor-pointer">
+            <Printer className="text-[#226046]" size={32} />
+            <span className="text-sm font-semibold text-[#191c17]">Importar JSON</span>
+            <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+          </label>
         </div>
-      </div>
+      </section>
 
-      <div className="text-center pt-4">
-        <p className="text-xs text-muted font-body">NutriKal v5.0</p>
-        <p className="text-[10px] text-muted/60 font-body mt-1">
-          Datos sincronizados en la nube
-        </p>
+      <div className="pt-4 pb-8 text-center space-y-2">
+        <div className="inline-flex items-center justify-center w-12 h-12 bg-[#e7e9e0] rounded-2xl mb-2">
+          <LayoutGrid size={20} className="text-[#40493d]" />
+        </div>
+        <p className="text-[#40493d] font-medium text-sm">NutriKal v5.0</p>
+        <p className="text-xs text-[#707a6c] italic">Hecho con conciencia nutricional</p>
       </div>
     </div>
   );
