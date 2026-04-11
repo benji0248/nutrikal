@@ -14,31 +14,17 @@
    * Night Journal (dark) — bosques profundos, acento verde legible
    */
   :root {
-    --bg: #f8faf1;
+    --bg: #faf7f2;
     --surface: #ffffff;
     --surface2: #f3f5eb;
-    --border: rgba(25, 28, 23, 0.1);
-    --text-primary: #191c17;
+    --border: rgba(25, 28, 23, 0.08);
+    --text-primary: #1A3626;  /* Dark green tinted text */
     --muted: #5a6258;
-    --accent: #226046;
+    --accent: #215D3E; /* Dark green accent from mockup */
     --secondary: #895100;
     --pink: #b84d6f;
-    --green: #2f7d54;
-    --amber: #b8860b;
-  }
-
-  [data-theme='dark'] {
-    --bg: #0e120f;
-    --surface: #161a17;
-    --surface2: #1f2520;
-    --border: rgba(232, 237, 230, 0.12);
-    --text-primary: #eef1eb;
-    --muted: #8f978f;
-    --accent: #6bcf9c;
-    --secondary: #daa06d;
-    --pink: #e891a8;
-    --green: #5fd39a;
-    --amber: #f0c14d;
+    --green: #215D3E;
+    --amber: #f59e0b;
   }
 
   * {
@@ -57,16 +43,6 @@
     background: var(--bg);
     color: var(--text-primary);
     min-height: 100dvh;
-  }
-
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.035;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23a)' opacity='1'/%3E%3C/svg%3E");
   }
 
   #root {

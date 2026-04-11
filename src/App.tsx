@@ -17,7 +17,6 @@ import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
-import { ThemeToggle } from './components/ui/ThemeToggle';
 import { SyncIndicator } from './components/ui/SyncIndicator';
 import { Button } from './components/ui/Button';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -163,9 +162,6 @@ function AuthenticatedApp() {
                 </>
               )}
               <SyncIndicator />
-              <div className="md:hidden">
-                <ThemeToggle />
-              </div>
               <UserMenu />
             </div>
           </div>
@@ -350,10 +346,6 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
 
       <div className="bg-surface rounded-[2rem] shadow-ambient p-5 space-y-4">
         <h3 className="text-sm font-heading font-bold text-text-primary">Apariencia</h3>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-body text-muted">Tema</span>
-          <ThemeToggle />
-        </div>
         <CaloriesToggle />
       </div>
 

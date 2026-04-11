@@ -1,6 +1,5 @@
 import { Calendar, Settings, Sparkles, ShoppingCart, Heart } from 'lucide-react';
 import { clsx } from 'clsx';
-import { ThemeToggle } from '../ui/ThemeToggle';
 import type { AppTab } from '../../types';
 
 interface SidebarProps {
@@ -18,7 +17,7 @@ const TABS: { tab: AppTab; label: string; icon: typeof Calendar }[] = [
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
-    <aside className="hidden md:flex flex-col w-60 h-dvh bg-surface2/90 backdrop-blur-md border-r border-border/40 fixed left-0 top-0 p-4 gap-1 no-print shadow-ambient">
+    <aside className="hidden md:flex flex-col w-60 h-dvh bg-surface border-r border-border/40 fixed left-0 top-0 p-4 gap-1 no-print">
       <div className="flex items-center gap-3 px-3 py-4 mb-4">
         <div className="w-10 h-10 rounded-2xl bg-accent/20 flex items-center justify-center">
           <span className="text-accent font-heading font-bold text-lg">N</span>
@@ -39,7 +38,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               className={clsx(
                 'flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left min-h-[48px] font-body text-sm',
                 active
-                  ? 'bg-accent/10 text-accent font-medium'
+                  ? 'bg-transparent text-accent font-semibold border-r-[6px] border-accent rounded-r-none'
                   : 'text-muted hover:text-text-primary hover:bg-surface2/50',
               )}
               aria-label={label}
@@ -51,11 +50,6 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           );
         })}
       </nav>
-
-      <div className="pt-4 border-t border-border flex items-center justify-between px-3">
-        <span className="text-xs text-muted font-body">Tema</span>
-        <ThemeToggle />
-      </div>
     </aside>
   );
 }
