@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ChatOption } from '../../types';
-import { JOURNAL } from './journalTokens';
+
 
 interface OptionChipsProps {
   options: ChatOption[];
@@ -45,16 +45,9 @@ export const OptionChips = ({ options, onSelect }: OptionChipsProps) => {
             key={option.id}
             type="button"
             onClick={() => onSelect(option)}
-            className="flex min-h-[48px] items-center gap-2 rounded-full px-4 py-2.5 font-body text-sm font-medium transition-all active:scale-[0.98]"
-            style={{
-              backgroundColor: JOURNAL.chipBg,
-              borderWidth: 1,
-              borderStyle: 'solid',
-              borderColor: JOURNAL.chipBorder,
-              color: JOURNAL.primary,
-            }}
+            className="bg-[#edefe6] text-[#226046] border border-[#bfcaba]/30 px-4 py-2 rounded-full text-xs font-medium hover:bg-[#e7e9e0] transition-colors flex items-center gap-2"
           >
-            {Icon && <Icon size={16} strokeWidth={1.75} />}
+            {Icon && <Icon size={14} strokeWidth={1.75} />}
             {option.label}
           </button>
         );

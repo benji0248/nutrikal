@@ -6,7 +6,7 @@ import type { WeekPlan, MealType } from '../../types';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { PlanMealCell } from './PlanMealCell';
-import { JOURNAL } from '../assistant/journalTokens';
+
 
 interface PlanReviewGridProps {
   plan: WeekPlan;
@@ -44,19 +44,11 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
               type="button"
               onClick={() => setActiveDay(idx)}
               className={clsx(
-                'flex min-h-[44px] min-w-[48px] flex-col items-center whitespace-nowrap rounded-2xl px-3 py-2 font-body text-xs font-medium transition-all',
-              )}
-              style={
+                'w-12 h-12 flex flex-col items-center justify-center whitespace-nowrap rounded-full transition-all flex-shrink-0',
                 active
-                  ? {
-                      backgroundColor: 'rgba(34, 96, 70, 0.14)',
-                      color: JOURNAL.primary,
-                    }
-                  : {
-                      backgroundColor: JOURNAL.surfaceLow,
-                      color: JOURNAL.muted,
-                    }
-              }
+                  ? 'bg-[#b1f0ce] text-[#002114]'
+                  : 'bg-[#e1e3da] text-[#40493d]'
+              )}
             >
               <span className="capitalize">{dayLabel}</span>
               <span className="text-[10px] opacity-80">{dateLabel}</span>
@@ -68,11 +60,11 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
       {activeDayData && (
         <div className="mt-2 space-y-2">
           <div className="flex items-baseline justify-between">
-            <p className="font-body text-xs font-medium capitalize" style={{ color: JOURNAL.onSurface }}>
+            <p className="font-body text-xs font-medium capitalize text-[#191c17]">
               {format(parseISO(activeDayData.date), "EEEE d 'de' MMMM", { locale: es })}
             </p>
             {showCalories && dayKcal > 0 && (
-              <span className="font-mono text-xs" style={{ color: JOURNAL.primary }}>
+              <span className="font-mono text-xs text-[#226046]">
                 {dayKcal} kcal
               </span>
             )}
@@ -81,10 +73,7 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
             const planned = activeDayData.meals[mt];
             return (
               <div key={mt}>
-                <span
-                  className="font-body text-[11px] uppercase tracking-wide"
-                  style={{ color: JOURNAL.muted }}
-                >
+                <span className="font-body text-[11px] uppercase tracking-wide text-[#707a6c]">
                   {MEAL_TYPE_LABELS[mt]}
                 </span>
                 <PlanMealCell

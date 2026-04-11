@@ -1,11 +1,11 @@
-import { Loader2, Clock } from 'lucide-react';
+import { Loader2, Clock, Bot } from 'lucide-react';
 import type { ChatMessage, ChatOption, EnergyLevel, MealType, WeekPlan } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
 import { OptionChips } from './OptionChips';
 import { DayEnergyBar } from './DayEnergyBar';
 import { WeekPlanner } from '../planner/WeekPlanner';
 import { PlanAppliedView } from '../planner/PlanAppliedView';
-import { JOURNAL } from './journalTokens';
+
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
@@ -29,15 +29,11 @@ export const ChatMessageBubble = ({
   switch (message.type) {
     case 'assistant-text':
       return (
-        <div className="max-w-[85%] animate-fade-in">
-          <div
-            className="rounded-[1.25rem] rounded-tl-md px-4 py-3"
-            style={{
-              backgroundColor: JOURNAL.surfaceElevated,
-              boxShadow: JOURNAL.ambientShadow,
-              color: JOURNAL.onSurface,
-            }}
-          >
+        <div className="flex mr-12 items-start gap-3 animate-fade-in">
+          <div className="w-8 h-8 rounded-full bg-[#226046] flex items-center justify-center flex-shrink-0 text-white">
+            <Bot size={16} />
+          </div>
+          <div className="bg-[#f3f5eb] text-[#191c17] rounded-t-xl rounded-br-xl px-5 py-3 shadow-sm">
             <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{message.text}</p>
           </div>
         </div>
@@ -45,16 +41,13 @@ export const ChatMessageBubble = ({
 
     case 'assistant-loading':
       return (
-        <div className="max-w-[85%] animate-fade-in">
-          <div
-            className="flex items-center gap-2 rounded-[1.25rem] rounded-tl-md px-4 py-3"
-            style={{
-              backgroundColor: JOURNAL.surfaceLow,
-              color: JOURNAL.muted,
-            }}
-          >
-            <Loader2 size={16} className="animate-spin shrink-0" style={{ color: JOURNAL.primary }} />
-            <span className="font-body text-sm">Pensando...</span>
+        <div className="flex mr-12 items-start gap-3 animate-fade-in">
+          <div className="w-8 h-8 rounded-full bg-[#226046] flex items-center justify-center flex-shrink-0 text-white">
+            <Bot size={16} />
+          </div>
+          <div className="bg-[#f3f5eb] text-[#191c17] rounded-t-xl rounded-br-xl px-5 py-3 shadow-sm flex items-center gap-2">
+            <Loader2 size={16} className="animate-spin shrink-0 text-[#226046]" />
+            <span className="font-body text-sm font-medium">Pensando...</span>
           </div>
         </div>
       );
@@ -62,11 +55,8 @@ export const ChatMessageBubble = ({
     case 'user-text':
     case 'user-choice':
       return (
-        <div className="flex animate-fade-in justify-end">
-          <div
-            className="max-w-[75%] rounded-[1.25rem] rounded-tr-md px-4 py-3"
-            style={{ backgroundColor: JOURNAL.primary, color: JOURNAL.onPrimary }}
-          >
+        <div className="flex justify-end ml-12 animate-fade-in">
+          <div className="bg-[#3d795d] text-[#c1ffdd] rounded-t-xl rounded-bl-xl px-5 py-3 shadow-sm">
             <p className="font-body text-sm font-medium leading-relaxed">{message.text}</p>
           </div>
         </div>
@@ -86,28 +76,24 @@ export const ChatMessageBubble = ({
           {message.mealSuggestions?.map((meal, idx) => (
             <div
               key={idx}
-              className="rounded-[1.25rem] px-4 py-3"
-              style={{
-                backgroundColor: JOURNAL.surfaceElevated,
-                boxShadow: JOURNAL.ambientShadow,
-              }}
+              className="rounded-2xl px-4 py-3 bg-[#f8faf1] shadow-sm ml-12"
             >
-              <p className="font-body text-sm font-medium" style={{ color: JOURNAL.onSurface }}>
+              <p className="font-body text-sm font-medium text-[#191c17]">
                 {meal.name}
               </p>
               <div className="mt-0.5 flex items-center gap-2">
-                <span className="font-body text-xs" style={{ color: JOURNAL.muted }}>
+                <span className="font-body text-xs text-[#707a6c]">
                   {meal.ingredients.length} ingredientes
                 </span>
                 {meal.prepMinutes != null && meal.prepMinutes > 0 && (
-                  <span className="flex items-center gap-0.5 font-body text-xs" style={{ color: JOURNAL.muted }}>
+                  <span className="flex items-center gap-0.5 font-body text-xs text-[#707a6c]">
                     <Clock size={11} />
                     {meal.prepMinutes} min
                   </span>
                 )}
               </div>
               {meal.reason && (
-                <p className="mt-1 font-body text-xs italic" style={{ color: JOURNAL.muted }}>
+                <p className="mt-1 font-body text-xs italic text-[#707a6c]">
                   {meal.reason}
                 </p>
               )}
@@ -138,16 +124,13 @@ export const ChatMessageBubble = ({
 
     case 'assistant-summary':
       return (
-        <div className="max-w-[85%] animate-fade-in">
-          <div
-            className="space-y-3 rounded-[1.25rem] rounded-tl-md px-4 py-3"
-            style={{
-              backgroundColor: JOURNAL.surfaceElevated,
-              boxShadow: JOURNAL.ambientShadow,
-            }}
-          >
+        <div className="flex mr-12 items-start gap-3 animate-fade-in">
+          <div className="w-8 h-8 rounded-full bg-[#226046] flex flex-shrink-0 items-center justify-center text-[#ffffff]">
+            <Bot size={16} />
+          </div>
+          <div className="space-y-3 rounded-t-xl rounded-br-xl px-5 py-3 shadow-sm bg-[#f3f5eb]">
             {message.text && (
-              <p className="font-body text-sm leading-relaxed" style={{ color: JOURNAL.onSurface }}>
+              <p className="font-body text-sm leading-relaxed text-[#191c17]">
                 {message.text}
               </p>
             )}
@@ -156,10 +139,10 @@ export const ChatMessageBubble = ({
               <div className="space-y-1.5">
                 {message.daySummary.meals.map((m, idx) => (
                   <div key={idx} className="flex items-center gap-2 font-body text-sm">
-                    <span className="w-20 text-xs" style={{ color: JOURNAL.muted }}>
+                    <span className="w-20 text-xs text-[#707a6c]">
                       {MEAL_TYPE_LABELS[m.mealType]}
                     </span>
-                    <span style={{ color: JOURNAL.onSurface }}>{m.name}</span>
+                    <span className="text-[#191c17]">{m.name}</span>
                   </div>
                 ))}
               </div>

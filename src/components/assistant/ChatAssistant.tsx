@@ -1,11 +1,9 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Plus, Send, UserCircle } from 'lucide-react';
 import type { ChatOption, AppTab } from '../../types';
-import { ChatHeader } from './ChatHeader';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
 import { useChatEngine } from './useChatEngine';
-import { JOURNAL } from './journalTokens';
 
 interface ChatAssistantProps {
   onTabChange?: (tab: AppTab) => void;
@@ -70,38 +68,28 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   if (!hasProfile) {
     return (
-      <div
-        className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6"
-        style={{ backgroundColor: JOURNAL.surface, color: JOURNAL.onSurface }}
-      >
+      <div className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-[#f8faf1] text-[#191c17]">
         <div className="flex max-w-sm flex-col items-center space-y-6 text-center">
-          <div
-            className="flex h-20 w-20 items-center justify-center rounded-[2rem]"
-            style={{
-              backgroundColor: 'rgba(34, 96, 70, 0.15)',
-              boxShadow: JOURNAL.ambientShadow,
-            }}
-          >
-            <span className="font-heading text-3xl font-bold" style={{ color: JOURNAL.primary }}>
+          <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#226046]/15 shadow-sm">
+            <span className="font-heading text-3xl font-bold text-[#226046]">
               N
             </span>
           </div>
           <div className="space-y-2">
-            <h2 className="font-heading text-2xl font-bold" style={{ color: JOURNAL.onSurface }}>
+            <h2 className="font-heading text-2xl font-bold text-[#191c17]">
               Bienvenido a NutriKal
             </h2>
-            <p className="font-body text-base leading-relaxed" style={{ color: JOURNAL.muted }}>
+            <p className="font-body text-base leading-relaxed text-[#707a6c]">
               Tu asistente de nutrición personalizado
             </p>
           </div>
-          <p className="font-body text-sm leading-relaxed opacity-90" style={{ color: JOURNAL.muted }}>
+          <p className="font-body text-sm leading-relaxed opacity-90 text-[#707a6c]">
             Son 4 preguntas rápidas. Después te armo el plan de la semana.
           </p>
           <button
             type="button"
             onClick={() => setShowProfileSetup(true)}
-            className="inline-flex w-full min-h-[52px] items-center justify-center gap-2 rounded-full px-6 py-3 font-body font-semibold transition-all active:scale-[0.98]"
-            style={{ backgroundColor: JOURNAL.primary, color: JOURNAL.onPrimary }}
+            className="inline-flex w-full min-h-[52px] items-center justify-center gap-2 rounded-full px-6 py-3 font-body font-semibold transition-all active:scale-[0.98] bg-[#226046] text-[#ffffff]"
           >
             <UserCircle size={20} />
             Crear mi perfil
@@ -113,11 +101,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
   }
 
   return (
-    <div
-      className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)]"
-      style={{ backgroundColor: JOURNAL.surface, color: JOURNAL.onSurface }}
-    >
-      <ChatHeader />
+    <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-[#f8faf1] text-[#191c17]">
 
       <div
         ref={scrollContainerRef}
@@ -141,51 +125,32 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
       <form
         onSubmit={onSubmit}
-        className="sticky bottom-0 z-10 border-t border-white/50 px-4 py-3 safe-bottom backdrop-blur-xl"
-        style={{ backgroundColor: JOURNAL.glass }}
+        className="fixed bottom-28 md:bottom-6 left-0 right-0 w-full px-6 z-40"
       >
-        <div className="mx-auto flex max-w-2xl items-center gap-2">
+        <div className="max-w-2xl mx-auto bg-[#ffffff] rounded-xl shadow-xl flex items-center p-2 gap-2 border border-[#bfcaba]/20">
           <button
             type="button"
-            disabled
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full opacity-50"
-            style={{
-              backgroundColor: JOURNAL.surfaceElevated,
-              boxShadow: JOURNAL.ambientShadow,
-              color: JOURNAL.muted,
-            }}
-            title="Próximamente"
+            className="p-2 text-[#707a6c] hover:text-[#226046]"
             aria-label="Adjuntos"
+            disabled
           >
-            <Plus size={20} strokeWidth={1.75} />
+            <Plus size={20} />
           </button>
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Escribí tu consulta..."
+            placeholder="Escribe tu consulta..."
             disabled={isLoading}
-            className="min-h-[48px] flex-1 rounded-full border-0 px-5 py-3 font-body text-sm outline-none transition-shadow placeholder:text-[#191c17]/35 focus:ring-2 disabled:opacity-50"
-            style={{
-              backgroundColor: JOURNAL.surfaceElevated,
-              color: JOURNAL.onSurface,
-              boxShadow: JOURNAL.ambientShadow,
-            }}
-            onFocus={(e) => {
-              e.target.style.boxShadow = `0 0 0 2px rgba(34, 96, 70, 0.25), ${JOURNAL.ambientShadow}`;
-            }}
-            onBlur={(e) => {
-              e.target.style.boxShadow = JOURNAL.ambientShadow;
-            }}
+            className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-medium placeholder:text-[#707a6c]/50 outline-none px-2"
           />
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white transition-all active:scale-[0.98] disabled:opacity-40"
-            style={{ backgroundColor: JOURNAL.primary }}
+            className="w-10 h-10 bg-[#226046] text-[#ffffff] rounded-lg flex items-center justify-center disabled:opacity-40 transition-opacity"
             aria-label="Enviar mensaje"
           >
-            <Send size={20} />
+            <Send size={18} className="translate-x-[2px]" />
           </button>
         </div>
       </form>
