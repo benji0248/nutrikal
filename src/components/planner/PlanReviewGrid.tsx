@@ -6,6 +6,7 @@ import type { WeekPlan, MealType } from '../../types';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { PlanMealCell } from './PlanMealCell';
+import { JOURNAL } from '../assistant/journalTokens';
 
 interface PlanReviewGridProps {
   plan: WeekPlan;
@@ -18,7 +19,6 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
 
   const activeDayData = plan.days[activeDay];
 
-  // Compute daily kcal total from AiMeal totalKcal
   const dayKcal = useMemo(() => {
     if (!activeDayData) return 0;
     let total = 0;
@@ -32,47 +32,59 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
 
   return (
     <div>
-      {/* Day tabs */}
       <div className="flex gap-1 overflow-x-auto pb-2">
         {plan.days.map((day, idx) => {
           const date = parseISO(day.date);
           const dayLabel = format(date, 'EEE', { locale: es });
           const dateLabel = format(date, 'd/M');
+          const active = idx === activeDay;
           return (
             <button
               key={day.date}
               type="button"
               onClick={() => setActiveDay(idx)}
               className={clsx(
-                'flex flex-col items-center px-3 py-2 rounded-xl text-xs font-body font-medium whitespace-nowrap transition-all min-h-[44px] min-w-[48px]',
-                idx === activeDay
-                  ? 'bg-accent/15 text-accent'
-                  : 'bg-surface2/40 text-muted hover:bg-surface2/60',
+                'flex min-h-[44px] min-w-[48px] flex-col items-center whitespace-nowrap rounded-2xl px-3 py-2 font-body text-xs font-medium transition-all',
               )}
+              style={
+                active
+                  ? {
+                      backgroundColor: 'rgba(34, 96, 70, 0.14)',
+                      color: JOURNAL.primary,
+                    }
+                  : {
+                      backgroundColor: JOURNAL.surfaceLow,
+                      color: JOURNAL.muted,
+                    }
+              }
             >
               <span className="capitalize">{dayLabel}</span>
-              <span className="text-[10px] opacity-70">{dateLabel}</span>
+              <span className="text-[10px] opacity-80">{dateLabel}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Active day meals */}
       {activeDayData && (
-        <div className="space-y-2 mt-2">
+        <div className="mt-2 space-y-2">
           <div className="flex items-baseline justify-between">
-            <p className="text-xs font-body font-medium text-text-primary capitalize">
+            <p className="font-body text-xs font-medium capitalize" style={{ color: JOURNAL.onSurface }}>
               {format(parseISO(activeDayData.date), "EEEE d 'de' MMMM", { locale: es })}
             </p>
             {showCalories && dayKcal > 0 && (
-              <span className="text-xs font-mono text-accent">{dayKcal} kcal</span>
+              <span className="font-mono text-xs" style={{ color: JOURNAL.primary }}>
+                {dayKcal} kcal
+              </span>
             )}
           </div>
           {MEAL_TYPE_ORDER.map((mt) => {
             const planned = activeDayData.meals[mt];
             return (
               <div key={mt}>
-                <span className="text-[11px] font-body text-muted uppercase tracking-wide">
+                <span
+                  className="font-body text-[11px] uppercase tracking-wide"
+                  style={{ color: JOURNAL.muted }}
+                >
                   {MEAL_TYPE_LABELS[mt]}
                 </span>
                 <PlanMealCell

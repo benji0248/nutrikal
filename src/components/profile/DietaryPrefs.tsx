@@ -14,6 +14,8 @@ interface DietaryPrefsProps {
   allowedExceptions: string[];
   onAllowedExceptionsChange: (ids: string[]) => void;
   allIngredients: Ingredient[];
+  /** Living Journal (DESIGN.md): chips y superficies sin bordes duros */
+  tone?: 'default' | 'journal';
 }
 
 const RESTRICTION_OPTIONS: { value: DietaryRestriction; label: string }[] = [
@@ -185,7 +187,9 @@ export function DietaryPrefs({
   allowedExceptions,
   onAllowedExceptionsChange,
   allIngredients,
+  tone = 'default',
 }: DietaryPrefsProps) {
+  const j = tone === 'journal';
   const [search, setSearch] = useState('');
   const [exceptionSearch, setExceptionSearch] = useState('');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -277,7 +281,7 @@ export function DietaryPrefs({
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-sm font-body font-medium text-text-primary mb-2">
+        <p className={clsx('text-sm font-body font-medium mb-2', j ? 'text-[#191c17]' : 'text-text-primary')}>
           Restricciones alimentarias
         </p>
         <div className="flex flex-wrap gap-2">
@@ -289,10 +293,20 @@ export function DietaryPrefs({
                 type="button"
                 onClick={() => toggleRestriction(value)}
                 className={clsx(
-                  'px-3 py-1.5 rounded-xl text-xs font-body font-medium transition-all border',
-                  active
-                    ? 'bg-accent/15 text-accent border-accent/30'
-                    : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                  'px-3 py-1.5 text-xs font-body font-medium transition-all',
+                  j
+                    ? clsx(
+                        'rounded-full shadow-[0px_4px_12px_rgba(25,28,23,0.05)]',
+                        active
+                          ? 'bg-[#226046] text-[#f8faf6]'
+                          : 'bg-white text-[#191c17] hover:bg-[#f3f5eb]',
+                      )
+                    : clsx(
+                        'rounded-xl border',
+                        active
+                          ? 'bg-accent/15 text-accent border-accent/30'
+                          : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                      ),
                 )}
               >
                 {label}
@@ -304,7 +318,7 @@ export function DietaryPrefs({
 
       {/* General category dislikes */}
       <div>
-        <p className="text-sm font-body font-medium text-text-primary mb-2">
+        <p className={clsx('text-sm font-body font-medium mb-2', j ? 'text-[#191c17]' : 'text-text-primary')}>
           Categorías que no te gustan
         </p>
         <div className="flex flex-wrap gap-2 mb-2">
@@ -316,10 +330,20 @@ export function DietaryPrefs({
                 type="button"
                 onClick={() => toggleCategory(value)}
                 className={clsx(
-                  'px-3 py-1.5 rounded-xl text-xs font-body font-medium transition-all border',
-                  active
-                    ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                    : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                  'px-3 py-1.5 text-xs font-body font-medium transition-all',
+                  j
+                    ? clsx(
+                        'rounded-full shadow-[0px_4px_12px_rgba(25,28,23,0.05)]',
+                        active
+                          ? 'bg-[#fef2f2] text-[#b91c1c] ring-1 ring-red-200/80'
+                          : 'bg-white text-[#191c17] hover:bg-[#f3f5eb]',
+                      )
+                    : clsx(
+                        'rounded-xl border',
+                        active
+                          ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                          : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                      ),
                 )}
               >
                 {label}
@@ -330,8 +354,13 @@ export function DietaryPrefs({
 
         {/* Exceptions for selected categories */}
         {dislikedCategories.length > 0 && (
-          <div className="ml-2 pl-3 border-l-2 border-accent/30 space-y-2">
-            <p className="text-xs font-body text-muted">
+          <div
+            className={clsx(
+              'ml-2 pl-3 space-y-2',
+              j ? 'border-l-2 border-[#226046]/20' : 'border-l-2 border-accent/30',
+            )}
+          >
+            <p className={clsx('text-xs font-body', j ? 'text-[#5a6258]' : 'text-muted')}>
               Excepciones (sí te gustan a pesar de la categoría)
             </p>
             {allowedExceptions.length > 0 && (
@@ -339,10 +368,20 @@ export function DietaryPrefs({
                 {allowedExceptions.map((id) => (
                   <span
                     key={id}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-body bg-green-500/10 text-green-400"
+                    className={clsx(
+                      'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-body',
+                      j ? 'bg-[#f3f5eb] text-[#226046]' : 'bg-green-500/10 text-green-400',
+                    )}
                   >
                     {getName(id)}
-                    <button type="button" onClick={() => toggleException(id)} className="hover:text-green-300 min-w-[20px] min-h-[20px] flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleException(id)}
+                      className={clsx(
+                        'min-w-[20px] min-h-[20px] flex items-center justify-center',
+                        j ? 'hover:text-[#191c17]' : 'hover:text-green-300',
+                      )}
+                    >
                       <X size={12} />
                     </button>
                   </span>
@@ -358,7 +397,12 @@ export function DietaryPrefs({
                     key={ing.id}
                     type="button"
                     onClick={() => toggleException(ing.id)}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-body transition-all border bg-surface2/30 text-muted border-border hover:text-text-primary min-h-[32px]"
+                    className={clsx(
+                      'px-2.5 py-1.5 text-xs font-body transition-all min-h-[32px]',
+                      j
+                        ? 'rounded-full bg-white text-[#5a6258] shadow-[0px_4px_12px_rgba(25,28,23,0.06)] hover:text-[#191c17]'
+                        : 'rounded-lg border bg-surface2/30 text-muted border-border hover:text-text-primary',
+                    )}
                   >
                     {ing.name}
                   </button>
@@ -367,6 +411,7 @@ export function DietaryPrefs({
             {/* Exception search */}
             <div className="relative">
               <Input
+                tone={j ? 'journal' : 'default'}
                 variant="search"
                 placeholder="Buscar excepción..."
                 value={exceptionSearch}
@@ -375,13 +420,25 @@ export function DietaryPrefs({
                 onClear={() => setExceptionSearch('')}
               />
               {filteredExceptions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-surface border border-border rounded-2xl shadow-lg max-h-36 overflow-y-auto">
+                <div
+                  className={clsx(
+                    'absolute z-10 w-full mt-1 rounded-2xl max-h-36 overflow-y-auto py-1',
+                    j
+                      ? 'bg-white shadow-[0px_16px_40px_rgba(25,28,23,0.1)]'
+                      : 'bg-surface border border-border shadow-lg',
+                  )}
+                >
                   {filteredExceptions.map((ing) => (
                     <button
                       key={ing.id}
                       type="button"
                       onClick={() => toggleException(ing.id)}
-                      className="w-full text-left px-4 py-2.5 text-sm font-body text-text-primary hover:bg-surface2/50 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                      className={clsx(
+                        'w-full text-left px-4 py-2.5 text-sm font-body transition-colors',
+                        j
+                          ? 'text-[#191c17] hover:bg-[#f3f5eb] first:rounded-t-2xl last:rounded-b-2xl'
+                          : 'text-text-primary hover:bg-surface2/50 first:rounded-t-2xl last:rounded-b-2xl',
+                      )}
                     >
                       {ing.name}
                     </button>
@@ -394,7 +451,7 @@ export function DietaryPrefs({
       </div>
 
       <div>
-        <p className="text-sm font-body font-medium text-text-primary mb-2">
+        <p className={clsx('text-sm font-body font-medium mb-2', j ? 'text-[#191c17]' : 'text-text-primary')}>
           Ingredientes específicos que no te gustan
         </p>
 
@@ -403,10 +460,20 @@ export function DietaryPrefs({
             {dislikedIds.map((id) => (
               <span
                 key={id}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-body bg-red-500/10 text-red-400"
+                className={clsx(
+                  'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-body',
+                  j ? 'bg-[#fef2f2] text-[#b91c1c]' : 'bg-red-500/10 text-red-400',
+                )}
               >
                 {getName(id)}
-                <button type="button" onClick={() => removeDisliked(id)} className="hover:text-red-300 min-w-[20px] min-h-[20px] flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => removeDisliked(id)}
+                  className={clsx(
+                    'min-w-[20px] min-h-[20px] flex items-center justify-center',
+                    j ? 'hover:text-[#7f1d1d]' : 'hover:text-red-300',
+                  )}
+                >
                   <X size={12} />
                 </button>
               </span>
@@ -420,19 +487,34 @@ export function DietaryPrefs({
             const isExpanded = expandedCategory === category;
             const selectedCount = ids.filter((id) => dislikedIds.includes(id)).length;
             return (
-              <div key={category} className="border border-border rounded-xl overflow-hidden">
+              <div
+                key={category}
+                className={clsx(
+                  'rounded-[1.25rem] overflow-hidden',
+                  j ? 'bg-white shadow-[0px_8px_24px_rgba(25,28,23,0.06)]' : 'border border-border',
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => setExpandedCategory(isExpanded ? null : category)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-body font-medium text-text-primary hover:bg-surface2/30 transition-colors min-h-[44px]"
+                  className={clsx(
+                    'w-full flex items-center justify-between px-3 py-2.5 text-sm font-body font-medium transition-colors min-h-[44px]',
+                    j ? 'text-[#191c17] hover:bg-[#f8faf1]' : 'text-text-primary hover:bg-surface2/30',
+                  )}
                 >
                   <span>
                     {category}
                     {selectedCount > 0 && (
-                      <span className="ml-1.5 text-xs text-red-400">({selectedCount})</span>
+                      <span className={clsx('ml-1.5 text-xs', j ? 'text-[#b91c1c]' : 'text-red-400')}>
+                        ({selectedCount})
+                      </span>
                     )}
                   </span>
-                  {isExpanded ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
+                  {isExpanded ? (
+                    <ChevronUp size={16} className={j ? 'text-[#5a6258]' : 'text-muted'} />
+                  ) : (
+                    <ChevronDown size={16} className={j ? 'text-[#5a6258]' : 'text-muted'} />
+                  )}
                 </button>
                 {isExpanded && (
                   <div className="flex flex-wrap gap-1.5 px-3 pb-3">
@@ -444,10 +526,20 @@ export function DietaryPrefs({
                           type="button"
                           onClick={() => toggleDisliked(id)}
                           className={clsx(
-                            'px-2.5 py-1.5 rounded-lg text-xs font-body transition-all border min-h-[32px]',
-                            active
-                              ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                              : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                            'px-2.5 py-1.5 text-xs font-body transition-all min-h-[32px]',
+                            j
+                              ? clsx(
+                                  'rounded-full',
+                                  active
+                                    ? 'bg-[#fef2f2] text-[#b91c1c] ring-1 ring-red-200/60'
+                                    : 'bg-[#f3f5eb] text-[#5a6258] hover:text-[#191c17]',
+                                )
+                              : clsx(
+                                  'rounded-lg border',
+                                  active
+                                    ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    : 'bg-surface2/30 text-muted border-border hover:text-text-primary',
+                                ),
                           )}
                         >
                           {getName(id)}
@@ -464,6 +556,7 @@ export function DietaryPrefs({
         {/* Search for ingredients not in the quick picks */}
         <div className="relative">
           <Input
+            tone={j ? 'journal' : 'default'}
             variant="search"
             placeholder="Buscar otro ingrediente..."
             value={search}
@@ -472,13 +565,21 @@ export function DietaryPrefs({
             onClear={() => setSearch('')}
           />
           {filteredIngredients.length > 0 && (
-            <div className="absolute z-10 w-full mt-1 bg-surface border border-border rounded-2xl shadow-lg max-h-48 overflow-y-auto">
+            <div
+              className={clsx(
+                'absolute z-10 w-full mt-1 rounded-2xl max-h-48 overflow-y-auto py-1',
+                j ? 'bg-white shadow-[0px_16px_40px_rgba(25,28,23,0.1)]' : 'bg-surface border border-border shadow-lg',
+              )}
+            >
               {filteredIngredients.map((ing) => (
                 <button
                   key={ing.id}
                   type="button"
                   onClick={() => addDisliked(ing.id)}
-                  className="w-full text-left px-4 py-2.5 text-sm font-body text-text-primary hover:bg-surface2/50 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                  className={clsx(
+                    'w-full text-left px-4 py-2.5 text-sm font-body transition-colors first:rounded-t-2xl last:rounded-b-2xl',
+                    j ? 'text-[#191c17] hover:bg-[#f3f5eb]' : 'text-text-primary hover:bg-surface2/50',
+                  )}
                 >
                   {ing.name}
                 </button>

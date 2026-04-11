@@ -8,6 +8,8 @@ type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
+  /** Living Journal (DESIGN.md): píldoras verdes / secondary_container */
+  tone?: 'default' | 'journal';
   size?: Size;
   icon?: ReactNode;
   loading?: boolean;
@@ -28,8 +30,15 @@ const sizes: Record<Size, string> = {
   lg: 'px-6 py-3 text-base rounded-2xl gap-2.5 min-h-[52px]',
 };
 
+/** DESIGN.md: soft-touch CTA, radio alto, escala al pulsar */
+const journalPrimary =
+  'bg-[#226046] text-[#f8faf6] hover:bg-[#226046]/90 border-0 shadow-[0px_16px_36px_rgba(25,28,23,0.08)] active:scale-[0.98]';
+const journalSecondary =
+  'bg-[#f3f5eb] text-[#191c17] hover:bg-[#e8ebe3] border-0 active:scale-[0.98]';
+
 export function Button({
   variant = 'primary',
+  tone = 'default',
   size = 'md',
   icon,
   loading = false,
@@ -39,13 +48,28 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
+  const variantCls =
+    tone === 'journal' && variant === 'primary'
+      ? journalPrimary
+      : tone === 'journal' && variant === 'secondary'
+        ? journalSecondary
+        : variants[variant];
+
+  const sizeCls =
+    tone === 'journal' && (variant === 'primary' || variant === 'secondary')
+      ? 'px-6 py-3.5 text-base rounded-[1.75rem] gap-2.5 min-h-[52px]'
+      : sizes[size];
+
   return (
     <button
       className={twMerge(
         clsx(
-          'inline-flex items-center justify-center font-body font-medium transition-all duration-150 active:animate-scale-tap disabled:opacity-40 disabled:pointer-events-none select-none',
-          variants[variant],
-          sizes[size],
+          'inline-flex items-center justify-center font-body font-medium transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none select-none',
+          tone === 'journal' && (variant === 'primary' || variant === 'secondary')
+            ? 'active:scale-[0.98]'
+            : 'active:animate-scale-tap',
+          variantCls,
+          sizeCls,
           fullWidth && 'w-full',
           loading && 'pointer-events-none',
           className,

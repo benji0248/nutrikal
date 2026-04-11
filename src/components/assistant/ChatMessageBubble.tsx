@@ -5,6 +5,7 @@ import { OptionChips } from './OptionChips';
 import { DayEnergyBar } from './DayEnergyBar';
 import { WeekPlanner } from '../planner/WeekPlanner';
 import { PlanAppliedView } from '../planner/PlanAppliedView';
+import { JOURNAL } from './journalTokens';
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
@@ -29,8 +30,15 @@ export const ChatMessageBubble = ({
     case 'assistant-text':
       return (
         <div className="max-w-[85%] animate-fade-in">
-          <div className="bg-surface2/40 rounded-2xl rounded-tl-md px-4 py-3">
-            <p className="text-sm font-body text-text-primary whitespace-pre-wrap">{message.text}</p>
+          <div
+            className="rounded-[1.25rem] rounded-tl-md px-4 py-3"
+            style={{
+              backgroundColor: JOURNAL.surfaceElevated,
+              boxShadow: JOURNAL.ambientShadow,
+              color: JOURNAL.onSurface,
+            }}
+          >
+            <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{message.text}</p>
           </div>
         </div>
       );
@@ -38,9 +46,15 @@ export const ChatMessageBubble = ({
     case 'assistant-loading':
       return (
         <div className="max-w-[85%] animate-fade-in">
-          <div className="bg-surface2/40 rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2">
-            <Loader2 size={16} className="text-accent animate-spin" />
-            <span className="text-sm font-body text-muted">Pensando...</span>
+          <div
+            className="flex items-center gap-2 rounded-[1.25rem] rounded-tl-md px-4 py-3"
+            style={{
+              backgroundColor: JOURNAL.surfaceLow,
+              color: JOURNAL.muted,
+            }}
+          >
+            <Loader2 size={16} className="animate-spin shrink-0" style={{ color: JOURNAL.primary }} />
+            <span className="font-body text-sm">Pensando...</span>
           </div>
         </div>
       );
@@ -48,14 +62,16 @@ export const ChatMessageBubble = ({
     case 'user-text':
     case 'user-choice':
       return (
-        <div className="flex justify-end animate-fade-in">
-          <div className="max-w-[75%] bg-accent/15 rounded-2xl rounded-tr-md px-4 py-3">
-            <p className="text-sm font-body font-medium text-accent">{message.text}</p>
+        <div className="flex animate-fade-in justify-end">
+          <div
+            className="max-w-[75%] rounded-[1.25rem] rounded-tr-md px-4 py-3"
+            style={{ backgroundColor: JOURNAL.primary, color: JOURNAL.onPrimary }}
+          >
+            <p className="font-body text-sm font-medium leading-relaxed">{message.text}</p>
           </div>
         </div>
       );
 
-    // Only used for "Create profile" button when no profile exists
     case 'assistant-options':
       if (!message.options) return null;
       return (
@@ -66,23 +82,32 @@ export const ChatMessageBubble = ({
 
     case 'assistant-meals':
       return (
-        <div className="space-y-2 animate-fade-in">
+        <div className="animate-fade-in space-y-2">
           {message.mealSuggestions?.map((meal, idx) => (
-            <div key={idx} className="bg-surface2/40 rounded-2xl px-4 py-3">
-              <p className="text-sm font-body font-medium text-text-primary">{meal.name}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs font-body text-muted">
+            <div
+              key={idx}
+              className="rounded-[1.25rem] px-4 py-3"
+              style={{
+                backgroundColor: JOURNAL.surfaceElevated,
+                boxShadow: JOURNAL.ambientShadow,
+              }}
+            >
+              <p className="font-body text-sm font-medium" style={{ color: JOURNAL.onSurface }}>
+                {meal.name}
+              </p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <span className="font-body text-xs" style={{ color: JOURNAL.muted }}>
                   {meal.ingredients.length} ingredientes
                 </span>
                 {meal.prepMinutes != null && meal.prepMinutes > 0 && (
-                  <span className="flex items-center gap-0.5 text-xs font-body text-muted">
+                  <span className="flex items-center gap-0.5 font-body text-xs" style={{ color: JOURNAL.muted }}>
                     <Clock size={11} />
                     {meal.prepMinutes} min
                   </span>
                 )}
               </div>
               {meal.reason && (
-                <p className="text-xs font-body text-muted mt-1 italic">
+                <p className="mt-1 font-body text-xs italic" style={{ color: JOURNAL.muted }}>
                   {meal.reason}
                 </p>
               )}
@@ -94,7 +119,7 @@ export const ChatMessageBubble = ({
     case 'assistant-plan':
       if (!message.weekPlan) return null;
       return (
-        <div className="animate-fade-in w-full">
+        <div className="w-full animate-fade-in">
           <WeekPlanner
             plan={message.weekPlan}
             onApply={onApplyPlan}
@@ -106,7 +131,7 @@ export const ChatMessageBubble = ({
 
     case 'assistant-applied':
       return (
-        <div className="animate-fade-in w-full">
+        <div className="w-full animate-fade-in">
           <PlanAppliedView />
         </div>
       );
@@ -114,19 +139,27 @@ export const ChatMessageBubble = ({
     case 'assistant-summary':
       return (
         <div className="max-w-[85%] animate-fade-in">
-          <div className="bg-surface2/40 rounded-2xl rounded-tl-md px-4 py-3 space-y-3">
+          <div
+            className="space-y-3 rounded-[1.25rem] rounded-tl-md px-4 py-3"
+            style={{
+              backgroundColor: JOURNAL.surfaceElevated,
+              boxShadow: JOURNAL.ambientShadow,
+            }}
+          >
             {message.text && (
-              <p className="text-sm font-body text-text-primary">{message.text}</p>
+              <p className="font-body text-sm leading-relaxed" style={{ color: JOURNAL.onSurface }}>
+                {message.text}
+              </p>
             )}
 
             {message.daySummary && message.daySummary.meals.length > 0 && (
               <div className="space-y-1.5">
                 {message.daySummary.meals.map((m, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-sm font-body">
-                    <span className="text-muted text-xs w-20">
+                  <div key={idx} className="flex items-center gap-2 font-body text-sm">
+                    <span className="w-20 text-xs" style={{ color: JOURNAL.muted }}>
                       {MEAL_TYPE_LABELS[m.mealType]}
                     </span>
-                    <span className="text-text-primary">{m.name}</span>
+                    <span style={{ color: JOURNAL.onSurface }}>{m.name}</span>
                   </div>
                 ))}
               </div>

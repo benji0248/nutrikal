@@ -12,6 +12,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 import type { ChatOption } from '../../types';
+import { JOURNAL } from './journalTokens';
 
 interface OptionChipsProps {
   options: ChatOption[];
@@ -43,9 +44,16 @@ export const OptionChips = ({ options, onSelect }: OptionChipsProps) => {
             key={option.id}
             type="button"
             onClick={() => onSelect(option)}
-            className="flex items-center gap-2 rounded-full border border-border/40 bg-surface2/30 px-4 py-2.5 min-h-[48px] text-sm font-body font-medium text-text-primary hover:bg-accent/10 hover:border-accent/40 hover:text-accent transition-all active:scale-95"
+            className="flex min-h-[48px] items-center gap-2 rounded-full px-4 py-2.5 font-body text-sm font-medium transition-all active:scale-[0.98]"
+            style={{
+              backgroundColor: JOURNAL.chipBg,
+              borderWidth: 1,
+              borderStyle: 'solid',
+              borderColor: JOURNAL.chipBorder,
+              color: JOURNAL.primary,
+            }}
           >
-            {Icon && <Icon size={16} />}
+            {Icon && <Icon size={16} strokeWidth={1.75} />}
             {option.label}
           </button>
         );
