@@ -37,12 +37,24 @@ async function readResponseBodyJson(res: Response): Promise<unknown> {
   }
 }
 
+function normalizeAssistantTextField(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => (typeof x === 'string' ? x : x !== null && x !== undefined ? String(x) : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  return String(raw);
+}
+
 function normalizeSuccessBody(data: unknown): AiChatResponse {
   if (!data || typeof data !== 'object') {
     return { text: '', actions: [], quickReplies: [], remaining: 80 };
   }
   const d = data as Record<string, unknown>;
-  const text = typeof d.text === 'string' ? d.text : String(d.text ?? '');
+  const text = normalizeAssistantTextField(d.text);
   const actions = Array.isArray(d.actions) ? (d.actions as AiAction[]) : [];
   const quickReplies = Array.isArray(d.quickReplies)
     ? d.quickReplies.filter((x): x is string => typeof x === 'string')

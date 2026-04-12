@@ -504,34 +504,6 @@ export function useChatEngine(): ChatEngineResult {
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
 
-      conversationRef.current.push(
-        { role: 'user', text },
-        { role: 'assistant', text: response.text },
-      );
-      if (conversationRef.current.length > AI_CONVERSATION_HISTORY_LIMIT) {
-        conversationRef.current = conversationRef.current.slice(-AI_CONVERSATION_HISTORY_LIMIT);
-      }
-
-      chatClientLog('sendToAi_after_store', {
-        historyEntries: conversationRef.current.length,
-        actionsIncoming: response.actions.length,
-        hasText: Boolean(response.text?.trim()),
-        weekRepetitionMode: prefsForChat?.weekRepetitionMode ?? null,
-      });
-
-      if (prefsForChat) {
-        setPlanPreferences(prefsForChat);
-      }
-
-      if (response.text) {
-        addMessages({
-          id: makeId(),
-          type: 'assistant-text',
-          text: response.text,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
       const allowWeekPlanAction = Boolean(weekDates?.length);
       const actionsToRun = allowWeekPlanAction
         ? response.actions
@@ -540,11 +512,66 @@ export function useChatEngine(): ChatEngineResult {
         chatClientLog('strip_week_plan', { reason: 'no_week_dates_in_request' });
       }
 
+      const actionTypes = actionsToRun.map((a) => a.type);
+      const selfContainedVisual = actionTypes.some((t) =>
+        t === 'week_plan' ||
+        t === 'suggest_meals' ||
+        t === 'show_summary' ||
+        t === 'add_meal' ||
+        t === 'swap_meal',
+      );
+
+      const trimmedAssistant = (response.text ?? '').trim();
+      const qrLen = response.quickReplies?.length ?? 0;
+
+      let assistantDisplay = trimmedAssistant;
+      if (!assistantDisplay && qrLen > 0 && !selfContainedVisual) {
+        assistantDisplay =
+          'Seguimos. Podés tocar una opción abajo o contarme con tus palabras.';
+      }
+      if (
+        !assistantDisplay &&
+        !selfContainedVisual &&
+        qrLen === 0 &&
+        actionTypes.length === 0
+      ) {
+        assistantDisplay =
+          'No recibí una respuesta del asistente. ¿Podés intentar de nuevo?';
+        chatClientLog('sendToAi_empty_response', { rawTextLen: (response.text ?? '').length });
+      }
+
+      conversationRef.current.push(
+        { role: 'user', text },
+        { role: 'assistant', text: assistantDisplay },
+      );
+      if (conversationRef.current.length > AI_CONVERSATION_HISTORY_LIMIT) {
+        conversationRef.current = conversationRef.current.slice(-AI_CONVERSATION_HISTORY_LIMIT);
+      }
+
+      chatClientLog('sendToAi_after_store', {
+        historyEntries: conversationRef.current.length,
+        actionsIncoming: response.actions.length,
+        hasText: assistantDisplay.length > 0,
+        weekRepetitionMode: prefsForChat?.weekRepetitionMode ?? null,
+      });
+
+      if (prefsForChat) {
+        setPlanPreferences(prefsForChat);
+      }
+
+      if (assistantDisplay) {
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: assistantDisplay,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       if (actionsToRun.length > 0) {
         executeActions(actionsToRun);
       }
 
-      // Render AI-generated quick reply chips
       if (response.quickReplies && response.quickReplies.length > 0) {
         addMessages({
           id: makeId(),
