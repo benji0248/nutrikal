@@ -34,7 +34,11 @@ import {
 } from '../../services/aiService';
 import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 import { chatClientLog, chatClientLogError } from '../../utils/chatFlowLog';
-import { buildPreferencesForChatRequest } from '../../services/weekPlanPreferenceMap';
+import {
+  buildPreferencesForChatRequest,
+  inferPlanPreferencesFromUserText,
+  isWeekPlanHelpChipMessage,
+} from '../../services/weekPlanPreferenceMap';
 
 /** Inyecta weekDates en contexto cuando el usuario pide plan semanal (variantes de redacción). */
 const WEEK_PLAN_USER_INTENT_REGEX =
@@ -44,7 +48,6 @@ const WEEK_PLAN_USER_INTENT_REGEX =
 const PIVOT_FROM_WEEK_PLAN_REGEX =
   /\b(qué|cómo)\s+como\b|\bc[oó]mo\s+vengo\b|qué\s+como\s+hoy/i;
 
-type WeekPlanPrefsState = 'idle' | 'ans1_pending' | 'ans2_pending';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
 import { useHistorialStore } from '../../store/useHistorialStore';
 import {
@@ -68,6 +71,8 @@ import {
   formatWeeklyPoolForPrompt,
 } from '../../services/ingredientSelectionService';
 
+type WeekPlanPrefsState = 'idle' | 'week_collecting_prefs';
+
 function isoWeekIdFromYmd(ymd: string): string {
   const d = parseISO(`${ymd}T12:00:00`);
   return `${getISOWeekYear(d)}-W${String(getISOWeek(d)).padStart(2, '0')}`;
@@ -89,6 +94,8 @@ interface ChatEngineResult {
   energyRatio: number;
   showCalories: boolean;
   isLoading: boolean;
+  /** Remaining AI messages for today (null until first response). */
+  remainingMessages: number | null;
 }
 
 export function useChatEngine(): ChatEngineResult {
@@ -116,10 +123,13 @@ export function useChatEngine(): ChatEngineResult {
   const [messages, setMessages] = useState<ChatMessage[]>(() => buildWelcomeMessages());
   const [isLoading, setIsLoading] = useState(false);
   const [planPreferences, setPlanPreferences] = useState<PlanPreferences | null>(null);
+  const [remainingMessages, setRemainingMessages] = useState<number | null>(null);
   const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const prevProfileRef = useRef(profile);
   const lastPlanRequestRef = useRef<string>('');
-  /** Dos respuestas del usuario (variedad + tiempo) antes de inyectar fechas y permitir week_plan. */
+  /** Synchronous lock to prevent double-sends (useState is async, ref is immediate). */
+  const sendingLockRef = useRef(false);
+  /** Tras "armame la semana": una elección de plan (o chip de ayuda) antes de inyectar fechas y permitir week_plan. */
   const weekPlanPrefsRef = useRef<WeekPlanPrefsState>('idle');
 
   // Reset chat when profile is created
@@ -238,8 +248,20 @@ export function useChatEngine(): ChatEngineResult {
       return hydratedToAiMeal(hydrated);
     }
 
-    // Legacy format — pass through as-is
-    return raw as AiMeal;
+    // Legacy format — validate required fields before casting
+    const legacy = raw as Record<string, unknown>;
+    if (
+      typeof legacy.name === 'string' &&
+      Array.isArray(legacy.ingredients) &&
+      typeof legacy.totalKcal === 'number'
+    ) {
+      return raw as AiMeal;
+    }
+
+    chatClientLog('rehydrate_unknown_format', {
+      keys: Object.keys(legacy).join(','),
+    });
+    return null;
   }
 
   function aiMealToCalendarMeal(aiMeal: AiMeal) {
@@ -414,6 +436,8 @@ export function useChatEngine(): ChatEngineResult {
     extraPreferences?: PlanPreferences | null,
   ) {
     if (!profile) return;
+    if (sendingLockRef.current) return;
+    sendingLockRef.current = true;
 
     const isWeekIntent = WEEK_PLAN_USER_INTENT_REGEX.test(text);
 
@@ -433,18 +457,30 @@ export function useChatEngine(): ChatEngineResult {
       if (st === 'idle') {
         if (isWeekIntent) {
           weekDates = null;
-          weekPlanPrefsRef.current = 'ans1_pending';
+          weekPlanPrefsRef.current = 'week_collecting_prefs';
         } else {
           weekDates = null;
         }
-      } else if (st === 'ans1_pending') {
-        weekDates = null;
-        weekPlanPrefsRef.current = 'ans2_pending';
-      } else if (st === 'ans2_pending') {
-        weekDates = getNextWeekDates();
-        weekPlanPrefsRef.current = 'idle';
+      } else if (st === 'week_collecting_prefs') {
+        const mode = inferPlanPreferencesFromUserText(text)?.weekRepetitionMode;
+        if (isWeekPlanHelpChipMessage(text)) {
+          weekDates = null;
+        } else if (mode) {
+          weekDates = getNextWeekDates();
+          weekPlanPrefsRef.current = 'idle';
+        } else {
+          weekDates = null;
+        }
       }
     }
+
+    /**
+     * Snapshot síncrono: tras await el ref puede no coincidir (remount / carreras).
+     * `isWeekIntent` como respaldo: el primer "armame la semana" debe mostrar chips fijas aunque el ref falle.
+     */
+    const useCanonicalWeekPlanChips =
+      (!weekDates || weekDates.length === 0) &&
+      (weekPlanPrefsRef.current === 'week_collecting_prefs' || isWeekIntent);
 
     if (isWeekIntent) {
       lastPlanRequestRef.current = text;
@@ -456,6 +492,7 @@ export function useChatEngine(): ChatEngineResult {
       weekPlanPrefs: weekPlanPrefsRef.current,
       weekDatesInjected: weekDates?.length ?? 0,
       hasExtraWeekDates: Boolean(extraWeekDates?.length),
+      canonicalWeekChips: useCanonicalWeekPlanChips,
     });
 
     setIsLoading(true);
@@ -485,24 +522,41 @@ export function useChatEngine(): ChatEngineResult {
         favorites: useHistorialStore.getState().favorites,
       });
 
-      const anchorWeekId =
-        weekDates && weekDates.length > 0
-          ? isoWeekIdFromYmd(weekDates[0])
-          : isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd'));
+      // Only build and send catalogs when Gemini might need to generate food
+      const needsCatalog =
+        isWeekIntent ||
+        weekPlanPrefsRef.current === 'week_collecting_prefs' ||
+        Boolean(weekDates?.length) ||
+        /cambi(a|á)me|swap|sugeri|recomen|qué\s+(como|ceno|desayuno|meriendo)|almuerzo|cena|desayuno|merienda|snack|comida|plato|receta/i.test(text);
 
-      const filtered = filterIngredientsForUser(allIngredients, profile);
-      const catalogFull = catalogToPromptString(buildCatalogForPrompt(filtered));
-      const weeklyPool = buildWeeklyIngredientPool(allIngredients, profile, {
-        weekId: anchorWeekId,
-      });
-      const catalogAnchor = formatWeeklyPoolForPrompt(weeklyPool, allIngredients);
+      let catalogFull = '';
+      let catalogAnchor = '';
+      if (needsCatalog) {
+        const anchorWeekId =
+          weekDates && weekDates.length > 0
+            ? isoWeekIdFromYmd(weekDates[0])
+            : isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd'));
 
-      const response = await sendMessage(text, context, {
-        catalog: catalogFull,
-        catalogAnchor,
-      });
+        const filtered = filterIngredientsForUser(allIngredients, profile);
+        catalogFull = catalogToPromptString(buildCatalogForPrompt(filtered));
+        const weeklyPool = buildWeeklyIngredientPool(allIngredients, profile, {
+          weekId: anchorWeekId,
+        });
+        catalogAnchor = formatWeeklyPoolForPrompt(weeklyPool, allIngredients);
+      }
+
+      const response = await sendMessage(
+        text,
+        context,
+        {
+          catalog: catalogFull,
+          catalogAnchor,
+        },
+        { weekPlanPhase1QuickReplies: useCanonicalWeekPlanChips },
+      );
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      setRemainingMessages(response.remaining);
 
       const allowWeekPlanAction = Boolean(weekDates?.length);
       const actionsToRun = allowWeekPlanAction
@@ -521,8 +575,10 @@ export function useChatEngine(): ChatEngineResult {
         t === 'swap_meal',
       );
 
+      const quickRepliesToShow: string[] = [...(response.quickReplies ?? [])];
+
       const trimmedAssistant = (response.text ?? '').trim();
-      const qrLen = response.quickReplies?.length ?? 0;
+      const qrLen = quickRepliesToShow.length;
 
       let assistantDisplay = trimmedAssistant;
       if (!assistantDisplay && qrLen > 0 && !selfContainedVisual) {
@@ -572,11 +628,11 @@ export function useChatEngine(): ChatEngineResult {
         executeActions(actionsToRun);
       }
 
-      if (response.quickReplies && response.quickReplies.length > 0) {
+      if (quickRepliesToShow.length > 0) {
         addMessages({
           id: makeId(),
           type: 'assistant-options',
-          options: response.quickReplies.map((label, idx) => ({
+          options: quickRepliesToShow.map((label, idx) => ({
             id: `qr_${idx}`,
             label,
             action: 'quick_reply',
@@ -604,6 +660,7 @@ export function useChatEngine(): ChatEngineResult {
         timestamp: new Date().toISOString(),
       });
     } finally {
+      sendingLockRef.current = false;
       setIsLoading(false);
     }
   }
@@ -747,5 +804,6 @@ export function useChatEngine(): ChatEngineResult {
     energyRatio,
     showCalories,
     isLoading,
+    remainingMessages,
   };
 }

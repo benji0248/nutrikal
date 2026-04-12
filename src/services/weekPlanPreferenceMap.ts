@@ -6,24 +6,74 @@ const DEFAULT: PlanPreferences = {
   budget: 'normal',
 };
 
+/**
+ * Etiquetas fijas (la app las muestra; no vienen de Gemini).
+ * Solo variedad/repetición — el tiempo de cocina se mezcla en el plan (normal) salvo que el usuario pida otra cosa en chat.
+ */
+export const WEEK_PLAN_PHASE1_QUICK_REPLIES = [
+  'Variedad total',
+  'Repetir bloques',
+  'Equilibrado',
+  'Como funciona esto',
+] as const;
+
+/** Chip de ayuda fase 1 — no actualiza preferencias. */
+export function isWeekPlanHelpChipMessage(text: string): boolean {
+  return /^c[oó]mo\s+funciona\s+esto\??$/i.test(text.trim());
+}
+
 function inferCookingTimeHint(text: string): PlanPreferences['cookingTime'] {
   if (/\br[aá]pid|pr[aá]ctic|algo\s+r[aá]pido|poco\s+tiempo/i.test(text)) return 'rapido';
   if (/\belaborad|tengo\s+tiempo|m[aá]s\s+tiempo|sin\s+apur/i.test(text)) return 'elaborado';
   return 'normal';
 }
 
-/**
- * Interpreta chips o mensajes del usuario sobre variedad/repetición para la semana (6+1).
- * Devuelve parcial para fusionar con preferencias guardadas; null si no hay señal clara.
- */
-export function inferPlanPreferencesFromUserText(text: string): Partial<PlanPreferences> | null {
+function inferVarietyBlock(
+  text: string,
+): {
+  variety: PlanPreferences['variety'];
+  weekRepetitionMode: WeekRepetitionMode;
+  cookingTime?: PlanPreferences['cookingTime'];
+} | null {
   const t = text.trim();
-  if (t.length < 4) return null;
+  if (t.length < 2) return null;
+
+  const key = t
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  // Fase 1 — chips cortos (sin elección de tiempo; cookingTime queda normal = mezcla en la semana)
+  if (key === 'variedad total') {
+    return { variety: 'mucha', weekRepetitionMode: 'full_unique', cookingTime: 'normal' };
+  }
+  if (key === 'repetir bloques' || key === 'repetir comidas') {
+    return { variety: 'poca', weekRepetitionMode: 'repeat_blocks', cookingTime: 'normal' };
+  }
+  if (key === 'equilibrado') {
+    return { variety: 'normal', weekRepetitionMode: 'balanced', cookingTime: 'normal' };
+  }
+
+  const n = key;
+
+  // Compat: etiquetas largas anteriores (misma semántica, sin fijar tiempo)
+  if (/\bvariedad\s+total\b/.test(n) && /\btengo\s+tiempo\b/.test(n)) {
+    return { variety: 'mucha', weekRepetitionMode: 'full_unique', cookingTime: 'normal' };
+  }
+  if (/\brepetir\s+comidas\b/.test(n) && (/\bcocino\s+menos\b/.test(n) || /\basi\s+cocino\b/.test(n))) {
+    return { variety: 'poca', weekRepetitionMode: 'repeat_blocks', cookingTime: 'normal' };
+  }
+  if (
+    /\bequilibrad/.test(n) &&
+    (/\bun\s+poco\s+de\s+cada\b/.test(n) || /\bpoco\s+de\s+cada\b/.test(n))
+  ) {
+    return { variety: 'normal', weekRepetitionMode: 'balanced', cookingTime: 'normal' };
+  }
 
   let mode: WeekRepetitionMode | undefined;
   let variety: PlanPreferences['variety'] | undefined;
 
-  // Prioridad: "un poco de ambos" / balance
   if (/\bun poco de ambos\b/i.test(t) || /\bbalance\b/i.test(t) || /\bmezcla\b.*\bvariedad\b/i.test(t)) {
     mode = 'balanced';
     variety = 'normal';
@@ -41,13 +91,48 @@ export function inferPlanPreferencesFromUserText(text: string): Partial<PlanPref
   }
 
   if (!mode) return null;
+  return { variety: variety ?? DEFAULT.variety, weekRepetitionMode: mode };
+}
 
-  return {
-    ...DEFAULT,
-    variety: variety ?? DEFAULT.variety,
-    weekRepetitionMode: mode,
-    cookingTime: inferCookingTimeHint(t),
-  };
+/**
+ * Tiempo de cocina explícito en mensaje (ej. "rápido"), sin tocar modo de variedad.
+ */
+function inferCookingStepOnly(text: string): Partial<PlanPreferences> | null {
+  const t = text.trim();
+  if (t.length < 2) return null;
+
+  if (isWeekPlanHelpChipMessage(t)) return null;
+  if (/\?/.test(t) && /variedad|elij(o|á)|c[oó]mo/i.test(t)) return null;
+  if (inferVarietyBlock(text)) return null;
+
+  if (/^rápido$/i.test(t) || /^rapido$/i.test(t) || /^práctico$/i.test(t) || /^practico$/i.test(t)) {
+    return { cookingTime: 'rapido' };
+  }
+  if (/^normal$/i.test(t)) return { cookingTime: 'normal' };
+  if (/^con tiempo$/i.test(t) || /^elaborado$/i.test(t)) return { cookingTime: 'elaborado' };
+
+  const ct = inferCookingTimeHint(t);
+  if (ct !== 'normal') return { cookingTime: ct };
+  return null;
+}
+
+/**
+ * Interpreta chips o mensajes del usuario sobre variedad/repetición o tiempo (plan semanal).
+ * Devuelve parcial para fusionar con preferencias guardadas; null si no hay señal clara.
+ */
+export function inferPlanPreferencesFromUserText(text: string): Partial<PlanPreferences> | null {
+  if (isWeekPlanHelpChipMessage(text)) return null;
+
+  const variety = inferVarietyBlock(text);
+  if (variety) {
+    return {
+      ...DEFAULT,
+      variety: variety.variety,
+      weekRepetitionMode: variety.weekRepetitionMode,
+      cookingTime: variety.cookingTime ?? inferCookingTimeHint(text),
+    };
+  }
+  return inferCookingStepOnly(text);
 }
 
 /**

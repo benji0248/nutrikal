@@ -245,9 +245,9 @@ ${datesWithDay.join('\n')}
 OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha. NO generes solo 1 día.`);
     } else {
       contextParts.push(
-        `MODO PLAN SEMANAL (SIN FECHAS EN ESTE TURNO): Todavía NO tenés las fechas de la semana en contexto. Es obligatorio hacer las dos preguntas de preferencias (variedad/repetición y tiempo de cocina) ANTES de armar el plan. ` +
-          `En esta respuesta el array "actions" NO puede incluir "week_plan". Si incluís "quickReplies", que ayuden a responder esas preguntas. ` +
-          `Solo cuando en un mensaje futuro el sistema te envíe la lista de fechas de la semana, ahí sí podés devolver week_plan con todos los días.`,
+        `MODO PLAN SEMANAL (SIN FECHAS EN ESTE TURNO): La app muestra chips fijos; en "quickReplies" devolvé [] u omití. En "text" presentá tres modos: Variedad total, Repetir bloques, Equilibrado, más la ayuda. PROHIBIDO preguntar por "cosas rápidas vs con tiempo" o dos preguntas (variedad + velocidad). No pidas elegir tiempo de cocina: la semana puede mezclar platos más rápidos y otros más elaborados salvo que el usuario pida otra cosa. ` +
+          `Si envió "Como funciona esto", explicá las tres opciones; sin week_plan. ` +
+          `Cuando el sistema envíe las fechas de la semana en contexto (tras elegir una opción de plan), devolvé week_plan con todos los días. El array "actions" NO puede incluir "week_plan" mientras no haya fechas.`,
       );
     }
 
@@ -267,21 +267,23 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
           ? `MODO REPETICIÓN (weekRepetitionMode: full_unique) — VARIEDAD TOTAL:
 - Estructura semanal obligatoria: 6 días de comidas alineadas al perfil + 1 día cheat (típicamente domingo; respetá lo que diga el contexto de fechas).
 - En los 6 días "normales": no repitas el mismo nombre de plato entre almuerzos y cenas (cada plato principal distinto). Desayunos y meriendas: maximizá variedad sin duplicar el mismo plato completo salvo que sea inevitable.
+- Podés combinar en la semana platos más rápidos y otros más elaborados salvo que el usuario pida todo muy práctico o muy elaborado.
 - El cheat day puede ser distinto y más indulgente.`
           : wr === 'repeat_blocks'
             ? `MODO REPETICIÓN (weekRepetitionMode: repeat_blocks) — REPETIR PARA COCINAR MENOS:
 - Estructura: 6 + 1 cheat.
-- Priorizá menos tiempo de cocina y menos recetas distintas: podés usar patrones tipo 3+3 (tres días con un bloque de menú y tres con otro) o repetir 2 estilos de menú a lo largo de los 6 días, según encaje con el tiempo de cocina indicado.
+- Menos recetas distintas: podés usar patrones tipo 3+3 o repetir estilos de menú en los 6 días; mezclá platos más rápidos y otros más elaborados en la semana salvo que el usuario pida todo muy práctico o muy elaborado.
 - Variá desayunos y meriendas para que no se sienta monótono.`
             : wr === 'balanced'
               ? `MODO REPETICIÓN (weekRepetitionMode: balanced) — BALANCE:
 - Estructura: 6 + 1 cheat.
-- Mezclá variedad y repetición: repetí algunos almuerzos o cenas cuando tenga sentido (idealmente no más de 2 veces el mismo plato principal salvo excepción clara); el resto variado.`
+- Mezclá variedad y repetición: repetí algunos almuerzos o cenas cuando tenga sentido (idealmente no más de 2 veces el mismo plato principal salvo excepción clara); el resto variado.
+- Combiná en la semana platos más rápidos y otros más elaborados salvo indicación explícita del usuario.`
               : '';
 
       contextParts.push(`PREFERENCIAS PARA EL PLAN:
 - Variedad (campo legacy): ${p.variety}
-- Tiempo de cocina: ${p.cookingTime}
+- Tiempo de cocina (preferencia explícita; si es "normal", combiná en la semana platos más rápidos y otros más elaborados salvo que el usuario indique lo contrario): ${p.cookingTime}
 - Presupuesto: ${p.budget}
 ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición anterior al armar week_plan cuando corresponda.`);
     }
@@ -333,6 +335,9 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
     const model = genAI.getGenerativeModel({
       model: 'gemini-3.1-flash-lite-preview',
       systemInstruction: fullSystemPrompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
     });
 
     const chat = model.startChat({ history });
@@ -351,7 +356,7 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
       });
     }
 
-    const trimmed = responseText.trim();
+    let trimmed = responseText.trim();
     if (!trimmed) {
       chatApiLog(reqId, 'gemini_empty_body', { geminiMs });
       return res.status(502).json({
@@ -373,7 +378,35 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
       parsedRaw = null;
     }
 
-    const { text, actions, quickReplies } = normalizeGeminiPayload(parsedRaw, trimmed);
+    // Retry once if JSON parse failed (safety net even with responseMimeType)
+    if (!jsonParseOk) {
+      chatApiLog(reqId, 'gemini_json_retry', { rawChars: trimmed.length });
+      try {
+        const retryResult = await chat.sendMessage(
+          'Tu respuesta anterior no fue JSON válido. Respondé SOLO con el JSON, sin markdown ni texto extra.',
+        );
+        const retryText = retryResult.response.text().trim();
+        if (retryText) {
+          const retryCleaned = retryText
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+          parsedRaw = JSON.parse(retryCleaned);
+          jsonParseOk = true;
+          trimmed = retryText;
+          chatApiLog(reqId, 'gemini_json_retry_ok', { retryChars: retryText.length });
+        }
+      } catch (retryErr) {
+        chatApiLogError(reqId, 'gemini_json_retry_fail', retryErr);
+      }
+    }
+
+    let { text, actions, quickReplies } = normalizeGeminiPayload(parsedRaw, trimmed);
+
+    /** Sin fechas de semana en contexto = fase 1 del plan; las opciones las dibuja la app, no Gemini. */
+    if (!body.context.weekDates?.length) {
+      quickReplies = [];
+    }
 
     const actionTypes = Array.isArray(actions)
       ? actions.map((a) =>

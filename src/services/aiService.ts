@@ -10,6 +10,7 @@ import type {
 import { MEAL_TYPE_ORDER } from '../types';
 import { addDays, startOfWeek, format, differenceInYears, parseISO } from 'date-fns';
 import { chatClientLog } from '../utils/chatFlowLog';
+import { WEEK_PLAN_PHASE1_QUICK_REPLIES } from './weekPlanPreferenceMap';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
@@ -249,6 +250,11 @@ export interface SendMessageCatalogOptions {
   catalogAnchor: string;
 }
 
+export interface SendMessageOptions {
+  /** Fase 1 plan semanal (sin fechas): fuerza las quickReplies que define la app. */
+  weekPlanPhase1QuickReplies?: boolean;
+}
+
 /**
  * Send a message to the AI chat endpoint.
  */
@@ -256,6 +262,7 @@ export async function sendMessage(
   message: string,
   context: AiChatContext,
   catalogs: SendMessageCatalogOptions,
+  opts?: SendMessageOptions,
 ): Promise<AiChatResponse> {
   const token = getToken();
   if (!token) {
@@ -272,19 +279,34 @@ export async function sendMessage(
     catalogAnchorLen: catalogs.catalogAnchor.length,
   });
 
-  const res = await fetch(`${BASE_URL}/api/ai/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      message,
-      context,
-      catalog: catalogs.catalog,
-      catalogAnchor: catalogs.catalogAnchor,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25_000);
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}/api/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message,
+        context,
+        catalog: catalogs.catalog,
+        catalogAnchor: catalogs.catalogAnchor,
+      }),
+      signal: controller.signal,
+    });
+  } catch (fetchErr) {
+    clearTimeout(timeoutId);
+    if (fetchErr instanceof DOMException && fetchErr.name === 'AbortError') {
+      chatClientLog('sendMessage_timeout', { timeoutMs: 25_000 });
+      throw new Error('El asistente tardó demasiado. Intentá de nuevo en un momento.');
+    }
+    throw fetchErr;
+  }
+  clearTimeout(timeoutId);
 
   const body = await readResponseBodyJson(res);
   const fetchMs = Math.round(performance.now() - t0);
@@ -320,13 +342,30 @@ export async function sendMessage(
   }
 
   const normalized = normalizeSuccessBody(body);
+
+  let out: AiChatResponse = normalized;
+  if (opts?.weekPlanPhase1QuickReplies) {
+    // Structural chips: app controls these, not Gemini
+    out = {
+      ...normalized,
+      quickReplies: [...WEEK_PLAN_PHASE1_QUICK_REPLIES],
+    };
+  } else if (normalized.actions.length > 0) {
+    // Post-action: let Gemini's contextual QRs through (e.g. "Cambiame el jueves")
+    out = normalized;
+  } else {
+    // Informational/emotional responses: no QRs needed
+    out = { ...normalized, quickReplies: [] };
+  }
+
   chatClientLog('sendMessage_ok', {
     fetchMs,
-    textLen: normalized.text.length,
-    actionCount: normalized.actions.length,
-    actionTypes: normalized.actions.map((a) => a.type).join(','),
-    quickReplyCount: normalized.quickReplies.length,
-    remaining: normalized.remaining,
+    textLen: out.text.length,
+    actionCount: out.actions.length,
+    actionTypes: out.actions.map((a) => a.type).join(','),
+    quickReplyCount: out.quickReplies.length,
+    remaining: out.remaining,
+    weekPlanPhase1Ui: Boolean(opts?.weekPlanPhase1QuickReplies),
   });
-  return normalized;
+  return out;
 }
