@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
 import { getGeminiClient, SYSTEM_RULES } from '../_lib/gemini.js';
-import { checkRateLimit } from '../_lib/rateLimit.js';
+import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
+import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
 interface ChatRequestBody {
   message: string;
@@ -125,15 +127,42 @@ Unidades Reales: Pensá en unidades físicas. Nadie come "0.2 yogures" o "40g de
 Jerarquía: En platos principales, la proteína manda. Si hay que ajustar, que el sistema recorte carbohidratos o grasas, pero nunca dejes al usuario con una porción de carne minúscula.`;
 }
 
+function normalizeGeminiPayload(
+  parsed: unknown,
+  fallbackText: string,
+): { text: string; actions: unknown[]; quickReplies: string[] } {
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const o = parsed as Record<string, unknown>;
+    const textRaw = o.text;
+    const text =
+      typeof textRaw === 'string'
+        ? textRaw
+        : textRaw !== undefined && textRaw !== null
+          ? String(textRaw)
+          : fallbackText;
+    const actions = Array.isArray(o.actions) ? o.actions : [];
+    const qr = o.quickReplies;
+    const quickReplies =
+      Array.isArray(qr) && qr.every((x) => typeof x === 'string') ? (qr as string[]) : [];
+    return { text, actions, quickReplies };
+  }
+  return { text: fallbackText, actions: [], quickReplies: [] };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const reqId = randomUUID();
+
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    chatApiLog(reqId, 'request_in', {});
+
     // Auth
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
+      chatApiLog(reqId, 'auth_fail', { reason: 'missing_bearer' });
       return res.status(401).json({ error: 'Missing authorization' });
     }
 
@@ -142,12 +171,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const payload = verifyToken(authHeader.slice(7));
       userId = payload.sub;
     } catch {
+      chatApiLog(reqId, 'auth_fail', { reason: 'invalid_token' });
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    // Rate limit
-    const rateResult = await checkRateLimit(userId);
-    if (!rateResult.allowed) {
+    chatApiLog(reqId, 'auth_ok', { user: redactUserId(userId) });
+
+    const rateAssertion = await assertUnderDailyAiLimit(userId);
+    if (!rateAssertion.allowed) {
+      chatApiLog(reqId, 'rate_limit_block', { user: redactUserId(userId), remaining: 0 });
       return res.status(429).json({
         error: 'rate_limit',
         text: '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana para seguir charlando.',
@@ -157,8 +189,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const body = req.body as ChatRequestBody;
     if (!body.message || !body.context) {
+      chatApiLog(reqId, 'bad_request', { reason: 'missing_message_or_context' });
       return res.status(400).json({ error: 'Missing message or context' });
     }
+
+    const msgPreview =
+      body.message.length > 120 ? `${body.message.slice(0, 120)}…` : body.message;
+    chatApiLog(reqId, 'body_ok', {
+      user: redactUserId(userId),
+      messageLen: body.message.length,
+      msgPreview,
+      historyLen: body.context.conversationHistory?.length ?? 0,
+      weekDatesLen: body.context.weekDates?.length ?? 0,
+      catalogLen: body.catalog?.length ?? 0,
+      catalogAnchorLen: body.catalogAnchor?.length ?? 0,
+      dishHistoryLen: body.context.dishHistory?.length ?? 0,
+      hasPreferences: body.context.preferences != null,
+    });
 
     // Build personalized system prompt
     const personalizedPrompt = buildPersonalizedPrompt(body.context.profile);
@@ -248,7 +295,11 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
       parts: [{ text: msg.text }],
     }));
 
-    // Call Gemini
+    chatApiLog(reqId, 'gemini_prepare', {
+      systemPromptChars: fullSystemPrompt.length,
+      historyTurns: history.length,
+    });
+
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: 'gemini-3.1-flash-lite-preview',
@@ -256,31 +307,85 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
     });
 
     const chat = model.startChat({ history });
+    const tGemini = Date.now();
     const result = await chat.sendMessage(body.message);
-    const responseText = result.response.text();
+    const geminiMs = Date.now() - tGemini;
 
-    // Parse JSON response from Gemini
-    let parsed: { text: string; actions: unknown[]; quickReplies?: string[] };
+    let responseText: string;
     try {
-      // Strip markdown code fences if present
-      const cleaned = responseText
+      responseText = result.response.text();
+    } catch (textErr) {
+      chatApiLogError(reqId, 'gemini_text_extract_fail', textErr);
+      return res.status(502).json({
+        error: 'model_response',
+        text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
+      });
+    }
+
+    const trimmed = responseText.trim();
+    if (!trimmed) {
+      chatApiLog(reqId, 'gemini_empty_body', { geminiMs });
+      return res.status(502).json({
+        error: 'model_response',
+        text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
+      });
+    }
+
+    let parsedRaw: unknown;
+    let jsonParseOk = false;
+    try {
+      const cleaned = trimmed
         .replace(/^```(?:json)?\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
-      parsed = JSON.parse(cleaned);
+      parsedRaw = JSON.parse(cleaned);
+      jsonParseOk = true;
     } catch {
-      // If Gemini didn't respond with valid JSON, wrap the text
-      parsed = { text: responseText, actions: [] };
+      parsedRaw = null;
     }
 
+    const { text, actions, quickReplies } = normalizeGeminiPayload(parsedRaw, trimmed);
+
+    const actionTypes = Array.isArray(actions)
+      ? actions.map((a) =>
+          a && typeof a === 'object' && a !== null && 'type' in a
+            ? String((a as { type: unknown }).type)
+            : '?',
+        )
+      : [];
+
+    chatApiLog(reqId, 'gemini_done', {
+      geminiMs,
+      rawChars: trimmed.length,
+      jsonParseOk,
+      textOutChars: text.length,
+      actionCount: actions.length,
+      actionTypes: actionTypes.join(','),
+      quickReplyCount: quickReplies.length,
+    });
+
+    let remainingOut: number;
+    try {
+      remainingOut = (await recordSuccessfulAiChat(userId)).remaining;
+    } catch (recErr) {
+      chatApiLogError(reqId, 'record_usage_fail', recErr);
+      remainingOut = Math.max(0, rateAssertion.remaining - 1);
+    }
+
+    chatApiLog(reqId, 'response_200', {
+      user: redactUserId(userId),
+      remaining: remainingOut,
+      actionCount: actions.length,
+    });
+
     return res.status(200).json({
-      text: parsed.text,
-      actions: parsed.actions || [],
-      quickReplies: parsed.quickReplies || [],
-      remaining: rateResult.remaining,
+      text,
+      actions,
+      quickReplies,
+      remaining: remainingOut,
     });
   } catch (err) {
-    console.error('AI chat error:', err);
+    chatApiLogError(reqId, 'handler_uncaught', err);
     return res.status(500).json({
       error: 'internal',
       text: 'Algo salió mal. Intentá de nuevo en unos segundos.',

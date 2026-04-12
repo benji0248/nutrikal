@@ -10,9 +10,17 @@ interface PlanMealCellProps {
   date: string;
   showCalories: boolean;
   onSwap: (date: string, mealType: MealType) => void;
+  swapDisabled?: boolean;
 }
 
-export const PlanMealCell = ({ meal, mealType, date, showCalories, onSwap }: PlanMealCellProps) => {
+export const PlanMealCell = ({
+  meal,
+  mealType,
+  date,
+  showCalories,
+  onSwap,
+  swapDisabled = false,
+}: PlanMealCellProps) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!meal) {
@@ -65,8 +73,9 @@ export const PlanMealCell = ({ meal, mealType, date, showCalories, onSwap }: Pla
           </button>
           <button
             type="button"
+            disabled={swapDisabled}
             onClick={() => onSwap(date, mealType)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors bg-[#226046]/10 text-[#226046] hover:bg-[#226046]/20"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors bg-[#226046]/10 text-[#226046] hover:bg-[#226046]/20 disabled:opacity-40 disabled:pointer-events-none"
             aria-label={`Cambiar ${MEAL_TYPE_LABELS[mealType]}`}
           >
             <RefreshCw size={16} />

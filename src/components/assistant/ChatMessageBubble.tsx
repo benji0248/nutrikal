@@ -16,6 +16,8 @@ interface ChatMessageBubbleProps {
   energyLevel: EnergyLevel;
   energyRatio: number;
   showCalories: boolean;
+  /** Mientras el modelo responde: desactiva chips y acciones del plan que disparan otro mensaje. */
+  chatBusy?: boolean;
 }
 
 export const ChatMessageBubble = ({
@@ -25,6 +27,7 @@ export const ChatMessageBubble = ({
   onRegeneratePlan,
   onSwapMeal,
   energyRatio,
+  chatBusy = false,
 }: ChatMessageBubbleProps) => {
   switch (message.type) {
     case 'assistant-text':
@@ -66,7 +69,7 @@ export const ChatMessageBubble = ({
       if (!message.options) return null;
       return (
         <div className="animate-fade-in">
-          <OptionChips options={message.options} onSelect={onOptionSelect} />
+          <OptionChips options={message.options} onSelect={onOptionSelect} disabled={chatBusy} />
         </div>
       );
 
@@ -111,6 +114,7 @@ export const ChatMessageBubble = ({
             onApply={onApplyPlan}
             onRegenerate={onRegeneratePlan}
             onSwapMeal={onSwapMeal}
+            planAiBusy={chatBusy}
           />
         </div>
       );

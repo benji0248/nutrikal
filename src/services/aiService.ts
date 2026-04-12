@@ -9,12 +9,46 @@ import type {
 } from '../types';
 import { MEAL_TYPE_ORDER } from '../types';
 import { addDays, startOfWeek, format, differenceInYears, parseISO } from 'date-fns';
+import { chatClientLog } from '../utils/chatFlowLog';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
 
+/** Must match trimming in `buildContext` and `useChatEngine` conversation ref. */
+export const AI_CONVERSATION_HISTORY_LIMIT = 10;
+
+const DEFAULT_PLAN_PREFERENCES: PlanPreferences = {
+  variety: 'normal',
+  cookingTime: 'normal',
+  budget: 'normal',
+};
+
 function getToken(): string | null {
   return localStorage.getItem(JWT_KEY);
+}
+
+async function readResponseBodyJson(res: Response): Promise<unknown> {
+  const raw = await res.text();
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeSuccessBody(data: unknown): AiChatResponse {
+  if (!data || typeof data !== 'object') {
+    return { text: '', actions: [], quickReplies: [], remaining: 80 };
+  }
+  const d = data as Record<string, unknown>;
+  const text = typeof d.text === 'string' ? d.text : String(d.text ?? '');
+  const actions = Array.isArray(d.actions) ? (d.actions as AiAction[]) : [];
+  const quickReplies = Array.isArray(d.quickReplies)
+    ? d.quickReplies.filter((x): x is string => typeof x === 'string')
+    : [];
+  const remaining = typeof d.remaining === 'number' ? d.remaining : 80;
+  return { text, actions, quickReplies, remaining };
 }
 
 /**
@@ -111,6 +145,7 @@ export function buildContext(params: BuildContextParams): AiChatContext {
 
   const todayDate = format(new Date(), 'yyyy-MM-dd');
   const currentWeekDates = getCurrentWeekDates();
+  const weekPlanActive = Boolean(weekDates && weekDates.length > 0);
 
   // Compute age from birthDate
   const age = profile.birthDate
@@ -175,10 +210,10 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     },
     todayPlan: compressTodayPlan(dayPlans[todayDate]),
     weekSummary: buildWeekSummary(dayPlans, weekDates || currentWeekDates),
-    conversationHistory: conversationHistory.slice(-10),
+    conversationHistory: conversationHistory.slice(-AI_CONVERSATION_HISTORY_LIMIT),
     todayDate,
     weekDates: weekDates || null,
-    preferences: preferences || null,
+    preferences: weekPlanActive ? (preferences ?? DEFAULT_PLAN_PREFERENCES) : (preferences ?? null),
     dishHistory,
   };
 }
@@ -201,8 +236,18 @@ export async function sendMessage(
 ): Promise<AiChatResponse> {
   const token = getToken();
   if (!token) {
+    chatClientLog('sendMessage_abort', { reason: 'no_token' });
     throw new Error('Not authenticated');
   }
+
+  const t0 = performance.now();
+  chatClientLog('sendMessage_fetch_start', {
+    messageLen: message.length,
+    historyLen: context.conversationHistory.length,
+    weekDatesLen: context.weekDates?.length ?? 0,
+    catalogLen: catalogs.catalog.length,
+    catalogAnchorLen: catalogs.catalogAnchor.length,
+  });
 
   const res = await fetch(`${BASE_URL}/api/ai/chat`, {
     method: 'POST',
@@ -218,25 +263,47 @@ export async function sendMessage(
     }),
   });
 
+  const body = await readResponseBodyJson(res);
+  const fetchMs = Math.round(performance.now() - t0);
+
   if (!res.ok) {
-    const data = await res.json();
+    chatClientLog('sendMessage_http_error', {
+      status: res.status,
+      fetchMs,
+      bodyKeys: body && typeof body === 'object' ? Object.keys(body as object).join(',') : '',
+    });
+    const d = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    const messageFromServer =
+      typeof d.text === 'string' && d.text.trim()
+        ? d.text
+        : typeof d.error === 'string'
+          ? d.error
+          : 'Error inesperado';
+
     if (res.status === 429) {
+      chatClientLog('sendMessage_rate_limited', { fetchMs });
       return {
-        text: data.text || '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana.',
+        text:
+          typeof d.text === 'string' && d.text.trim()
+            ? d.text
+            : '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana.',
         actions: [],
         quickReplies: [],
         remaining: 0,
       };
     }
-    throw new Error(data.text || data.error || 'Error inesperado');
+
+    throw new Error(messageFromServer);
   }
 
-  const data = await res.json();
-
-  return {
-    text: data.text,
-    actions: (data.actions || []) as AiAction[],
-    quickReplies: (data.quickReplies || []) as string[],
-    remaining: data.remaining ?? 80,
-  };
+  const normalized = normalizeSuccessBody(body);
+  chatClientLog('sendMessage_ok', {
+    fetchMs,
+    textLen: normalized.text.length,
+    actionCount: normalized.actions.length,
+    actionTypes: normalized.actions.map((a) => a.type).join(','),
+    quickReplyCount: normalized.quickReplies.length,
+    remaining: normalized.remaining,
+  });
+  return normalized;
 }

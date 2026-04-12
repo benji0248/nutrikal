@@ -8,9 +8,11 @@ interface WeekPlannerProps {
   onApply: (plan: WeekPlan) => void;
   onRegenerate: () => void;
   onSwapMeal: (date: string, mealType: MealType) => void;
+  /** Evita regenerar / cambiar comidas mientras hay una respuesta del asistente en curso. */
+  planAiBusy?: boolean;
 }
 
-export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal }: WeekPlannerProps) => {
+export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal, planAiBusy = false }: WeekPlannerProps) => {
   return (
     <div className="w-full bg-[#ffffff] rounded-lg overflow-hidden shadow-[0px_20px_40px_rgba(25,28,23,0.06)] animate-fade-in">
       <div className="p-6 bg-[#226046]/5">
@@ -19,7 +21,7 @@ export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal }: WeekPla
           <span className="bg-[#fd9d1a]/20 text-[#663b00] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Activo</span>
         </div>
 
-        <PlanReviewGrid plan={plan} onSwapMeal={onSwapMeal} />
+        <PlanReviewGrid plan={plan} onSwapMeal={onSwapMeal} swapDisabled={planAiBusy} />
 
         <button
           type="button"
@@ -32,8 +34,9 @@ export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal }: WeekPla
 
         <button
           type="button"
+          disabled={planAiBusy}
           onClick={onRegenerate}
-          className="w-full mt-2 bg-[#f3f5eb] text-[#191c17] font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          className="w-full mt-2 bg-[#f3f5eb] text-[#191c17] font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40 disabled:pointer-events-none"
         >
           <RefreshCw size={18} />
           <span>Regenerar Plan</span>

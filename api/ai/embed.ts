@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
 import { getSupabase } from '../_lib/supabase.js';
 import { generateDishEmbedding } from '../_lib/embeddings.js';
+import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
 interface DishToEmbed {
   dishName: string;
@@ -18,6 +20,8 @@ interface EmbedRequestBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const reqId = randomUUID();
+
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
@@ -38,8 +42,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const body = req.body as EmbedRequestBody;
     if (!body.dishes || !Array.isArray(body.dishes) || body.dishes.length === 0) {
+      chatApiLog(reqId, 'embed_bad_body', {});
       return res.status(400).json({ error: 'Missing dishes array' });
     }
+
+    chatApiLog(reqId, 'embed_start', {
+      user: redactUserId(userId),
+      dishCount: body.dishes.length,
+      sample: body.dishes
+        .slice(0, 3)
+        .map((d) => d.dishName)
+        .join(' | '),
+    });
 
     const supabase = getSupabase();
     let created = 0;
@@ -80,9 +94,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    chatApiLog(reqId, 'embed_done', { user: redactUserId(userId), created, skipped });
     return res.status(200).json({ ok: true, created, skipped });
   } catch (err) {
-    console.error('Embed endpoint error:', err);
+    chatApiLogError(reqId, 'embed_uncaught', err);
     return res.status(500).json({ error: 'Internal error' });
   }
 }

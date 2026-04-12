@@ -120,6 +120,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
             energyLevel={energyLevel}
             energyRatio={energyRatio}
             showCalories={showCalories}
+            chatBusy={isLoading}
           />
         ))}
         <div ref={bottomRef} />

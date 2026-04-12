@@ -30,7 +30,13 @@ import {
   sendMessage,
   buildContext,
   getNextWeekDates,
+  AI_CONVERSATION_HISTORY_LIMIT,
 } from '../../services/aiService';
+import { chatClientLog, chatClientLogError } from '../../utils/chatFlowLog';
+
+/** Inyecta weekDates en contexto cuando el usuario pide plan semanal (variantes de redacción). */
+const WEEK_PLAN_USER_INTENT_REGEX =
+  /arm(a|á|e)me\s+(la\s+)?semana|plan(ific|ea|[áa])\s+(la\s+)?semana|plan\s+semanal|semana\s+completa|7\s+d[ií]as|(?:la\s+)?pr[oó]xima\s+semana|organiz(a|á)me\s+la\s+semana|men[uú]\s+semanal|planific[aá]\s+mi\s+semana|quiero\s+(el\s+)?plan\s+(de\s+)?la\s+semana|arm[aá]me\s+la\s+comida\s+de\s+la\s+semana/i;
 import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
 import { useHistorialStore } from '../../store/useHistorialStore';
@@ -235,7 +241,16 @@ export function useChatEngine(): ChatEngineResult {
   }
 
   function executeActions(actions: AiAction[]) {
+    if (!Array.isArray(actions)) {
+      chatClientLog('executeActions_skip', { reason: 'not_array' });
+      return;
+    }
+
+    chatClientLog('executeActions_start', { count: actions.length });
+
+    try {
     for (const action of actions) {
+      chatClientLog('executeAction', { type: action.type });
       switch (action.type) {
         case 'add_meal':
         case 'swap_meal': {
@@ -268,16 +283,36 @@ export function useChatEngine(): ChatEngineResult {
         }
 
         case 'week_plan': {
+          const rawDays = (action as { days?: unknown }).days;
+          if (!Array.isArray(rawDays) || rawDays.length === 0) {
+            chatClientLog('week_plan_skip', { reason: 'bad_days' });
+            break;
+          }
+
+          const validDays = rawDays.filter(
+            (d): d is { date: string; meals?: PlannedDay['meals'] } =>
+              typeof d === 'object' &&
+              d !== null &&
+              typeof (d as { date?: unknown }).date === 'string',
+          );
+          if (validDays.length === 0) {
+            chatClientLog('week_plan_skip', { reason: 'no_valid_days' });
+            break;
+          }
+
+          chatClientLog('week_plan_build', { dayCount: validDays.length });
+
           // Rehydrate all meals in the week plan before displaying
-          const rehydratedDays: PlannedDay[] = action.days.map((day) => {
+          const rehydratedDays: PlannedDay[] = validDays.map((day) => {
             const rehydratedMeals: Partial<Record<MealType, PlannedMeal>> = {};
             // Determine if this is a cheat day (Sunday)
             const dayDate = new Date(day.date + 'T12:00:00');
             const isSunday = dayDate.getDay() === 0;
             const dayBudget = isSunday ? budget + 1000 : budget;
 
+            const mealsBlock = day.meals ?? {};
             for (const mt of MEAL_TYPE_ORDER) {
-              const rawMeal = day.meals[mt];
+              const rawMeal = mealsBlock[mt];
               if (!rawMeal) continue;
               const aiMeal = rehydrateRawMeal(rawMeal, mt, dayBudget);
               if (aiMeal) {
@@ -351,6 +386,15 @@ export function useChatEngine(): ChatEngineResult {
         }
       }
     }
+    } catch (e) {
+      chatClientLogError('executeActions_catch', e, {});
+      addMessages({
+        id: makeId(),
+        type: 'assistant-text',
+        text: 'No pude mostrar bien esa sugerencia en la app. Si era un plan, pedímelo de nuevo.',
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   async function sendToAi(
@@ -361,12 +405,19 @@ export function useChatEngine(): ChatEngineResult {
     if (!profile) return;
 
     // Auto-detect weekly plan requests and inject weekDates
-    const weekPlanRegex = /arm(a|á|e)me la semana|plan(ific|ea|[áa] la) semana|plan semanal|semana completa|7 d[ií]as/i;
-    const weekDates = extraWeekDates ?? (weekPlanRegex.test(text) ? getNextWeekDates() : null);
+    const weekDates =
+      extraWeekDates ?? (WEEK_PLAN_USER_INTENT_REGEX.test(text) ? getNextWeekDates() : null);
 
-    if (weekPlanRegex.test(text)) {
+    if (WEEK_PLAN_USER_INTENT_REGEX.test(text)) {
       lastPlanRequestRef.current = text;
     }
+
+    chatClientLog('sendToAi_start', {
+      textLen: text.length,
+      weekIntent: WEEK_PLAN_USER_INTENT_REGEX.test(text),
+      weekDatesInjected: weekDates?.length ?? 0,
+      hasExtraWeekDates: Boolean(extraWeekDates?.length),
+    });
 
     setIsLoading(true);
 
@@ -412,9 +463,15 @@ export function useChatEngine(): ChatEngineResult {
         { role: 'user', text },
         { role: 'assistant', text: response.text },
       );
-      if (conversationRef.current.length > 20) {
-        conversationRef.current = conversationRef.current.slice(-20);
+      if (conversationRef.current.length > AI_CONVERSATION_HISTORY_LIMIT) {
+        conversationRef.current = conversationRef.current.slice(-AI_CONVERSATION_HISTORY_LIMIT);
       }
+
+      chatClientLog('sendToAi_after_store', {
+        historyEntries: conversationRef.current.length,
+        actionsIncoming: response.actions.length,
+        hasText: Boolean(response.text?.trim()),
+      });
 
       if (response.text) {
         addMessages({
@@ -444,14 +501,21 @@ export function useChatEngine(): ChatEngineResult {
         });
       }
     } catch (err) {
+      chatClientLogError('sendToAi_catch', err, { loadingId });
+
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+
+      const fallback =
+        err instanceof Error && err.message === 'Not authenticated'
+          ? 'Necesitás estar conectado para usar el asistente.'
+          : err instanceof Error && err.message.trim()
+            ? err.message
+            : 'Algo salió mal. ¿Podés intentar de nuevo?';
 
       addMessages({
         id: makeId(),
         type: 'assistant-text',
-        text: err instanceof Error && err.message === 'Not authenticated'
-          ? 'Necesitás estar conectado para usar el asistente.'
-          : 'Algo salió mal. ¿Podés intentar de nuevo?',
+        text: fallback,
         timestamp: new Date().toISOString(),
       });
     } finally {
@@ -474,12 +538,23 @@ export function useChatEngine(): ChatEngineResult {
   }, [isLoading, profile, budget, planPreferences]);
 
   const handleOption = useCallback((option: ChatOption) => {
+    if (isLoading) return;
+
     // Quick reply chips: send the label as a user message
     if (option.action === 'quick_reply' && option.payload) {
-      // Remove the quick reply chips from the chat
-      setMessages((prev) => prev.filter((m) =>
-        !(m.type === 'assistant-options' && m.options?.some((o) => o.action === 'quick_reply')),
-      ));
+      chatClientLog('quick_reply', { payloadLen: option.payload.length });
+      // Quita solo el último bloque de chips (quick replies), no todos los históricos
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i--) {
+          const m = next[i]!;
+          if (m.type === 'assistant-options' && m.options?.some((o) => o.action === 'quick_reply')) {
+            next.splice(i, 1);
+            break;
+          }
+        }
+        return next;
+      });
 
       addMessages({
         id: makeId(),
@@ -556,18 +631,22 @@ export function useChatEngine(): ChatEngineResult {
   }, []);
 
   const handleRegeneratePlan = useCallback(() => {
+    if (isLoading) return;
+    chatClientLog('ui_regenerate_plan', {});
     setMessages((prev) => prev.filter((m) => m.type !== 'assistant-plan'));
     const weekDates = getNextWeekDates();
     const msg = lastPlanRequestRef.current || 'Generame opciones distintas a las anteriores.';
     sendToAi(msg, weekDates, planPreferences);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, budget, planPreferences]);
+  }, [isLoading, profile, budget, planPreferences]);
 
   const handleSwapMeal = useCallback((date: string, mealType: MealType) => {
+    if (isLoading) return;
+    chatClientLog('ui_swap_meal', { date, mealType });
     const msg = `Cambiame el ${MEAL_TYPE_LABELS[mealType].toLowerCase()} del ${date} por otra opción.`;
     sendToAi(msg);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, budget]);
+  }, [isLoading, profile, budget]);
 
   return {
     messages,

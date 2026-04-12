@@ -1,4 +1,5 @@
 import type { AiMeal, MealType } from '../types';
+import { chatClientLog } from '../utils/chatFlowLog';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -34,6 +35,11 @@ export function submitDishesForEmbedding(dishes: DishToEmbed[]): void {
   const token = localStorage.getItem('nutrikal-jwt');
   if (!token) return;
 
+  chatClientLog('embed_submit', {
+    dishCount: dishes.length,
+    sampleNames: dishes.slice(0, 4).map((d) => d.dishName).join(' | '),
+  });
+
   fetch(`${BASE_URL}/api/ai/embed`, {
     method: 'POST',
     headers: {
@@ -43,5 +49,6 @@ export function submitDishesForEmbedding(dishes: DishToEmbed[]): void {
     body: JSON.stringify({ dishes }),
   }).catch((err) => {
     console.warn('[embeddingService] Failed to submit dishes for embedding:', err);
+    chatClientLog('embed_submit_fail', { err: err instanceof Error ? err.message : String(err) });
   });
 }

@@ -11,9 +11,10 @@ import { PlanMealCell } from './PlanMealCell';
 interface PlanReviewGridProps {
   plan: WeekPlan;
   onSwapMeal: (date: string, mealType: MealType) => void;
+  swapDisabled?: boolean;
 }
 
-export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
+export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanReviewGridProps) => {
   const showCalories = useSettingsStore((s) => s.showCalories);
   const [activeDay, setActiveDay] = useState(0);
 
@@ -82,6 +83,7 @@ export const PlanReviewGrid = ({ plan, onSwapMeal }: PlanReviewGridProps) => {
                   date={activeDayData.date}
                   showCalories={showCalories}
                   onSwap={onSwapMeal}
+                  swapDisabled={swapDisabled}
                 />
               </div>
             );
