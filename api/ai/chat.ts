@@ -36,6 +36,7 @@ interface ChatRequestBody {
       variety: string;
       cookingTime: string;
       budget: string;
+      weekRepetitionMode?: 'full_unique' | 'repeat_blocks' | 'balanced';
     } | null;
     dishHistory?: Array<{ name: string; count: number; lastDate: string; isFavorite: boolean }> | null;
   };
@@ -260,10 +261,29 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
 
     if (body.context.preferences) {
       const p = body.context.preferences;
+      const wr = p.weekRepetitionMode;
+      const weekRepBlock =
+        wr === 'full_unique'
+          ? `MODO REPETICIÓN (weekRepetitionMode: full_unique) — VARIEDAD TOTAL:
+- Estructura semanal obligatoria: 6 días de comidas alineadas al perfil + 1 día cheat (típicamente domingo; respetá lo que diga el contexto de fechas).
+- En los 6 días "normales": no repitas el mismo nombre de plato entre almuerzos y cenas (cada plato principal distinto). Desayunos y meriendas: maximizá variedad sin duplicar el mismo plato completo salvo que sea inevitable.
+- El cheat day puede ser distinto y más indulgente.`
+          : wr === 'repeat_blocks'
+            ? `MODO REPETICIÓN (weekRepetitionMode: repeat_blocks) — REPETIR PARA COCINAR MENOS:
+- Estructura: 6 + 1 cheat.
+- Priorizá menos tiempo de cocina y menos recetas distintas: podés usar patrones tipo 3+3 (tres días con un bloque de menú y tres con otro) o repetir 2 estilos de menú a lo largo de los 6 días, según encaje con el tiempo de cocina indicado.
+- Variá desayunos y meriendas para que no se sienta monótono.`
+            : wr === 'balanced'
+              ? `MODO REPETICIÓN (weekRepetitionMode: balanced) — BALANCE:
+- Estructura: 6 + 1 cheat.
+- Mezclá variedad y repetición: repetí algunos almuerzos o cenas cuando tenga sentido (idealmente no más de 2 veces el mismo plato principal salvo excepción clara); el resto variado.`
+              : '';
+
       contextParts.push(`PREFERENCIAS PARA EL PLAN:
-- Variedad: ${p.variety}
+- Variedad (campo legacy): ${p.variety}
 - Tiempo de cocina: ${p.cookingTime}
-- Presupuesto: ${p.budget}`);
+- Presupuesto: ${p.budget}
+${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición anterior al armar week_plan cuando corresponda.`);
     }
 
     // Inject dish history for personalization

@@ -56,11 +56,13 @@ Paso 2: Preguntá: "¿Cosas rápidas o tenés tiempo de cocinar?"
 
 Generación: Tras la respuesta 2 del usuario Y cuando el contexto ya traiga las fechas de la semana, ejecutá week_plan con todos los días.
 
-Variado: Cada comida es única.
+Variado (solo si el contexto trae weekRepetitionMode full_unique o equivalente): cada plato principal distinto en los 6 días.
 
-Un poco de cada: Repetí 4 almuerzos/cenas en los 12 slots.
+Repetir bloques (repeat_blocks): menos recetas distintas; patrones 3+3 o 2 estilos alternados en los 6 días según encaje.
 
-Repetir: 2 platos que se repiten toda la semana.
+Balance (balanced): mezcla de repetición acotada y variedad.
+
+Si el contexto incluye "weekRepetitionMode", obedecé ese modo antes que estos ejemplos genéricos.
 
 El domingo es CHEAT DAY: Podés incluir platos más indulgentes del catálogo.
 

@@ -34,6 +34,7 @@ import {
 } from '../../services/aiService';
 import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 import { chatClientLog, chatClientLogError } from '../../utils/chatFlowLog';
+import { buildPreferencesForChatRequest } from '../../services/weekPlanPreferenceMap';
 
 /** Inyecta weekDates en contexto cuando el usuario pide plan semanal (variantes de redacción). */
 const WEEK_PLAN_USER_INTENT_REGEX =
@@ -114,7 +115,7 @@ export function useChatEngine(): ChatEngineResult {
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => buildWelcomeMessages());
   const [isLoading, setIsLoading] = useState(false);
-  const [planPreferences] = useState<PlanPreferences | null>(null);
+  const [planPreferences, setPlanPreferences] = useState<PlanPreferences | null>(null);
   const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const prevProfileRef = useRef(profile);
   const lastPlanRequestRef = useRef<string>('');
@@ -127,6 +128,7 @@ export function useChatEngine(): ChatEngineResult {
       setMessages(buildWelcomeMessages());
       conversationRef.current = [];
       weekPlanPrefsRef.current = 'idle';
+      setPlanPreferences(null);
     }
     prevProfileRef.current = profile;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -415,9 +417,12 @@ export function useChatEngine(): ChatEngineResult {
 
     const isWeekIntent = WEEK_PLAN_USER_INTENT_REGEX.test(text);
 
-    if (weekPlanPrefsRef.current !== 'idle' && PIVOT_FROM_WEEK_PLAN_REGEX.test(text)) {
+    if (PIVOT_FROM_WEEK_PLAN_REGEX.test(text)) {
+      if (weekPlanPrefsRef.current !== 'idle') {
+        chatClientLog('weekPlanFlow_reset', { reason: 'pivot_away' });
+      }
       weekPlanPrefsRef.current = 'idle';
-      chatClientLog('weekPlanFlow_reset', { reason: 'pivot_away' });
+      setPlanPreferences(null);
     }
 
     let weekDates: string[] | null = null;
@@ -463,13 +468,19 @@ export function useChatEngine(): ChatEngineResult {
     });
 
     try {
+      const prefsForChat = buildPreferencesForChatRequest({
+        stored: planPreferences,
+        lastUserMessage: text,
+        extra: extraPreferences ?? null,
+      });
+
       const context = buildContext({
         profile,
         dailyBudget: budget,
         dayPlans: useCalendarStore.getState().dayPlans,
         allIngredients,
         conversationHistory: conversationRef.current,
-        preferences: extraPreferences || planPreferences,
+        preferences: prefsForChat,
         weekDates,
         favorites: useHistorialStore.getState().favorites,
       });
@@ -505,7 +516,12 @@ export function useChatEngine(): ChatEngineResult {
         historyEntries: conversationRef.current.length,
         actionsIncoming: response.actions.length,
         hasText: Boolean(response.text?.trim()),
+        weekRepetitionMode: prefsForChat?.weekRepetitionMode ?? null,
       });
+
+      if (prefsForChat) {
+        setPlanPreferences(prefsForChat);
+      }
 
       if (response.text) {
         addMessages({

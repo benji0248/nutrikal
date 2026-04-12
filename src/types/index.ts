@@ -482,10 +482,17 @@ export interface WeekPlan {
   applied: boolean;
 }
 
+/**
+ * Cómo repartir variedad vs repetición en los 6 días "normales" (el séptimo es cheat day).
+ */
+export type WeekRepetitionMode = 'full_unique' | 'repeat_blocks' | 'balanced';
+
 export interface PlanPreferences {
   variety: 'poca' | 'normal' | 'mucha';
   cookingTime: 'rapido' | 'normal' | 'elaborado';
   budget: 'economico' | 'normal' | 'premium';
+  /** Preferencia explícita del usuario (chips o frases reconocidas). */
+  weekRepetitionMode?: WeekRepetitionMode;
 }
 
 export interface AiChatContext {

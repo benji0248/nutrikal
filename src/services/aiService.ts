@@ -213,7 +213,18 @@ export function buildContext(params: BuildContextParams): AiChatContext {
     conversationHistory: conversationHistory.slice(-AI_CONVERSATION_HISTORY_LIMIT),
     todayDate,
     weekDates: weekDates || null,
-    preferences: weekPlanActive ? (preferences ?? DEFAULT_PLAN_PREFERENCES) : (preferences ?? null),
+    preferences: (() => {
+      const merged = preferences
+        ? { ...DEFAULT_PLAN_PREFERENCES, ...preferences }
+        : null;
+      if (weekPlanActive) {
+        return merged ?? DEFAULT_PLAN_PREFERENCES;
+      }
+      if (merged?.weekRepetitionMode) {
+        return merged;
+      }
+      return null;
+    })(),
     dishHistory,
   };
 }
