@@ -280,7 +280,7 @@ export async function sendMessage(
   });
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25_000);
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
   let res: Response;
   try {
@@ -301,7 +301,7 @@ export async function sendMessage(
   } catch (fetchErr) {
     clearTimeout(timeoutId);
     if (fetchErr instanceof DOMException && fetchErr.name === 'AbortError') {
-      chatClientLog('sendMessage_timeout', { timeoutMs: 25_000 });
+      chatClientLog('sendMessage_timeout', { timeoutMs: 60_000 });
       throw new Error('El asistente tardó demasiado. Intentá de nuevo en un momento.');
     }
     throw fetchErr;
