@@ -32,12 +32,18 @@ import {
   getNextWeekDates,
   AI_CONVERSATION_HISTORY_LIMIT,
 } from '../../services/aiService';
+import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
 import { chatClientLog, chatClientLogError } from '../../utils/chatFlowLog';
 
 /** Inyecta weekDates en contexto cuando el usuario pide plan semanal (variantes de redacción). */
 const WEEK_PLAN_USER_INTENT_REGEX =
   /arm(a|á|e)me\s+(la\s+)?semana|plan(ific|ea|[áa])\s+(la\s+)?semana|plan\s+semanal|semana\s+completa|7\s+d[ií]as|(?:la\s+)?pr[oó]xima\s+semana|organiz(a|á)me\s+la\s+semana|men[uú]\s+semanal|planific[aá]\s+mi\s+semana|quiero\s+(el\s+)?plan\s+(de\s+)?la\s+semana|arm[aá]me\s+la\s+comida\s+de\s+la\s+semana/i;
-import { submitDishesForEmbedding, aiMealToDishToEmbed } from '../../services/embeddingService';
+
+/** Sale del flujo "plan semanal" si el usuario pide otra cosa (ej. qué comer hoy). */
+const PIVOT_FROM_WEEK_PLAN_REGEX =
+  /\b(qué|cómo)\s+como\b|\bc[oó]mo\s+vengo\b|qué\s+como\s+hoy/i;
+
+type WeekPlanPrefsState = 'idle' | 'ans1_pending' | 'ans2_pending';
 import { useGistSyncStore } from '../../store/useGistSyncStore';
 import { useHistorialStore } from '../../store/useHistorialStore';
 import {
@@ -112,12 +118,15 @@ export function useChatEngine(): ChatEngineResult {
   const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const prevProfileRef = useRef(profile);
   const lastPlanRequestRef = useRef<string>('');
+  /** Dos respuestas del usuario (variedad + tiempo) antes de inyectar fechas y permitir week_plan. */
+  const weekPlanPrefsRef = useRef<WeekPlanPrefsState>('idle');
 
   // Reset chat when profile is created
   useEffect(() => {
     if (!prevProfileRef.current && profile) {
       setMessages(buildWelcomeMessages());
       conversationRef.current = [];
+      weekPlanPrefsRef.current = 'idle';
     }
     prevProfileRef.current = profile;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -404,17 +413,42 @@ export function useChatEngine(): ChatEngineResult {
   ) {
     if (!profile) return;
 
-    // Auto-detect weekly plan requests and inject weekDates
-    const weekDates =
-      extraWeekDates ?? (WEEK_PLAN_USER_INTENT_REGEX.test(text) ? getNextWeekDates() : null);
+    const isWeekIntent = WEEK_PLAN_USER_INTENT_REGEX.test(text);
 
-    if (WEEK_PLAN_USER_INTENT_REGEX.test(text)) {
+    if (weekPlanPrefsRef.current !== 'idle' && PIVOT_FROM_WEEK_PLAN_REGEX.test(text)) {
+      weekPlanPrefsRef.current = 'idle';
+      chatClientLog('weekPlanFlow_reset', { reason: 'pivot_away' });
+    }
+
+    let weekDates: string[] | null = null;
+    if (extraWeekDates && extraWeekDates.length > 0) {
+      weekDates = extraWeekDates;
+    } else {
+      const st = weekPlanPrefsRef.current;
+      if (st === 'idle') {
+        if (isWeekIntent) {
+          weekDates = null;
+          weekPlanPrefsRef.current = 'ans1_pending';
+        } else {
+          weekDates = null;
+        }
+      } else if (st === 'ans1_pending') {
+        weekDates = null;
+        weekPlanPrefsRef.current = 'ans2_pending';
+      } else if (st === 'ans2_pending') {
+        weekDates = getNextWeekDates();
+        weekPlanPrefsRef.current = 'idle';
+      }
+    }
+
+    if (isWeekIntent) {
       lastPlanRequestRef.current = text;
     }
 
     chatClientLog('sendToAi_start', {
       textLen: text.length,
-      weekIntent: WEEK_PLAN_USER_INTENT_REGEX.test(text),
+      weekIntent: isWeekIntent,
+      weekPlanPrefs: weekPlanPrefsRef.current,
       weekDatesInjected: weekDates?.length ?? 0,
       hasExtraWeekDates: Boolean(extraWeekDates?.length),
     });
@@ -482,8 +516,16 @@ export function useChatEngine(): ChatEngineResult {
         });
       }
 
-      if (response.actions && response.actions.length > 0) {
-        executeActions(response.actions);
+      const allowWeekPlanAction = Boolean(weekDates?.length);
+      const actionsToRun = allowWeekPlanAction
+        ? response.actions
+        : response.actions.filter((a) => a.type !== 'week_plan');
+      if (!allowWeekPlanAction && response.actions.some((a) => a.type === 'week_plan')) {
+        chatClientLog('strip_week_plan', { reason: 'no_week_dates_in_request' });
+      }
+
+      if (actionsToRun.length > 0) {
+        executeActions(actionsToRun);
       }
 
       // Render AI-generated quick reply chips
@@ -571,6 +613,7 @@ export function useChatEngine(): ChatEngineResult {
   }, [isLoading, profile, budget, planPreferences]);
 
   const handleApplyPlan = useCallback((plan: WeekPlan) => {
+    weekPlanPrefsRef.current = 'idle';
     // Accedemos via getState() para evitar closures stale y asegurar el state más reciente
     const calendarStore = useCalendarStore.getState();
     const shoppingStore = useShoppingStore.getState();
@@ -633,6 +676,7 @@ export function useChatEngine(): ChatEngineResult {
   const handleRegeneratePlan = useCallback(() => {
     if (isLoading) return;
     chatClientLog('ui_regenerate_plan', {});
+    weekPlanPrefsRef.current = 'idle';
     setMessages((prev) => prev.filter((m) => m.type !== 'assistant-plan'));
     const weekDates = getNextWeekDates();
     const msg = lastPlanRequestRef.current || 'Generame opciones distintas a las anteriores.';

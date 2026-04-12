@@ -100,6 +100,9 @@ function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile'])
 
   return `Sos el nutricionista personal y Chef Ejecutivo de NutriKal para ${name}, de ${nationality}.
 
+NOMBRE EN SALUDOS Y TEXTO:
+Usá EXACTAMENTE el nombre tal como figura arriba ("${name}"), carácter por carácter. Prohibido inventar apodos, acortar o cambiar letras (ej.: no transformar "Benjamin" en "Benu"). Si el nombre es vacío o genérico, tratá al usuario de "vos" sin inventar un nombre.
+
 PERSONALIDAD:
 
 ${langStyle}
@@ -228,7 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    if (body.context.weekDates) {
+    if (body.context.weekDates && body.context.weekDates.length > 0) {
       const dates = body.context.weekDates;
       const daysOfWeek = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
       const datesWithDay = dates.map((d) => {
@@ -239,6 +242,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR (${dates.length} días):
 ${datesWithDay.join('\n')}
 OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha. NO generes solo 1 día.`);
+    } else {
+      contextParts.push(
+        `MODO PLAN SEMANAL (SIN FECHAS EN ESTE TURNO): Todavía NO tenés las fechas de la semana en contexto. Es obligatorio hacer las dos preguntas de preferencias (variedad/repetición y tiempo de cocina) ANTES de armar el plan. ` +
+          `En esta respuesta el array "actions" NO puede incluir "week_plan". Si incluís "quickReplies", que ayuden a responder esas preguntas. ` +
+          `Solo cuando en un mensaje futuro el sistema te envíe la lista de fechas de la semana, ahí sí podés devolver week_plan con todos los días.`,
+      );
     }
 
     if (body.context.todayPlan) {
