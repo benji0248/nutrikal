@@ -241,14 +241,7 @@ export interface AppUser {
 
 export type AuthView = 'login' | 'register';
 
-export type SyncStatus =
-  | 'idle'
-  | 'syncing'
-  | 'success'
-  | 'error'
-  | 'offline';
-
-/** Payload serializado para guardar/cargar en Supabase (tabla user_data) o exportar como backup JSON */
+/** Payload serializado para exportar/importar como backup JSON */
 export interface AppPayload {
   version: number;
   lastModified: string;

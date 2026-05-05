@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { useGistSyncStore } from './useGistSyncStore';
 import { useCalendarStore } from './useCalendarStore';
+import * as api from '../services/apiService';
 
 interface DishFrequency {
   count: number;
@@ -10,54 +9,59 @@ interface DishFrequency {
 
 interface HistorialState {
   favorites: string[];
+  isLoading: boolean;
   toggleFavorite: (dishName: string) => void;
   isFavorite: (dishName: string) => boolean;
   getFrequencyMap: () => Map<string, DishFrequency>;
+  hydrateFavorites: (favorites: string[]) => void;
 }
 
-export const useHistorialStore = create<HistorialState>()(
-  persist(
-    (set, get) => ({
-      favorites: [],
+export const useHistorialStore = create<HistorialState>()((set, get) => ({
+  favorites: [],
+  isLoading: false,
 
-      toggleFavorite: (dishName: string) => {
-        const current = get().favorites;
-        const next = current.includes(dishName)
-          ? current.filter((n) => n !== dishName)
-          : [...current, dishName];
-        set({ favorites: next });
-        useGistSyncStore.getState().schedulePush();
-      },
+  toggleFavorite: (dishName: string) => {
+    const current = get().favorites;
+    const isFav = current.includes(dishName);
+    const next = isFav
+      ? current.filter((n) => n !== dishName)
+      : [...current, dishName];
+    set({ favorites: next });
 
-      isFavorite: (dishName: string) => {
-        return get().favorites.includes(dishName);
-      },
+    if (isFav) {
+      api.removeFavorite(dishName).catch(console.error);
+    } else {
+      api.addFavorite(dishName).catch(console.error);
+    }
+  },
 
-      getFrequencyMap: () => {
-        const { dayPlans } = useCalendarStore.getState();
-        const map = new Map<string, DishFrequency>();
+  isFavorite: (dishName: string) => {
+    return get().favorites.includes(dishName);
+  },
 
-        for (const [dateKey, plan] of Object.entries(dayPlans)) {
-          for (const meals of Object.values(plan.meals)) {
-            for (const meal of meals) {
-              if (!meal.name) continue;
-              const existing = map.get(meal.name);
-              if (existing) {
-                existing.count += 1;
-                if (dateKey > existing.lastDate) existing.lastDate = dateKey;
-              } else {
-                map.set(meal.name, { count: 1, lastDate: dateKey });
-              }
-            }
+  getFrequencyMap: () => {
+    const { dayPlans } = useCalendarStore.getState();
+    const map = new Map<string, DishFrequency>();
+
+    for (const [dateKey, plan] of Object.entries(dayPlans)) {
+      for (const meals of Object.values(plan.meals)) {
+        for (const meal of meals) {
+          if (!meal.name) continue;
+          const existing = map.get(meal.name);
+          if (existing) {
+            existing.count += 1;
+            if (dateKey > existing.lastDate) existing.lastDate = dateKey;
+          } else {
+            map.set(meal.name, { count: 1, lastDate: dateKey });
           }
         }
+      }
+    }
 
-        return map;
-      },
-    }),
-    {
-      name: 'nutrikal-historial',
-      partialize: (state) => ({ favorites: state.favorites }),
-    },
-  ),
-);
+    return map;
+  },
+
+  hydrateFavorites: (favorites) => {
+    set({ favorites });
+  },
+}));

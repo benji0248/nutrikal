@@ -57,15 +57,11 @@ export const useAuthStore = create<AuthStoreState>()(
       },
 
       logout: () => {
-        // Clear JWT
         localStorage.removeItem(JWT_KEY);
-        // Clear all nutrikal keys
-        const keys = Object.keys(localStorage).filter((k) => k.startsWith('nutrikal-'));
-        keys.forEach((k) => localStorage.removeItem(k));
 
         set({ user: null, authState: 'unauthenticated', error: null, errorField: undefined });
 
-        // Reset data stores
+        // Reset all data stores
         import('./useCalendarStore').then(({ useCalendarStore }) =>
           useCalendarStore.setState({ dayPlans: {}, notifications: [] }),
         );
@@ -83,6 +79,15 @@ export const useAuthStore = create<AuthStoreState>()(
         );
         import('./useRecipesStore').then(({ useRecipesStore }) =>
           useRecipesStore.setState({ customDishes: [] }),
+        );
+        import('./useHistorialStore').then(({ useHistorialStore }) =>
+          useHistorialStore.setState({ favorites: [] }),
+        );
+        import('./useIngredientSignalStore').then(({ useIngredientSignalStore }) =>
+          useIngredientSignalStore.setState({ entries: [] }),
+        );
+        import('./useSettingsStore').then(({ useSettingsStore }) =>
+          useSettingsStore.setState({ showCalories: false, theme: 'dark' }),
         );
       },
 
