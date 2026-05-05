@@ -212,6 +212,11 @@ export async function saveProfile(profile: UserProfile): Promise<void> {
   await put('/api/profile', { profile });
 }
 
+export async function loadProfile(): Promise<UserProfile | null> {
+  const data = await get<{ profile: UserProfile | null }>('/api/profile');
+  return data.profile;
+}
+
 // ── Notifications ──
 
 export async function createNotification(notification: Notification): Promise<void> {

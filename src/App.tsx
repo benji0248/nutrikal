@@ -12,7 +12,7 @@ import { useRecipesStore } from './store/useRecipesStore';
 import { useShoppingStore } from './store/useShoppingStore';
 import { useHistorialStore } from './store/useHistorialStore';
 import { useIngredientSignalStore } from './store/useIngredientSignalStore';
-import { batchLoadAllData, migrateUser } from './services/apiService';
+import { batchLoadAllData, loadProfile, migrateUser } from './services/apiService';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
@@ -84,6 +84,16 @@ function AuthenticatedApp() {
         useCalendarStore.getState().hydrateMeals(data.meals, data.dayNotes);
         useCalendarStore.getState().hydrateNotifications(data.notifications);
         useProfileStore.getState().hydrateProfile(data.profile);
+        if (!data.profile) {
+          try {
+            const fallbackProfile = await loadProfile();
+            if (fallbackProfile) {
+              useProfileStore.getState().hydrateProfile(fallbackProfile);
+            }
+          } catch (profileErr) {
+            console.error('Profile fallback load error:', profileErr);
+          }
+        }
         useCalculatorStore.getState().hydrateRecipes(data.calculatorRecipes);
         useIngredientsStore.getState().hydrateIngredients(data.customIngredients);
         useRecipesStore.getState().hydrateDishes(data.customDishes);
@@ -93,6 +103,14 @@ function AuthenticatedApp() {
         useIngredientSignalStore.getState().hydrateSignals(data.ingredientSignals);
       } catch (e) {
         console.error('Init data load error:', e);
+        try {
+          const fallbackProfile = await loadProfile();
+          if (fallbackProfile) {
+            useProfileStore.getState().hydrateProfile(fallbackProfile);
+          }
+        } catch (profileErr) {
+          console.error('Profile fallback load error:', profileErr);
+        }
       }
 
       // Decide initial state
