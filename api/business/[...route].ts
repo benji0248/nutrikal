@@ -14,15 +14,38 @@ type RouteHandler = (
 ) => Promise<VercelResponse | void>;
 
 function getSegments(req: VercelRequest): string[] {
-  const fromCatchAll = req.query.route;
-  if (Array.isArray(fromCatchAll)) return fromCatchAll;
-  if (typeof fromCatchAll === 'string' && fromCatchAll.trim()) return [fromCatchAll];
+  const collectFromQueryParam = (): string[] => {
+    const raw = req.query.route;
+    if (raw === undefined || raw === null) return [];
+    const parts: string[] = [];
+    const pushChunk = (c: unknown) => {
+      if (c === undefined || c === null) return;
+      String(c)
+        .split('/')
+        .filter(Boolean)
+        .forEach((p) => parts.push(p));
+    };
+    if (Array.isArray(raw)) raw.forEach(pushChunk);
+    else pushChunk(raw);
+    return parts;
+  };
 
-  const path = (req.url ?? '').split('?')[0] ?? '';
-  return path
-    .replace(/^\/api\/business\/?/, '')
-    .split('/')
-    .filter(Boolean);
+  let segments = collectFromQueryParam();
+
+  /** Cuando falta route (rewrite / edge cases), usar pathname sin /api y sin prefijo interno business. */
+  const fromPathFallback = (): string[] => {
+    const pathRaw = (req.url ?? '').split('?')[0] ?? '';
+    let segs = pathRaw.replace(/^\/+/, '').split('/').filter(Boolean);
+    if (segs[0] === 'api') segs = segs.slice(1);
+    if (segs[0] === 'business') segs = segs.slice(1);
+    return segs;
+  };
+
+  if (segments.length === 0 || segments[0] === 'api') {
+    segments = fromPathFallback();
+  }
+
+  return segments;
 }
 
 function routeKey(method: string | undefined, segments: string[]): string {
@@ -767,8 +790,12 @@ function normalizeKey(method: string | undefined, segments: string[]): string {
 
   if (s[0] === 'dishes' && s[1] === 'custom' && s[2]) s[2] = ':id';
   if (s[0] === 'ingredients' && s[1] === 'custom' && s[2]) s[2] = ':id';
-  if (s[0] === 'meals' && s[1] && s[2] === 'toggle') s[1] = ':id';
-  if (s[0] === 'meals' && s[1] && !s[2]) s[1] = ':id';
+  /** meals: no confundir POST /meals/batch con /meals/:id */
+  if (s[0] === 'meals' && s[1] && s[2] === 'toggle') {
+    s[1] = ':id';
+  } else if (s[0] === 'meals' && s[1] && !s[2] && s[1] !== 'batch' && method !== 'POST') {
+    s[1] = ':id';
+  }
   if (s[0] === 'notes' && s[1]) s[1] = ':date';
   if (s[0] === 'notifications' && s[1] && s[2] === 'toggle') s[1] = ':id';
   if (s[0] === 'notifications' && s[1] && !s[2]) s[1] = ':id';
