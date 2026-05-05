@@ -14,6 +14,13 @@ type RouteHandler = (
 ) => Promise<VercelResponse | void>;
 
 function getSegments(req: VercelRequest): string[] {
+  const stripInfraPrefixes = (rawSegments: string[]): string[] => {
+    let segs = [...rawSegments];
+    if (segs[0] === 'api') segs = segs.slice(1);
+    if (segs[0] === 'business') segs = segs.slice(1);
+    return segs;
+  };
+
   const collectFromQueryParam = (): string[] => {
     const raw = req.query.route;
     if (raw === undefined || raw === null) return [];
@@ -27,7 +34,7 @@ function getSegments(req: VercelRequest): string[] {
     };
     if (Array.isArray(raw)) raw.forEach(pushChunk);
     else pushChunk(raw);
-    return parts;
+    return stripInfraPrefixes(parts);
   };
 
   let segments = collectFromQueryParam();
@@ -35,13 +42,11 @@ function getSegments(req: VercelRequest): string[] {
   /** Cuando falta route (rewrite / edge cases), usar pathname sin /api y sin prefijo interno business. */
   const fromPathFallback = (): string[] => {
     const pathRaw = (req.url ?? '').split('?')[0] ?? '';
-    let segs = pathRaw.replace(/^\/+/, '').split('/').filter(Boolean);
-    if (segs[0] === 'api') segs = segs.slice(1);
-    if (segs[0] === 'business') segs = segs.slice(1);
-    return segs;
+    const segs = pathRaw.replace(/^\/+/, '').split('/').filter(Boolean);
+    return stripInfraPrefixes(segs);
   };
 
-  if (segments.length === 0 || segments[0] === 'api') {
+  if (segments.length === 0 || segments[0] === 'api' || segments[0] === 'business') {
     segments = fromPathFallback();
   }
 
