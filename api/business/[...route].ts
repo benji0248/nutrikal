@@ -114,27 +114,60 @@ const handlers: Record<string, RouteHandler> = {
       supabase.from('ingredient_signals').select('*').eq('user_id', uid).order('fecha', { ascending: false }).limit(Number(req.query.signalLimit) || 800),
     ]);
 
-    const profileRow = profileRes.data;
-    const profile = profileRow
-      ? {
-          id: profileRow.profile_id,
-          name: profileRow.name,
-          birthDate: profileRow.birth_date,
-          sex: profileRow.sex,
-          heightCm: profileRow.height_cm,
-          weightKg: profileRow.weight_kg,
-          activityLevel: profileRow.activity_level,
-          goal: profileRow.goal,
-          restrictions: profileRow.restrictions ?? [],
-          dislikedIngredientIds: profileRow.disliked_ingredient_ids ?? [],
-          dislikedCategories: profileRow.disliked_categories ?? [],
-          allowedExceptions: profileRow.allowed_exceptions ?? [],
-          nationality: profileRow.nationality ?? undefined,
-          createdAt: profileRow.created_at,
-          updatedAt: profileRow.updated_at,
-          lastRecalibration: profileRow.last_recalibration,
-        }
-      : null;
+    const profileFromRow = (profileRow: Record<string, unknown> | null) => (
+      profileRow
+        ? {
+            id: profileRow.profile_id as string,
+            name: profileRow.name as string,
+            birthDate: profileRow.birth_date as string,
+            sex: profileRow.sex as string,
+            heightCm: profileRow.height_cm as number,
+            weightKg: profileRow.weight_kg as number,
+            activityLevel: profileRow.activity_level as string,
+            goal: profileRow.goal as string,
+            restrictions: (profileRow.restrictions as string[]) ?? [],
+            dislikedIngredientIds: (profileRow.disliked_ingredient_ids as string[]) ?? [],
+            dislikedCategories: (profileRow.disliked_categories as string[]) ?? [],
+            allowedExceptions: (profileRow.allowed_exceptions as string[]) ?? [],
+            nationality: (profileRow.nationality as string | null) ?? undefined,
+            createdAt: profileRow.created_at as string,
+            updatedAt: profileRow.updated_at as string,
+            lastRecalibration: profileRow.last_recalibration as string,
+          }
+        : null
+    );
+
+    let profile = profileFromRow((profileRes.data as Record<string, unknown> | null) ?? null);
+
+    // Backward compatibility: some users still have profile only in legacy user_data blob.
+    if (!profile) {
+      const { data: legacyRow } = await supabase
+        .from('user_data')
+        .select('data')
+        .eq('user_id', uid)
+        .single();
+      const legacyProfile = (legacyRow?.data as Record<string, unknown> | undefined)?.profile as Record<string, unknown> | undefined;
+      if (legacyProfile) {
+        profile = {
+          id: (legacyProfile.id as string | undefined) ?? uid,
+          name: (legacyProfile.name as string | undefined) ?? '',
+          birthDate: (legacyProfile.birthDate as string | undefined) ?? '',
+          sex: (legacyProfile.sex as string | undefined) ?? 'male',
+          heightCm: (legacyProfile.heightCm as number | undefined) ?? 170,
+          weightKg: (legacyProfile.weightKg as number | undefined) ?? 70,
+          activityLevel: (legacyProfile.activityLevel as string | undefined) ?? 'moderate',
+          goal: (legacyProfile.goal as string | undefined) ?? 'maintain',
+          restrictions: (legacyProfile.restrictions as string[] | undefined) ?? [],
+          dislikedIngredientIds: (legacyProfile.dislikedIngredientIds as string[] | undefined) ?? [],
+          dislikedCategories: (legacyProfile.dislikedCategories as string[] | undefined) ?? [],
+          allowedExceptions: (legacyProfile.allowedExceptions as string[] | undefined) ?? [],
+          nationality: (legacyProfile.nationality as string | undefined) ?? undefined,
+          createdAt: (legacyProfile.createdAt as string | undefined) ?? new Date().toISOString(),
+          updatedAt: (legacyProfile.updatedAt as string | undefined) ?? new Date().toISOString(),
+          lastRecalibration: (legacyProfile.lastRecalibration as string | undefined) ?? new Date().toISOString(),
+        };
+      }
+    }
 
     const meals = (mealsRes.data ?? []).map((m) => ({
       id: m.id,
