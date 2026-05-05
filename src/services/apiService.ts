@@ -149,7 +149,7 @@ export async function validateSession(token: string): Promise<AppUser> {
 // ── Migration ──
 
 export async function migrateUser(): Promise<{ migrated: boolean; skipped: boolean }> {
-  return post('/api/data/migrate', {});
+  return post('/api/business/data/migrate', {});
 }
 
 // ── Batch Load ──
@@ -173,7 +173,7 @@ export interface BatchLoadResponse {
 }
 
 export async function batchLoadAllData(): Promise<BatchLoadResponse> {
-  return get('/api/data/batch-load');
+  return get('/api/business/data/batch-load');
 }
 
 // ── Meals ──
@@ -209,11 +209,11 @@ export async function setDayNotes(date: string, notes: string): Promise<void> {
 // ── Profile ──
 
 export async function saveProfile(profile: UserProfile): Promise<void> {
-  await put('/api/profile', { profile });
+  await put('/api/business/profile', { profile });
 }
 
 export async function loadProfile(): Promise<UserProfile | null> {
-  const data = await get<{ profile: UserProfile | null }>('/api/profile');
+  const data = await get<{ profile: UserProfile | null }>('/api/business/profile');
   return data.profile;
 }
 
