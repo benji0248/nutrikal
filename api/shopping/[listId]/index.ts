@@ -1,10 +1,10 @@
-import { createHandler } from '../_lib/handler.js';
-import { getSupabase } from '../_lib/supabase.js';
+import { createHandler } from '../../_lib/handler.js';
+import { getSupabase } from '../../_lib/supabase.js';
 
 export default createHandler({
   PUT: async (req, res, auth) => {
     const supabase = getSupabase();
-    const id = req.query.id as string;
+    const listId = req.query.listId as string;
     const { items } = req.body;
 
     if (!Array.isArray(items)) {
@@ -12,12 +12,16 @@ export default createHandler({
     }
 
     // Delete existing items and re-insert
-    await supabase.from('shopping_items').delete().eq('list_id', id).eq('user_id', auth.userId);
+    await supabase
+      .from('shopping_items')
+      .delete()
+      .eq('list_id', listId)
+      .eq('user_id', auth.userId);
 
     if (items.length > 0) {
       const rows = items.map((item: Record<string, unknown>) => ({
         id: item.id,
-        list_id: id,
+        list_id: listId,
         user_id: auth.userId,
         ingredient_id: item.ingredientId,
         name: item.name,
@@ -35,13 +39,13 @@ export default createHandler({
 
   DELETE: async (req, res, auth) => {
     const supabase = getSupabase();
-    const id = req.query.id as string;
+    const listId = req.query.listId as string;
 
     // Items cascade-delete via FK
     const { error } = await supabase
       .from('shopping_lists')
       .delete()
-      .eq('id', id)
+      .eq('id', listId)
       .eq('user_id', auth.userId);
 
     if (error) return res.status(500).json({ error: 'Error al eliminar lista' });
