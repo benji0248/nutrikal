@@ -3,10 +3,16 @@ import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smar
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
-import { useGistSyncStore } from './store/useGistSyncStore';
 import { useCalendarStore } from './store/useCalendarStore';
 import { useProfileStore } from './store/useProfileStore';
 import { useSettingsStore } from './store/useSettingsStore';
+import { useCalculatorStore } from './store/useCalculatorStore';
+import { useIngredientsStore } from './store/useIngredientsStore';
+import { useRecipesStore } from './store/useRecipesStore';
+import { useShoppingStore } from './store/useShoppingStore';
+import { useHistorialStore } from './store/useHistorialStore';
+import { useIngredientSignalStore } from './store/useIngredientSignalStore';
+import { batchLoadAllData, migrateUser } from './services/apiService';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
@@ -17,7 +23,6 @@ import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
-import { SyncIndicator } from './components/ui/SyncIndicator';
 
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
@@ -58,14 +63,39 @@ function AuthenticatedApp() {
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
 
-  const initialLoad = useGistSyncStore((s) => s.initialLoad);
-
   const [showRecalibrate, setShowRecalibrate] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
-  // Sync data from server on mount, then decide initial tab
+  // New init flow: migrate → batch-load → hydrate stores
   useEffect(() => {
-    initialLoad().then(() => {
+    async function initializeData() {
+      try {
+        // Step 1: Migrate blob data to new tables (idempotent)
+        try {
+          await migrateUser();
+        } catch (e) {
+          console.error('Migration error (non-blocking):', e);
+        }
+
+        // Step 2: Load all data from new tables
+        const data = await batchLoadAllData();
+
+        // Step 3: Hydrate all stores
+        useCalendarStore.getState().hydrateMeals(data.meals, data.dayNotes);
+        useCalendarStore.getState().hydrateNotifications(data.notifications);
+        useProfileStore.getState().hydrateProfile(data.profile);
+        useCalculatorStore.getState().hydrateRecipes(data.calculatorRecipes);
+        useIngredientsStore.getState().hydrateIngredients(data.customIngredients);
+        useRecipesStore.getState().hydrateDishes(data.customDishes);
+        useShoppingStore.getState().hydrateLists(data.shoppingLists);
+        useSettingsStore.getState().hydrateSettings(data.settings);
+        useHistorialStore.getState().hydrateFavorites(data.favorites);
+        useIngredientSignalStore.getState().hydrateSignals(data.ingredientSignals);
+      } catch (e) {
+        console.error('Init data load error:', e);
+      }
+
+      // Decide initial state
       setTimeout(() => {
         const p = useProfileStore.getState().profile;
         if (!p) {
@@ -73,16 +103,18 @@ function AuthenticatedApp() {
         }
         setReady(true);
       }, 100);
-    }).catch(() => {
-      setReady(true);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }
+
+    initializeData();
   }, []);
 
   // Check recalibration on mount
   useEffect(() => {
     if (profile && needsRecalibration()) {
-      setShowRecalibrate(true);
+      const timeout = setTimeout(() => {
+        setShowRecalibrate(true);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [profile, needsRecalibration]);
 
@@ -154,7 +186,6 @@ function AuthenticatedApp() {
                   </button>
                 </>
               )}
-              <SyncIndicator />
               <UserMenu />
             </div>
           </div>

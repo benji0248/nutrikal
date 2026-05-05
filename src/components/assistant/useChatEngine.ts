@@ -18,6 +18,7 @@ import { useCalendarStore } from '../../store/useCalendarStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { useShoppingStore } from '../../store/useShoppingStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useHistorialStore } from '../../store/useHistorialStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import {
   computeDayConsumed,
@@ -48,8 +49,7 @@ const WEEK_PLAN_USER_INTENT_REGEX =
 const PIVOT_FROM_WEEK_PLAN_REGEX =
   /\b(qué|cómo)\s+como\b|\bc[oó]mo\s+vengo\b|qué\s+como\s+hoy/i;
 
-import { useGistSyncStore } from '../../store/useGistSyncStore';
-import { useHistorialStore } from '../../store/useHistorialStore';
+import { createMealsBatch } from '../../services/apiService';
 import {
   hydrateMeal,
   hydratedToAiMeal,
@@ -67,6 +67,7 @@ import {
   catalogToPromptString,
 } from '../../services/ingredientFilter';
 import {
+  buildPoolPersonalizationSeed,
   buildWeeklyIngredientPool,
   formatWeeklyPoolForPrompt,
 } from '../../services/ingredientSelectionService';
@@ -539,8 +540,13 @@ export function useChatEngine(): ChatEngineResult {
 
         const filtered = filterIngredientsForUser(allIngredients, profile);
         catalogFull = catalogToPromptString(buildCatalogForPrompt(filtered));
+        const personalizationSeed = buildPoolPersonalizationSeed(
+          useHistorialStore.getState().getFrequencyMap(),
+          profile.name ?? '',
+        );
         const weeklyPool = buildWeeklyIngredientPool(allIngredients, profile, {
           weekId: anchorWeekId,
+          personalizationSeed,
         });
         catalogAnchor = formatWeeklyPoolForPrompt(weeklyPool, allIngredients);
       }
@@ -714,20 +720,33 @@ export function useChatEngine(): ChatEngineResult {
 
   const handleApplyPlan = useCallback((plan: WeekPlan) => {
     weekPlanPrefsRef.current = 'idle';
-    // Accedemos via getState() para evitar closures stale y asegurar el state más reciente
     const calendarStore = useCalendarStore.getState();
     const shoppingStore = useShoppingStore.getState();
     const allAiMeals: AiMeal[] = [];
+    const batchMeals: Array<{ date: string; mealType: MealType; id: string; name: string; calories?: number; aiIngredients?: unknown[] }> = [];
 
     for (const day of plan.days) {
       for (const mt of MEAL_TYPE_ORDER) {
         const planned = day.meals[mt];
         if (!planned) continue;
 
-        calendarStore.upsertMeal(day.date, mt, aiMealToCalendarMeal(planned));
+        const calMeal = aiMealToCalendarMeal(planned);
+        // Update local state immediately (optimistic)
+        calendarStore.upsertMeal(day.date, mt, calMeal);
         allAiMeals.push(planned);
+        batchMeals.push({
+          date: day.date,
+          mealType: mt,
+          id: calMeal.id,
+          name: calMeal.name,
+          calories: calMeal.calories,
+          aiIngredients: calMeal.aiIngredients,
+        });
       }
     }
+
+    // Batch persist all meals in one request
+    createMealsBatch(batchMeals).catch(console.error);
 
     // Add all ingredients to shopping list
     const allIngs = [...INGREDIENTS_DB, ...useIngredientsStore.getState().customIngredients];
@@ -743,12 +762,6 @@ export function useChatEngine(): ChatEngineResult {
     submitDishesForEmbedding(dishesToEmbed);
 
     recordWeekPlanApplied(plan);
-
-    // Garantizar persistencia en Supabase: llamamos schedulePush() UNA SOLA VEZ,
-    // después de que todos los upsertMeal se aplicaron al state.
-    // Esto evita el race condition del dynamic import en sync() y asegura
-    // que buildPayload() capture el estado completo y final del calendario.
-    useGistSyncStore.getState().schedulePush();
 
     setMessages((prev) => {
       const updated = [...prev];

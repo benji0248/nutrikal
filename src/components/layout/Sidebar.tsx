@@ -1,4 +1,5 @@
 import { Calendar, Settings, Sparkles, Heart, LogOut } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { AppTab } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -8,7 +9,7 @@ interface SidebarProps {
   onTabChange: (tab: AppTab) => void;
 }
 
-const TABS: { tab: AppTab; label: string; icon: any }[] = [
+const TABS: { tab: AppTab; label: string; icon: LucideIcon }[] = [
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
   { tab: 'assistant', label: 'NutriKal', icon: Sparkles }, // Repurposed para que cuadre
   { tab: 'historial', label: 'Favoritos', icon: Heart },

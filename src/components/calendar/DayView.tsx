@@ -118,18 +118,28 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
 
   useEffect(() => {
     if (!today) {
-      setActiveMealType(null);
-      return;
+      const timeout = setTimeout(() => {
+        setActiveMealType(null);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
-    setActiveMealType(getCurrentMealType());
+    const syncTimeout = setTimeout(() => {
+      setActiveMealType(getCurrentMealType());
+    }, 0);
     const interval = setInterval(() => {
       setActiveMealType(getCurrentMealType());
     }, 60_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(syncTimeout);
+      clearInterval(interval);
+    };
   }, [today]);
 
   useEffect(() => {
-    setNotesValue(dayPlan.notes);
+    const timeout = setTimeout(() => {
+      setNotesValue(dayPlan.notes);
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [dayPlan.notes]);
 
   const totalCals = MEAL_TYPE_ORDER.reduce(

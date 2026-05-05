@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getGeminiClient, SYSTEM_RULES } from '../_lib/gemini.js';
+import {
+  getGeminiClient,
+  SYSTEM_RULES_CORE,
+  WEEK_FLOW_RULES,
+  GENERAL_ASSISTANT_RULES,
+} from '../_lib/gemini.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
@@ -124,7 +129,7 @@ LÓGICA DE PORCIONES (Sentido Común):
 
 El sistema NutriKal calcula gramos y kcal en el dispositivo. Vos NO calculás números, pero diseñás la estructura del plato.
 
-Libertad Creativa: Tenés total libertad para combinar IDs del CATÁLOGO COMPLETO para crear platos apetitosos. No te limites al pool semanal si falta sabor.
+Listas de ingredientes: en cada turno el contexto indica qué IDs podés usar. Para la acción week_plan usá solo la CANASTA_SEMANAL; para suggest_meals, add_meal y swap_meal usá el CATALOGO_AMPLIO cuando esté en contexto. Armá platos completos (varios roles por plato), no solo dos ingredientes.
 
 Unidades Reales: Pensá en unidades físicas. Nadie come "0.2 yogures" o "40g de milanesa". Si incluís un ingrediente "unidad" (huevo, fruta, pote), intentá que sea el protagonista o una porción entera.
 
@@ -219,17 +224,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
 
-    if (body.catalogAnchor) {
+    const hasPool = Boolean(body.catalogAnchor?.trim());
+    const hasFull = Boolean(body.catalog?.trim());
+
+    if (hasPool && hasFull) {
       contextParts.push(
-        `POOL SEMANAL (ANCLA DE VARIEDAD — no es la lista única de cada plato):\n${body.catalogAnchor}\n` +
-          `Usá estos ingredientes para dar variedad y eje a la semana. Los platos completos pueden y deben incluir más IDs del CATÁLOGO COMPLETO (leche, almendras, manteca, hierbas, etc.) cuando mejore el sentido culinario.`,
+        `INGREDIENTES — DOS FUENTES (no mezcles reglas):\n` +
+          `1) CANASTA_SEMANAL — única fuente de IDs para la acción week_plan (toda la semana). Combiná items de las tres bandas (estructurales, contextuales, creativos) para platos con sentido culinario (ej. base + proteína + vegetales + grasa/condimento).\n` +
+          `${body.catalogAnchor}\n\n` +
+          `2) CATALOGO_AMPLIO — única fuente de IDs para suggest_meals, add_meal y swap_meal.\n` +
+          `${body.catalog}`,
       );
-    }
-    if (body.catalog) {
-      contextParts.push(
-        `CATÁLOGO COMPLETO — TODOS los IDs válidos (elegí SOLO de aquí, también para completar platos):\n${body.catalog}\n` +
-          `IMPORTANTE: Ningún ID fuera de esta lista. El pool semanal es complementario, no sustituto.`,
-      );
+    } else if (hasFull) {
+      contextParts.push(`INGREDIENTES PERMITIDOS (solo estos IDs):\n${body.catalog}`);
+    } else if (hasPool) {
+      contextParts.push(`INGREDIENTES (canasta semanal):\n${body.catalogAnchor}`);
     }
 
     if (body.context.weekDates && body.context.weekDates.length > 0) {
@@ -245,9 +254,7 @@ ${datesWithDay.join('\n')}
 OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha. NO generes solo 1 día.`);
     } else {
       contextParts.push(
-        `MODO PLAN SEMANAL (SIN FECHAS EN ESTE TURNO): La app muestra chips fijos; en "quickReplies" devolvé [] u omití. En "text" presentá tres modos: Variedad total, Repetir bloques, Equilibrado, más la ayuda. PROHIBIDO preguntar por "cosas rápidas vs con tiempo" o dos preguntas (variedad + velocidad). No pidas elegir tiempo de cocina: la semana puede mezclar platos más rápidos y otros más elaborados salvo que el usuario pida otra cosa. ` +
-          `Si envió "Como funciona esto", explicá las tres opciones; sin week_plan. ` +
-          `Cuando el sistema envíe las fechas de la semana en contexto (tras elegir una opción de plan), devolvé week_plan con todos los días. El array "actions" NO puede incluir "week_plan" mientras no haya fechas.`,
+        `SIN FECHAS DE SEMANA EN ESTE TURNO: no incluyas week_plan. Seguí WEEK_FLOW_RULES; la app muestra chips.`,
       );
     }
 
@@ -318,7 +325,16 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
       contextParts.push(lines.join('\n'));
     }
 
-    const fullSystemPrompt = personalizedPrompt + '\n\n' + SYSTEM_RULES + '\n\n' + contextParts.join('\n\n');
+    const fullSystemPrompt =
+      personalizedPrompt +
+      '\n\n' +
+      SYSTEM_RULES_CORE +
+      '\n\n' +
+      WEEK_FLOW_RULES +
+      '\n\n' +
+      GENERAL_ASSISTANT_RULES +
+      '\n\n' +
+      contextParts.join('\n\n');
 
     // Build conversation history for Gemini
     const history = (body.context.conversationHistory || []).map((msg) => ({
@@ -401,7 +417,9 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
       }
     }
 
-    let { text, actions, quickReplies } = normalizeGeminiPayload(parsedRaw, trimmed);
+    const norm = normalizeGeminiPayload(parsedRaw, trimmed);
+    const { text, actions } = norm;
+    let { quickReplies } = norm;
 
     /** Sin fechas de semana en contexto = fase 1 del plan; las opciones las dibuja la app, no Gemini. */
     if (!body.context.weekDates?.length) {

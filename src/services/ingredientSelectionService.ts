@@ -8,6 +8,29 @@ import type {
 } from '../types';
 import { filterIngredientsForUser } from './ingredientFilter';
 
+/**
+ * Cantidades por banda en la canasta semanal (rotación por semana ISO + semilla de historial).
+ * Total ≈ 44 ingredientes; preparado para alinear con embeddings en fases posteriores (ver docs/ROADMAP_AI.md).
+ */
+export const WEEKLY_POOL_COUNTS = {
+  structural: 10,
+  contextual: 20,
+  creative: 14,
+} as const;
+
+/** Semilla estable a partir de platos frecuentes en calendario — rota el shuffle sin llamadas a API. */
+export function buildPoolPersonalizationSeed(
+  freqMap: Map<string, { count: number; lastDate: string }>,
+  displayName: string,
+): string {
+  const top = [...freqMap.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 12)
+    .map(([name, d]) => `${name}:${d.count}`)
+    .join('|');
+  return `${displayName}|${top}`;
+}
+
 /** Heurística: nivel de rotación sin anotar cada fila en ingredients.ts */
 export function inferIngredientLevel(ing: Ingredient): IngredientLevel {
   const c = ing.category;
@@ -72,10 +95,12 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
 export interface SelectionOptions {
   /** p.ej. ISO week id `2026-W15` */
   weekId: string;
+  /** Opcional: variar el shuffle según historial de platos (nombre + frecuencias). */
+  personalizationSeed?: string;
 }
 
 /**
- * Arma pool semanal (~30 ids) por niveles con filtros de perfil.
+ * Arma canasta semanal (~44 ids) por niveles con filtros de perfil.
  * La compatibilidad fina la refuerza la IA con subconjunto por comida.
  */
 export function buildWeeklyIngredientPool(
@@ -84,7 +109,8 @@ export function buildWeeklyIngredientPool(
   options: SelectionOptions,
 ): WeeklyIngredientPool {
   const filtered = filterIngredientsForUser(allIngredients, profile);
-  const rng = makeRng(hashSeed(options.weekId));
+  const seedKey = `${options.weekId}|${options.personalizationSeed ?? ''}`;
+  const rng = makeRng(hashSeed(seedKey));
 
   const byLevel: Record<IngredientLevel, Ingredient[]> = { 1: [], 2: [], 3: [] };
   for (const ing of filtered) {
@@ -96,11 +122,13 @@ export function buildWeeklyIngredientPool(
       .slice(0, n)
       .map((i) => i.id);
 
+  const { structural: n1, contextual: n2, creative: n3 } = WEEKLY_POOL_COUNTS;
+
   return {
     weekId: options.weekId,
-    structural: take(byLevel[1], 8),
-    contextual: take(byLevel[2], 15),
-    creative: take(byLevel[3], 10),
+    structural: take(byLevel[1], n1),
+    contextual: take(byLevel[2], n2),
+    creative: take(byLevel[3], n3),
   };
 }
 
@@ -184,7 +212,7 @@ export function formatWeeklyPoolForPrompt(
       .join('\n');
 
   return [
-    'POOL SEMANAL (priorizá variedad usando estos ingredientes a lo largo de la semana):',
+    'CANASTA SEMANAL (solo para acción week_plan; combiná bandas para platos completos):',
     'ESTRUCTURALES:',
     idLines(pool.structural),
     'CONTEXTUALES:',
