@@ -22,12 +22,14 @@ interface CalendarState {
   navigateMonth: (dir: 'prev' | 'next') => void;
   goToToday: () => void;
   upsertMeal: (date: string, mealType: MealType, meal: Meal) => void;
+  bulkUpsertMeals: (meals: Array<{ date: string; mealType: MealType; meal: Meal }>) => void;
   deleteMeal: (date: string, mealType: MealType, mealId: string) => void;
   setNotes: (date: string, notes: string) => void;
   hydrateMeals: (meals: Array<{
     id: string; date: string; mealType: MealType; name: string;
     calories: number | null; notes: string | null; linkedRecipeId: string | null;
     entries: unknown[]; aiIngredients: unknown[]; completed: boolean;
+    prepMinutes?: number | null; humanPortion?: string | null;
   }>, dayNotes: Array<{ date: string; notes: string }>) => void;
   hydrateNotifications: (notifications: Notification[]) => void;
 }
@@ -71,6 +73,25 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
       };
     });
     api.createMeal(date, mealType, meal).catch(console.error);
+  },
+
+  bulkUpsertMeals: (meals) => {
+    set((s) => {
+      const newDayPlans = { ...s.dayPlans };
+      for (const { date, mealType, meal } of meals) {
+        const existing = newDayPlans[date] ?? createEmptyDayPlan(date);
+        const slotMeals = existing.meals[mealType];
+        const idx = slotMeals.findIndex((m) => m.id === meal.id);
+        const updated = idx >= 0
+          ? slotMeals.map((m) => (m.id === meal.id ? meal : m))
+          : [...slotMeals, meal];
+        newDayPlans[date] = {
+          ...existing,
+          meals: { ...existing.meals, [mealType]: updated },
+        };
+      }
+      return { dayPlans: newDayPlans };
+    });
   },
 
   deleteMeal: (date, mealType, mealId) => {
@@ -119,6 +140,8 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
         entries: m.entries as Meal['entries'],
         aiIngredients: m.aiIngredients as Meal['aiIngredients'],
         completed: m.completed,
+        prepMinutes: m.prepMinutes ?? undefined,
+        humanPortion: m.humanPortion ?? undefined,
       };
       dayPlans[m.date].meals[m.mealType].push(calMeal);
     }

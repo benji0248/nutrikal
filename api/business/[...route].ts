@@ -185,6 +185,8 @@ const handlers: Record<string, RouteHandler> = {
       entries: m.entries ?? [],
       aiIngredients: m.ai_ingredients ?? [],
       completed: m.completed ?? false,
+      prepMinutes: m.prep_minutes ?? null,
+      humanPortion: m.human_portion ?? null,
     }));
 
     const dayNotes = (notesRes.data ?? []).map((n) => ({ date: n.date, notes: n.notes }));
@@ -560,6 +562,7 @@ const handlers: Record<string, RouteHandler> = {
       id: meal.id, user_id: auth.userId, date, meal_type: mealType, name: meal.name,
       calories: meal.calories ?? null, notes: meal.notes ?? null, linked_recipe_id: meal.linkedRecipeId ?? null,
       entries: meal.entries ?? [], ai_ingredients: meal.aiIngredients ?? [], completed: meal.completed ?? false,
+      prep_minutes: meal.prepMinutes ?? null, human_portion: meal.humanPortion ?? null,
     });
     if (error) return res.status(500).json({ error: 'Error al guardar comida' });
     return res.status(200).json({ ok: true });
@@ -571,6 +574,7 @@ const handlers: Record<string, RouteHandler> = {
       id: m.id, user_id: auth.userId, date: m.date, meal_type: m.mealType, name: m.name,
       calories: m.calories ?? null, notes: m.notes ?? null, linked_recipe_id: m.linkedRecipeId ?? null,
       entries: m.entries ?? [], ai_ingredients: m.aiIngredients ?? [], completed: m.completed ?? false,
+      prep_minutes: m.prepMinutes ?? null, human_portion: m.humanPortion ?? null,
     }));
     const { error } = await getSupabase().from('meals').upsert(rows);
     if (error) return res.status(500).json({ error: 'Error al guardar comidas' });
@@ -587,6 +591,8 @@ const handlers: Record<string, RouteHandler> = {
     if (meal.entries !== undefined) updates.entries = meal.entries;
     if (meal.aiIngredients !== undefined) updates.ai_ingredients = meal.aiIngredients;
     if (meal.completed !== undefined) updates.completed = meal.completed;
+    if (meal.prepMinutes !== undefined) updates.prep_minutes = meal.prepMinutes;
+    if (meal.humanPortion !== undefined) updates.human_portion = meal.humanPortion;
     const { error } = await getSupabase().from('meals').update(updates).eq('id', id).eq('user_id', auth.userId);
     if (error) return res.status(500).json({ error: 'Error al actualizar comida' });
     return res.status(200).json({ ok: true });

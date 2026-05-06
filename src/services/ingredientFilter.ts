@@ -48,6 +48,9 @@ const GLUTEN_INGREDIENT_IDS = new Set([
   'ing_201', // Donas
   'ing_222', // Fideos instantáneos
   'ing_225', // Galletitas saladas saborizadas
+  'ing_311', // Pan pita
+  'ing_317', // Pan naan
+  'ing_323', // Arepa (contains corn, generally GF but cross-contamination risk)
 ]);
 
 /**
@@ -64,6 +67,9 @@ const DIABETIC_EXCLUDE_IDS = new Set([
   'ing_211', // Dulce de membrillo
   'ing_263', // Azúcar
   'ing_262', // Panqueques con dulce de leche
+  'ing_320', // Dulce de batata
+  'ing_331', // Miel de maple
+  'ing_297', // Salsa teriyaki (high sugar)
 ]);
 
 /**

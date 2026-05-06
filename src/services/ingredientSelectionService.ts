@@ -3,6 +3,7 @@ import type {
   IngredientLevel,
   UserProfile,
   WeeklyIngredientPool,
+  Cuisine,
 } from '../types';
 import { filterIngredientsForUser } from './ingredientFilter';
 
@@ -85,7 +86,8 @@ export interface SelectionOptions {
 
 /**
  * Arma canasta semanal (~44 ids) por niveles con filtros de perfil.
- * La compatibilidad fina la refuerza la IA con subconjunto por comida.
+ * Ahora asegura diversidad de cocinas: al menos 2 cocinas en banda structural,
+ * 3+ en contextual. La compatibilidad fina la refuerza la IA con subconjunto por comida.
  */
 export function buildWeeklyIngredientPool(
   allIngredients: Ingredient[],
@@ -101,18 +103,57 @@ export function buildWeeklyIngredientPool(
     byLevel[inferIngredientLevel(ing)].push(ing);
   }
 
-  const take = (pool: Ingredient[], n: number): string[] =>
-    shuffle(pool, rng)
-      .slice(0, n)
-      .map((i) => i.id);
-
   const { structural: n1, contextual: n2, creative: n3 } = WEEKLY_POOL_COUNTS;
+
+  // Pick with cuisine diversity: ensure min cuisines represented
+  const pickDiverse = (pool: Ingredient[], n: number, minCuisines: number): string[] => {
+    if (pool.length <= n) return pool.map((i) => i.id);
+
+    // Group by cuisine
+    const byCuisine = new Map<string | undefined, Ingredient[]>();
+    for (const ing of pool) {
+      const key = ing.cuisine;
+      const group = byCuisine.get(key) ?? [];
+      group.push(ing);
+      byCuisine.set(key, group);
+    }
+
+    const shuffled = shuffle(pool, rng);
+    const selected: string[] = [];
+    const selectedCuisines = new Set<string>();
+
+    // Phase 1: pick one from each cuisine until we hit minCuisines or run out
+    const cuisineKeys = shuffle(
+      [...byCuisine.keys()].filter((k): k is string => k !== undefined),
+      rng,
+    );
+    for (const cuisine of cuisineKeys) {
+      if (selectedCuisines.size >= minCuisines) break;
+      const group = byCuisine.get(cuisine);
+      if (!group || group.length === 0) continue;
+      const pick = shuffle(group, rng)[0];
+      if (pick && !selected.includes(pick.id)) {
+        selected.push(pick.id);
+        selectedCuisines.add(cuisine);
+      }
+    }
+
+    // Phase 2: fill remaining slots from the global shuffle
+    for (const ing of shuffled) {
+      if (selected.length >= n) break;
+      if (!selected.includes(ing.id)) {
+        selected.push(ing.id);
+      }
+    }
+
+    return selected;
+  };
 
   return {
     weekId: options.weekId,
-    structural: take(byLevel[1], n1),
-    contextual: take(byLevel[2], n2),
-    creative: take(byLevel[3], n3),
+    structural: pickDiverse(byLevel[1], n1, 2),
+    contextual: pickDiverse(byLevel[2], n2, 3),
+    creative: shuffle(byLevel[3], rng).slice(0, n3).map((i) => i.id),
   };
 }
 
@@ -142,4 +183,61 @@ export function formatWeeklyPoolForPrompt(
     'CREATIVOS:',
     idLines(pool.creative),
   ].join('\n');
+}
+
+/**
+ * Analiza las comidas recientes del calendario y devuelve un string
+ * con las cocinas más usadas para inyectar en el contexto de Gemini.
+ */
+export function buildCuisineDiversityHint(
+  dayPlans: Record<string, { meals: Record<string, Array<{ aiIngredients?: Array<{ name: string }> }>> }>,
+  allIngredients: Ingredient[],
+  recentDays: number = 7,
+): string | null {
+  const nameToCuisine = new Map<string, Cuisine | undefined>();
+  for (const ing of allIngredients) {
+    nameToCuisine.set(ing.name.toLowerCase(), ing.cuisine);
+  }
+
+  const cuisineCount = new Map<string, number>();
+  const today = new Date();
+
+  for (let i = 0; i < recentDays; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const plan = dayPlans[key];
+    if (!plan) continue;
+
+    for (const meals of Object.values(plan.meals)) {
+      for (const meal of meals) {
+        if (!meal.aiIngredients) continue;
+        for (const ai of meal.aiIngredients) {
+          const cuisine = nameToCuisine.get(ai.name.toLowerCase());
+          if (cuisine) {
+            cuisineCount.set(cuisine, (cuisineCount.get(cuisine) ?? 0) + 1);
+          }
+        }
+      }
+    }
+  }
+
+  if (cuisineCount.size === 0) return null;
+
+  const sorted = [...cuisineCount.entries()].sort((a, b) => b[1] - a[1]);
+  const topCuisine = sorted[0];
+
+  if (topCuisine && topCuisine[1] >= 3) {
+    const cuisineLabels: Record<string, string> = {
+      ar: 'argentino',
+      asian: 'asiático',
+      mediterranean: 'mediterráneo',
+      latin: 'latino',
+      international: 'internacional',
+    };
+    const label = cuisineLabels[topCuisine[0]] ?? topCuisine[0];
+    return `Última semana: mucho ${label} (${topCuisine[1]} ingredientes). Priorizá otras cocinas para variar.`;
+  }
+
+  return null;
 }

@@ -16,6 +16,8 @@ export type IngredientCategory =
   | 'comidas_preparadas'
   | 'otros';
 
+export type Cuisine = 'ar' | 'asian' | 'mediterranean' | 'latin' | 'international';
+
 export const MEAL_TYPE_LABELS: Record<MealType, string> = {
   desayuno: 'Desayuno',
   almuerzo: 'Almuerzo',
@@ -64,6 +66,7 @@ export interface Ingredient extends Macros {
   id: string;
   name: string;
   category: IngredientCategory;
+  cuisine?: Cuisine;
   isCustom?: boolean;
 }
 
@@ -213,6 +216,8 @@ export interface Meal {
   entries?: CalculatorEntry[];
   aiIngredients?: AiIngredient[];
   completed?: boolean;
+  prepMinutes?: number;
+  humanPortion?: string;
 }
 
 export interface DayPlan {
@@ -456,6 +461,8 @@ export interface AiShowSummaryAction {
   type: 'show_summary';
 }
 
+/** PlannedMeal = rehydrated meal ready for display. Gemini returns dishContract, but by the time
+ *  this type is used (in WeekPlan), rehydrateRawMeal() has already resolved it to AiMeal format. */
 export type PlannedMeal = AiMeal;
 
 export interface PlannedDay {
@@ -504,6 +511,7 @@ export interface AiChatContext {
   weekDates: string[] | null;
   preferences: PlanPreferences | null;
   dishHistory?: Array<{ name: string; count: number; lastDate: string; isFavorite: boolean }> | null;
+  cuisineDiversityHint?: string | null;
 }
 
 export interface AiChatResponse {

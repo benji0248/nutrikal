@@ -338,6 +338,11 @@ export async function sendMessage(
       };
     }
 
+    if (res.status === 422) {
+      chatClientLog('sendMessage_invalid_dish_data', { fetchMs });
+      throw new Error('invalid_dish_data');
+    }
+
     throw new Error(messageFromServer);
   }
 

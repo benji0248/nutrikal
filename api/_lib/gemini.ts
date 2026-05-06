@@ -46,7 +46,173 @@ export const WEEK_FLOW_RULES = `PLAN SEMANAL (week_plan)
 - CHEAT DAY: respetá la etiqueta en las fechas (ej. domingo).
 - Cada comida lleva name, prepMinutes, humanPortion y dishContract.
 
-Cada día en "days" incluye meals.desayuno, .almuerzo, .cena, .snack; cada uno con name, prepMinutes, humanPortion y dishContract anidado.`;
+Cada día en "days" incluye meals.desayuno, .almuerzo, .cena, .snack; cada uno con name, prepMinutes, humanPortion y dishContract anidado.
+
+EJEMPLO DE week_plan (2 días, uno normal y uno cheat day):
+{
+  "text": "¡Te armé la semana! Arrancamos el lunes con comidas livianas y el domingo lo dejamos para disfrutar.",
+  "actions": [{
+    "type": "week_plan",
+    "days": [
+      {
+        "date": "2026-05-11",
+        "meals": {
+          "desayuno": {
+            "name": "Tostadas con palta y huevo",
+            "prepMinutes": 10,
+            "humanPortion": "2 tostadas",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Tostadas con palta y huevo",
+              "descripcion_humana": "Tostadas integrales con palta pisada y huevo pochado",
+              "tipo_plato": "desayuno",
+              "ingredientes": [
+                {"id": "ing_pan_integral", "rol": "base", "proporcion": 0.25},
+                {"id": "ing_palta", "rol": "grasa", "proporcion": 0.30},
+                {"id": "ing_huevo", "rol": "proteina", "proporcion": 0.30},
+                {"id": "ing_sal", "rol": "toque", "proporcion": 0.05},
+                {"id": "ing_pimienta", "rol": "toque", "proporcion": 0.05},
+                {"id": "ing_aceite_oliva", "rol": "grasa", "proporcion": 0.05}
+              ]
+            }
+          },
+          "almuerzo": {
+            "name": "Ensalada de pollo y quinoa",
+            "prepMinutes": 25,
+            "humanPortion": "1 plato grande",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Ensalada de pollo y quinoa",
+              "descripcion_humana": "Pollo grillado sobre base de quinoa con vegetales frescos",
+              "tipo_plato": "ensalada",
+              "ingredientes": [
+                {"id": "ing_pollo_pechuga", "rol": "proteina", "proporcion": 0.40},
+                {"id": "ing_quinoa", "rol": "base", "proporcion": 0.25},
+                {"id": "ing_tomate", "rol": "vegetal", "proporcion": 0.15},
+                {"id": "ing_lechuga", "rol": "vegetal_hoja", "proporcion": 0.10},
+                {"id": "ing_aceite_oliva", "rol": "grasa", "proporcion": 0.05},
+                {"id": "ing_limón", "rol": "toque", "proporcion": 0.05}
+              ]
+            }
+          },
+          "cena": {
+            "name": "Tortilla de verduras",
+            "prepMinutes": 20,
+            "humanPortion": "1 tortilla",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Tortilla de verduras",
+              "descripcion_humana": "Tortilla de huevo con zapallito y cebolla",
+              "tipo_plato": "plato_base_proteina",
+              "ingredientes": [
+                {"id": "ing_huevo", "rol": "proteina", "proporcion": 0.45},
+                {"id": "ing_zapallito", "rol": "vegetal", "proporcion": 0.30},
+                {"id": "ing_cebolla", "rol": "aromatico", "proporcion": 0.10},
+                {"id": "ing_aceite_oliva", "rol": "grasa", "proporcion": 0.10},
+                {"id": "ing_sal", "rol": "toque", "proporcion": 0.05}
+              ]
+            }
+          },
+          "snack": {
+            "name": "Yogur con frutas",
+            "prepMinutes": 3,
+            "humanPortion": "1 bowl",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Yogur con frutas",
+              "descripcion_humana": "Yogur natural con banana y frutillas",
+              "tipo_plato": "snack",
+              "ingredientes": [
+                {"id": "ing_yogur_natural", "rol": "lacteo", "proporcion": 0.60},
+                {"id": "ing_banana", "rol": "fruta_toque", "proporcion": 0.25},
+                {"id": "ing_frutilla", "rol": "fruta_toque", "proporcion": 0.15}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "date": "2026-05-17",
+        "meals": {
+          "desayuno": {
+            "name": "Pancakes con miel y frutas",
+            "prepMinutes": 15,
+            "humanPortion": "3 pancakes",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Pancakes con miel y frutas",
+              "descripcion_humana": "Pancakes esponjosos con miel y frutas de estación",
+              "tipo_plato": "desayuno",
+              "ingredientes": [
+                {"id": "ing_harina_integral", "rol": "base", "proporcion": 0.30},
+                {"id": "ing_huevo", "rol": "proteina", "proporcion": 0.25},
+                {"id": "ing_leche", "rol": "lacteo", "proporcion": 0.20},
+                {"id": "ing_miel", "rol": "endulzante", "proporcion": 0.10},
+                {"id": "ing_banana", "rol": "fruta_toque", "proporcion": 0.10},
+                {"id": "ing_mantequilla", "rol": "grasa", "proporcion": 0.05}
+              ]
+            }
+          },
+          "almuerzo": {
+            "name": "Milanesa napolitana con papas fritas",
+            "prepMinutes": 35,
+            "humanPortion": "1 milanesa con guarnición",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Milanesa napolitana con papas fritas",
+              "descripcion_humana": "Milanesa de carne con salsa, jamón y queso, acompañada de papas fritas",
+              "tipo_plato": "plato_base_proteina",
+              "ingredientes": [
+                {"id": "ing_carne_milanesa", "rol": "proteina", "proporcion": 0.40},
+                {"id": "ing_papa", "rol": "base", "proporcion": 0.25},
+                {"id": "ing_jamon", "rol": "proteina", "proporcion": 0.10},
+                {"id": "ing_queso_mozzarella", "rol": "lacteo", "proporcion": 0.10},
+                {"id": "ing_salsa_tomate", "rol": "vegetal", "proporcion": 0.08},
+                {"id": "ing_aceite_girasol", "rol": "grasa", "proporcion": 0.07}
+              ]
+            }
+          },
+          "cena": {
+            "name": "Pizza casera con rúcula",
+            "prepMinutes": 30,
+            "humanPortion": "4 porciones",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Pizza casera con rúcula",
+              "descripcion_humana": "Pizza casera con salsa, mozzarella y rúcula fresca",
+              "tipo_plato": "plato_base_cereal",
+              "ingredientes": [
+                {"id": "ing_harina", "rol": "base", "proporcion": 0.35},
+                {"id": "ing_queso_mozzarella", "rol": "lacteo", "proporcion": 0.30},
+                {"id": "ing_salsa_tomate", "rol": "vegetal", "proporcion": 0.15},
+                {"id": "ing_rucula", "rol": "vegetal_hoja", "proporcion": 0.10},
+                {"id": "ing_aceite_oliva", "rol": "grasa", "proporcion": 0.05},
+                {"id": "ing_orégano", "rol": "aromatico", "proporcion": 0.05}
+              ]
+            }
+          },
+          "snack": {
+            "name": "Helado de chocolate",
+            "prepMinutes": 0,
+            "humanPortion": "2 bochas",
+            "dishContract": {
+              "contractVersion": 1,
+              "nombre": "Helado de chocolate",
+              "descripcion_humana": "Helado cremoso de chocolate con chips",
+              "tipo_plato": "snack",
+              "ingredientes": [
+                {"id": "ing_helado_chocolate", "rol": "lacteo", "proporcion": 0.70},
+                {"id": "ing_chocolate_chips", "rol": "toque", "proporcion": 0.20},
+                {"id": "ing_crema", "rol": "lacteo", "proporcion": 0.10}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }],
+  "quickReplies": ["Cambiame el miércoles", "Más variedad"]
+}`;
 
 /** Alcance del asistente más allá del armado de semana. */
 export const GENERAL_ASSISTANT_RULES = `ROL GENERAL
@@ -58,4 +224,19 @@ ACCIONES
 - show_summary: resumen del día si aplica.
 - suggest_meals: ideas inmediatas o alternativas sin rearmar la semana entera.
 
-IDs para add_meal, swap_meal y suggest_meals: usá el CATALOGO_AMPLIO del contexto cuando esté presente.`;
+IDs para add_meal, swap_meal y suggest_meals: usá el CATALOGO_AMPLIO del contexto cuando esté presente.
+
+VARIEDAD CULTURAL
+Los ingredientes del catálogo tienen etiquetas de cocina (ar=argentino, asian=asiático, mediterranean, latin, international).
+Cuando armés platos, combiná cocinas diferentes para dar variedad. No todo tiene que ser argentino.
+Podés sugerir un wok asiático, una ensalada mediterránea, un taco latino o un plato clásico argentino.
+La CANASTA_SEMANAL ya incluye ingredientes de varias cocinas — usalos.
+
+PLATO INDIVIDUAL — REGLAS CRÍTICAS
+Cuando generés UN solo plato (no semana), la prioridad es que el dishContract sea válido:
+- contractVersion: 1 (siempre)
+- nombre: nombre del plato (no vacío)
+- ingredientes: entre 4 y 10, TODOS con IDs que existan en el catálogo del contexto
+- Cada ingrediente necesita rol culinario válido (base, proteina, vegetal, grasa, aromatico, toque, etc.)
+- Proporciones deben sumar un valor razonable (se normalizan a 1.0 automáticamente)
+- Si no estás seguro de un ID, usá uno que SÍ veas en el listado. NUNCA inventes IDs.`;

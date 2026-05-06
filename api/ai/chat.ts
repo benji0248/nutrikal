@@ -44,6 +44,7 @@ interface ChatRequestBody {
       weekRepetitionMode?: 'full_unique' | 'repeat_blocks' | 'balanced';
     } | null;
     dishHistory?: Array<{ name: string; count: number; lastDate: string; isFavorite: boolean }> | null;
+    cuisineDiversityHint?: string | null;
   };
 }
 
@@ -325,13 +326,18 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
       contextParts.push(lines.join('\n'));
     }
 
+    if (body.context.cuisineDiversityHint) {
+      contextParts.push(`DIVERSIDAD CULTURAL: ${body.context.cuisineDiversityHint}`);
+    }
+
+    const isWeekPlanRequest = Boolean(body.context.weekDates?.length);
+
     const fullSystemPrompt =
       personalizedPrompt +
       '\n\n' +
       SYSTEM_RULES_CORE +
       '\n\n' +
-      WEEK_FLOW_RULES +
-      '\n\n' +
+      (isWeekPlanRequest ? WEEK_FLOW_RULES + '\n\n' : '') +
       GENERAL_ASSISTANT_RULES +
       '\n\n' +
       contextParts.join('\n\n');
@@ -420,6 +426,95 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
     const norm = normalizeGeminiPayload(parsedRaw, trimmed);
     const { text, actions } = norm;
     let { quickReplies } = norm;
+
+    // Server-side validation of actions
+    const expectedDayCount = body.context.weekDates?.length ?? 0;
+    const validIdSet = new Set(
+      (body.catalog ?? '').split('\n').map((line: string) => line.split(':')[0]?.trim()).filter(Boolean),
+    );
+    // Also include catalogAnchor IDs
+    if (body.catalogAnchor) {
+      for (const line of body.catalogAnchor.split('\n')) {
+        const id = line.split(':')[0]?.trim();
+        if (id) validIdSet.add(id);
+      }
+    }
+
+    let totalIngredientIds = 0;
+    let invalidIngredientIds = 0;
+    const invalidIdSamples: string[] = [];
+
+    function validateDishContractIds(dc: unknown): void {
+      if (!dc || typeof dc !== 'object') return;
+      const ings = (dc as Record<string, unknown>).ingredientes;
+      if (!Array.isArray(ings)) return;
+      for (const ing of ings) {
+        if (!ing || typeof ing !== 'object') continue;
+        const id = (ing as Record<string, unknown>).id;
+        if (!id) continue;
+        totalIngredientIds++;
+        if (!validIdSet.has(String(id))) {
+          invalidIngredientIds++;
+          if (invalidIdSamples.length < 5) invalidIdSamples.push(String(id));
+        }
+      }
+    }
+
+    for (const action of actions) {
+      if (!action || typeof action !== 'object') continue;
+      const act = action as Record<string, unknown>;
+
+      if (act.type === 'week_plan' && Array.isArray(act.days)) {
+        const dayCount = act.days.length;
+        if (expectedDayCount > 0 && dayCount !== expectedDayCount) {
+          chatApiLog(reqId, 'week_plan_day_count_mismatch', {
+            expected: expectedDayCount,
+            got: dayCount,
+          });
+        }
+        for (const day of act.days) {
+          if (!day || typeof day !== 'object' || !day.meals) continue;
+          for (const meal of Object.values(day.meals)) {
+            if (!meal || typeof meal !== 'object') continue;
+            validateDishContractIds((meal as Record<string, unknown>).dishContract);
+          }
+        }
+      }
+
+      if ((act.type === 'add_meal' || act.type === 'swap_meal') && act.meal) {
+        validateDishContractIds((act.meal as Record<string, unknown>).dishContract);
+      }
+
+      if (act.type === 'suggest_meals' && Array.isArray(act.meals)) {
+        for (const meal of act.meals) {
+          if (meal && typeof meal === 'object') {
+            validateDishContractIds((meal as Record<string, unknown>).dishContract);
+          }
+        }
+      }
+    }
+
+    if (invalidIngredientIds > 0) {
+      chatApiLog(reqId, 'invalid_ingredient_ids', {
+        total: totalIngredientIds,
+        invalid: invalidIngredientIds,
+        samples: invalidIdSamples,
+      });
+    }
+
+    // Reject if >50% of ingredient IDs are invalid (forces client retry)
+    if (totalIngredientIds > 0 && invalidIngredientIds / totalIngredientIds > 0.5) {
+      chatApiLog(reqId, 'response_rejected_bad_ids', {
+        total: totalIngredientIds,
+        invalid: invalidIngredientIds,
+        ratio: Math.round((invalidIngredientIds / totalIngredientIds) * 100),
+      });
+      return res.status(422).json({
+        error: 'invalid_dish_data',
+        text: 'El plato generado tenía ingredientes inválidos. Intentá de nuevo.',
+        invalidIds: invalidIdSamples,
+      });
+    }
 
     /** Sin fechas de semana en contexto = fase 1 del plan; las opciones las dibuja la app, no Gemini. */
     if (!body.context.weekDates?.length) {

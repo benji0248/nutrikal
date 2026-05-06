@@ -51,7 +51,6 @@ const PIVOT_FROM_WEEK_PLAN_REGEX =
 
 import { createMealsBatch } from '../../services/apiService';
 import {
-  hydrateMeal,
   hydratedToAiMeal,
   getMealSlotBudget,
 } from '../../services/portionEngine';
@@ -60,7 +59,7 @@ import {
   pickDishContractFromMeal,
 } from '../../services/dishResolverService';
 import { recordWeekPlanApplied } from '../../services/signalLogService';
-import type { AiMealLite, DishContract } from '../../types';
+import type { DishContract } from '../../types';
 import {
   filterIngredientsForUser,
   buildCatalogForPrompt,
@@ -70,6 +69,7 @@ import {
   buildPoolPersonalizationSeed,
   buildWeeklyIngredientPool,
   formatWeeklyPoolForPrompt,
+  buildCuisineDiversityHint,
 } from '../../services/ingredientSelectionService';
 
 type WeekPlanPrefsState = 'idle' | 'week_collecting_prefs';
@@ -190,21 +190,9 @@ export function useChatEngine(): ChatEngineResult {
   }
 
   /**
-   * Formato lite con IDs (motor de porciones por rol nutricional).
-   */
-  function isLiteFormat(meal: unknown): meal is AiMealLite {
-    return (
-      typeof meal === 'object' &&
-      meal !== null &&
-      Array.isArray((meal as AiMealLite).ingredientIds) &&
-      (meal as AiMealLite).ingredientIds!.length > 0
-    );
-  }
-
-  /**
-   * Rehydrate a raw meal from Gemini into the legacy AiMeal format.
-   * If already in legacy format, pass through unchanged.
-   * If in lite format, use portionEngine to compute exact portions.
+   * Rehydrate a raw meal from Gemini into AiMeal format.
+   * Only accepts DishContract format — Gemini must return dishContract in every meal.
+   * Returns null if the raw meal doesn't have a valid DishContract.
    */
   function rehydrateRawMeal(
     raw: unknown,
@@ -218,51 +206,45 @@ export function useChatEngine(): ChatEngineResult {
     const allowedIds = new Set(allIngredients.map((i) => i.id));
 
     const dc = pickDishContractFromMeal(raw);
-    if (dc) {
-      const nameTop =
-        typeof (raw as { name?: string }).name === 'string'
-          ? (raw as { name: string }).name.trim()
-          : '';
-      const mergedContract: DishContract = {
-        ...dc,
-        nombre: dc.nombre.trim() || nameTop || 'Comida',
-      };
-      const resolved = resolveDishContract(
-        mergedContract,
-        slotBudget,
-        allIngredients,
-        allowedIds,
-      );
-      if (resolved.ok) {
-        const prep = (raw as { prepMinutes?: number }).prepMinutes;
-        const portion = (raw as { humanPortion?: string }).humanPortion;
-        return hydratedToAiMeal({
-          ...resolved.hydrated,
-          prepMinutes: prep,
-          humanPortion: portion,
-        });
-      }
+    if (!dc) {
+      chatClientLog('rehydrate_no_dishContract', {
+        keys: Object.keys(raw as Record<string, unknown>).join(','),
+        mealType,
+      });
+      return null;
     }
 
-    if (isLiteFormat(raw)) {
-      const hydrated = hydrateMeal(raw, slotBudget, allIngredients);
-      return hydratedToAiMeal(hydrated);
+    const nameTop =
+      typeof (raw as { name?: string }).name === 'string'
+        ? (raw as { name: string }).name.trim()
+        : '';
+    const mergedContract: DishContract = {
+      ...dc,
+      nombre: dc.nombre.trim() || nameTop || 'Comida',
+    };
+    const resolved = resolveDishContract(
+      mergedContract,
+      slotBudget,
+      allIngredients,
+      allowedIds,
+    );
+
+    if (!resolved.ok) {
+      chatClientLog('rehydrate_resolve_failed', {
+        reason: resolved.reason,
+        mealType,
+        nombre: mergedContract.nombre,
+      });
+      return null;
     }
 
-    // Legacy format — validate required fields before casting
-    const legacy = raw as Record<string, unknown>;
-    if (
-      typeof legacy.name === 'string' &&
-      Array.isArray(legacy.ingredients) &&
-      typeof legacy.totalKcal === 'number'
-    ) {
-      return raw as AiMeal;
-    }
-
-    chatClientLog('rehydrate_unknown_format', {
-      keys: Object.keys(legacy).join(','),
+    const prep = (raw as { prepMinutes?: number }).prepMinutes;
+    const portion = (raw as { humanPortion?: string }).humanPortion;
+    return hydratedToAiMeal({
+      ...resolved.hydrated,
+      prepMinutes: prep,
+      humanPortion: portion,
     });
-    return null;
   }
 
   function aiMealToCalendarMeal(aiMeal: AiMeal) {
@@ -271,13 +253,27 @@ export function useChatEngine(): ChatEngineResult {
       name: aiMeal.name,
       calories: aiMeal.totalKcal,
       aiIngredients: aiMeal.ingredients,
+      prepMinutes: aiMeal.prepMinutes,
+      humanPortion: aiMeal.humanPortion,
     };
   }
 
-  function executeActions(actions: AiAction[]) {
+  interface ActionFailure {
+    actionType: string;
+    mealName?: string;
+    reason: string;
+  }
+
+  interface ExecuteActionsResult {
+    failures: ActionFailure[];
+  }
+
+  function executeActions(actions: AiAction[]): ExecuteActionsResult {
+    const failures: ActionFailure[] = [];
+
     if (!Array.isArray(actions)) {
       chatClientLog('executeActions_skip', { reason: 'not_array' });
-      return;
+      return { failures };
     }
 
     chatClientLog('executeActions_start', { count: actions.length });
@@ -289,11 +285,17 @@ export function useChatEngine(): ChatEngineResult {
         case 'add_meal':
         case 'swap_meal': {
           const rawMeal = action.meal;
-          if (!rawMeal) break;
+          if (!rawMeal) {
+            failures.push({ actionType: action.type, reason: 'no_meal_in_action' });
+            break;
+          }
 
-          // Rehydrate: lite format → full AiMeal with exact portions
           const aiMeal = rehydrateRawMeal(rawMeal, action.mealType);
-          if (!aiMeal) break;
+          if (!aiMeal) {
+            const mealName = (rawMeal as { name?: string }).name ?? 'desconocido';
+            failures.push({ actionType: action.type, mealName, reason: 'rehydrate_failed' });
+            break;
+          }
 
           if (action.type === 'swap_meal') {
             const currentPlan = useCalendarStore.getState().dayPlans[action.date];
@@ -320,6 +322,7 @@ export function useChatEngine(): ChatEngineResult {
           const rawDays = (action as { days?: unknown }).days;
           if (!Array.isArray(rawDays) || rawDays.length === 0) {
             chatClientLog('week_plan_skip', { reason: 'bad_days' });
+            failures.push({ actionType: 'week_plan', reason: 'bad_days' });
             break;
           }
 
@@ -331,15 +334,17 @@ export function useChatEngine(): ChatEngineResult {
           );
           if (validDays.length === 0) {
             chatClientLog('week_plan_skip', { reason: 'no_valid_days' });
+            failures.push({ actionType: 'week_plan', reason: 'no_valid_days' });
             break;
           }
 
           chatClientLog('week_plan_build', { dayCount: validDays.length });
 
-          // Rehydrate all meals in the week plan before displaying
+          let totalMeals = 0;
+          let failedMeals = 0;
+
           const rehydratedDays: PlannedDay[] = validDays.map((day) => {
             const rehydratedMeals: Partial<Record<MealType, PlannedMeal>> = {};
-            // Determine if this is a cheat day (Sunday)
             const dayDate = new Date(day.date + 'T12:00:00');
             const isSunday = dayDate.getDay() === 0;
             const dayBudget = isSunday ? budget + 1000 : budget;
@@ -348,13 +353,28 @@ export function useChatEngine(): ChatEngineResult {
             for (const mt of MEAL_TYPE_ORDER) {
               const rawMeal = mealsBlock[mt];
               if (!rawMeal) continue;
+              totalMeals++;
               const aiMeal = rehydrateRawMeal(rawMeal, mt, dayBudget);
               if (aiMeal) {
                 rehydratedMeals[mt] = aiMeal;
+              } else {
+                failedMeals++;
               }
             }
             return { date: day.date, meals: rehydratedMeals };
           });
+
+          if (failedMeals > 0 && totalMeals > 0) {
+            const failRatio = failedMeals / totalMeals;
+            chatClientLog('week_plan_partial_fail', { totalMeals, failedMeals, failRatio });
+
+            if (failRatio >= 0.5) {
+              failures.push({
+                actionType: 'week_plan',
+                reason: `too_many_failures: ${failedMeals}/${totalMeals}`,
+              });
+            }
+          }
 
           const weekPlan: WeekPlan = { days: rehydratedDays, applied: false };
 
@@ -373,19 +393,32 @@ export function useChatEngine(): ChatEngineResult {
 
         case 'suggest_meals': {
           if (action.meals && action.meals.length > 0) {
-            // Rehydrate suggested meals (default to 'almuerzo' slot budget)
-            const rehydratedSuggestions = action.meals.map((rawMeal) => {
+            const rehydratedSuggestions: Array<AiMeal & { reason: string }> = [];
+            let suggestFailed = 0;
+
+            for (const rawMeal of action.meals) {
               const aiMeal = rehydrateRawMeal(rawMeal, 'almuerzo');
               const reason = 'reason' in rawMeal ? (rawMeal as AiMeal & { reason: string }).reason : '';
-              return aiMeal ? { ...aiMeal, reason } : { ...rawMeal as AiMeal, reason };
-            });
+              if (aiMeal) {
+                rehydratedSuggestions.push({ ...aiMeal, reason });
+              } else {
+                suggestFailed++;
+              }
+            }
 
-            addMessages({
-              id: makeId(),
-              type: 'assistant-meals',
-              mealSuggestions: rehydratedSuggestions,
-              timestamp: new Date().toISOString(),
-            });
+            if (rehydratedSuggestions.length === 0 && suggestFailed > 0) {
+              failures.push({
+                actionType: 'suggest_meals',
+                reason: `all_suggestions_failed: ${suggestFailed}`,
+              });
+            } else if (rehydratedSuggestions.length > 0) {
+              addMessages({
+                id: makeId(),
+                type: 'assistant-meals',
+                mealSuggestions: rehydratedSuggestions,
+                timestamp: new Date().toISOString(),
+              });
+            }
           }
           break;
         }
@@ -429,16 +462,20 @@ export function useChatEngine(): ChatEngineResult {
         timestamp: new Date().toISOString(),
       });
     }
+
+    return { failures };
   }
 
   async function sendToAi(
     text: string,
     extraWeekDates?: string[] | null,
     extraPreferences?: PlanPreferences | null,
+    opts?: { isRetry?: boolean },
   ) {
     if (!profile) return;
     if (sendingLockRef.current) return;
     sendingLockRef.current = true;
+    const isRetry = opts?.isRetry ?? false;
 
     const isWeekIntent = WEEK_PLAN_USER_INTENT_REGEX.test(text);
 
@@ -522,6 +559,14 @@ export function useChatEngine(): ChatEngineResult {
         weekDates,
         favorites: useHistorialStore.getState().favorites,
       });
+
+      // Add cuisine diversity hint for week plan variety
+      if (weekDates && weekDates.length > 0) {
+        context.cuisineDiversityHint = buildCuisineDiversityHint(
+          useCalendarStore.getState().dayPlans,
+          allIngredients,
+        );
+      }
 
       // Only build and send catalogs when Gemini might need to generate food
       const needsCatalog =
@@ -631,7 +676,45 @@ export function useChatEngine(): ChatEngineResult {
       }
 
       if (actionsToRun.length > 0) {
-        executeActions(actionsToRun);
+        const { failures } = executeActions(actionsToRun);
+
+        if (failures.length > 0 && !isRetry) {
+          chatClientLog('retry_triggered', {
+            failureCount: failures.length,
+            reasons: failures.map((f) => f.reason).join('; '),
+          });
+
+          const failureSummary = failures
+            .map((f) => f.mealName ? `${f.actionType}: "${f.mealName}"` : f.actionType)
+            .join(', ');
+
+          addMessages({
+            id: makeId(),
+            type: 'assistant-text',
+            text: 'Algún plato no salió bien. Déjame intentarlo de nuevo...',
+            timestamp: new Date().toISOString(),
+          });
+
+          const correctionMsg = `Tu respuesta anterior tuvo problemas: ${failureSummary}. ` +
+            `Regenerá usando SOLO IDs del catálogo de ingredientes. ` +
+            `Asegurate de que cada comida tenga un dishContract válido con contractVersion: 1, ` +
+            `nombre, y al menos 4 ingredientes con IDs que existan en el listado.`;
+
+          sendingLockRef.current = false;
+          setIsLoading(false);
+          sendToAi(correctionMsg, extraWeekDates, extraPreferences, { isRetry: true });
+          return;
+        }
+
+        if (failures.length > 0 && isRetry) {
+          chatClientLog('retry_still_failed', { failureCount: failures.length });
+          addMessages({
+            id: makeId(),
+            type: 'assistant-text',
+            text: 'No pude generar algunos platos. Probá de nuevo o pedime algo diferente.',
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
 
       if (quickRepliesToShow.length > 0) {
@@ -648,9 +731,23 @@ export function useChatEngine(): ChatEngineResult {
         });
       }
     } catch (err) {
-      chatClientLogError('sendToAi_catch', err, { loadingId });
+      chatClientLogError('sendToAi_catch', err, { loadingId, isRetry });
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+
+      if (err instanceof Error && err.message === 'invalid_dish_data' && !isRetry) {
+        chatClientLog('retry_on_422', {});
+        sendingLockRef.current = false;
+        setIsLoading(false);
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: 'El plato tuvo problemas. Déjame intentarlo de nuevo...',
+          timestamp: new Date().toISOString(),
+        });
+        sendToAi(text, extraWeekDates, extraPreferences, { isRetry: true });
+        return;
+      }
 
       const fallback =
         err instanceof Error && err.message === 'Not authenticated'
@@ -723,7 +820,8 @@ export function useChatEngine(): ChatEngineResult {
     const calendarStore = useCalendarStore.getState();
     const shoppingStore = useShoppingStore.getState();
     const allAiMeals: AiMeal[] = [];
-    const batchMeals: Array<{ date: string; mealType: MealType; id: string; name: string; calories?: number; aiIngredients?: unknown[] }> = [];
+    const batchMeals: Array<{ date: string; mealType: MealType; id: string; name: string; calories?: number; aiIngredients?: unknown[]; prepMinutes?: number; humanPortion?: string }> = [];
+    const mealsForStore: Array<{ date: string; mealType: MealType; meal: import('../../types').Meal }> = [];
 
     for (const day of plan.days) {
       for (const mt of MEAL_TYPE_ORDER) {
@@ -731,8 +829,7 @@ export function useChatEngine(): ChatEngineResult {
         if (!planned) continue;
 
         const calMeal = aiMealToCalendarMeal(planned);
-        // Update local state immediately (optimistic)
-        calendarStore.upsertMeal(day.date, mt, calMeal);
+        mealsForStore.push({ date: day.date, mealType: mt, meal: calMeal });
         allAiMeals.push(planned);
         batchMeals.push({
           date: day.date,
@@ -741,9 +838,14 @@ export function useChatEngine(): ChatEngineResult {
           name: calMeal.name,
           calories: calMeal.calories,
           aiIngredients: calMeal.aiIngredients,
+          prepMinutes: calMeal.prepMinutes,
+          humanPortion: calMeal.humanPortion,
         });
       }
     }
+
+    // Update Zustand state in one batch (no individual API calls)
+    calendarStore.bulkUpsertMeals(mealsForStore);
 
     // Batch persist all meals in one request
     createMealsBatch(batchMeals).catch(console.error);

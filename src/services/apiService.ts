@@ -159,6 +159,7 @@ export interface BatchLoadResponse {
     id: string; date: string; mealType: MealType; name: string;
     calories: number | null; notes: string | null; linkedRecipeId: string | null;
     entries: unknown[]; aiIngredients: unknown[]; completed: boolean;
+    prepMinutes?: number | null; humanPortion?: string | null;
   }>;
   dayNotes: Array<{ date: string; notes: string }>;
   profile: UserProfile | null;
@@ -183,7 +184,7 @@ export async function createMeal(date: string, mealType: MealType, meal: Meal): 
 }
 
 export async function createMealsBatch(
-  meals: Array<{ date: string; mealType: MealType; id: string; name: string; calories?: number; aiIngredients?: unknown[]; entries?: unknown[] }>,
+  meals: Array<{ date: string; mealType: MealType; id: string; name: string; calories?: number; aiIngredients?: unknown[]; entries?: unknown[]; prepMinutes?: number; humanPortion?: string }>,
 ): Promise<void> {
   await post('/api/meals/batch', { meals });
 }
