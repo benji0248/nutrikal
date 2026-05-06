@@ -222,13 +222,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Build situational context
     const contextParts: string[] = [];
+    const isWeekPlan = Boolean(body.context.weekDates?.length);
+    const hasPool = Boolean(body.catalogAnchor?.trim());
+    const hasFull = Boolean(body.catalog?.trim());
+    const isLightQuery = !isWeekPlan && !hasFull && hasPool;
 
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
 
-    const hasPool = Boolean(body.catalogAnchor?.trim());
-    const hasFull = Boolean(body.catalog?.trim());
-
-    if (hasPool && hasFull) {
+    if (isLightQuery) {
+      // Light mode: single dish — just the anchor pool, minimal context
+      contextParts.push(
+        `INGREDIENTES (usá solo estos IDs para esta comida):\n${body.catalogAnchor}`,
+      );
+    } else if (hasPool && hasFull) {
       contextParts.push(
         `INGREDIENTES — DOS FUENTES (no mezcles reglas):\n` +
           `1) CANASTA_SEMANAL — única fuente de IDs para la acción week_plan (toda la semana). Combiná items de las tres bandas (estructurales, contextuales, creativos) para platos con sentido culinario (ej. base + proteína + vegetales + grasa/condimento).\n` +
@@ -242,7 +248,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       contextParts.push(`INGREDIENTES (canasta semanal):\n${body.catalogAnchor}`);
     }
 
-    if (body.context.weekDates && body.context.weekDates.length > 0) {
+    if (isLightQuery) {
+      // Single dish: skip all heavy context (dates, week plan, summary, history, preferences)
+      // Only keep today's plan if relevant
+    } else if (body.context.weekDates && body.context.weekDates.length > 0) {
       const dates = body.context.weekDates;
       const daysOfWeek = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
       const datesWithDay = dates.map((d) => {
@@ -330,14 +339,12 @@ ${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición ante
       contextParts.push(`DIVERSIDAD CULTURAL: ${body.context.cuisineDiversityHint}`);
     }
 
-    const isWeekPlanRequest = Boolean(body.context.weekDates?.length);
-
     const fullSystemPrompt =
       personalizedPrompt +
       '\n\n' +
       SYSTEM_RULES_CORE +
       '\n\n' +
-      (isWeekPlanRequest ? WEEK_FLOW_RULES + '\n\n' : '') +
+      (isWeekPlan ? WEEK_FLOW_RULES + '\n\n' : '') +
       GENERAL_ASSISTANT_RULES +
       '\n\n' +
       contextParts.join('\n\n');

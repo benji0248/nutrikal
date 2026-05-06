@@ -549,6 +549,10 @@ export function useChatEngine(): ChatEngineResult {
         extra: extraPreferences ?? null,
       });
 
+      const isWeekFlow = isWeekIntent || weekPlanPrefsRef.current === 'week_collecting_prefs' || Boolean(weekDates?.length);
+      const isSingleFoodQuery = !isWeekFlow &&
+        /dame|quiero|suger[ií]|recomend[aá]|qu[eé]\s+(como|ceno|almuerzo|desayuno|meriendo|com[oeo])|cambi(a|á)me|swap|cena|almuerzo|desayuno|merienda|snack|comida|plato|receta/i.test(text);
+
       const context = buildContext({
         profile,
         dailyBudget: budget,
@@ -558,6 +562,7 @@ export function useChatEngine(): ChatEngineResult {
         preferences: prefsForChat,
         weekDates,
         favorites: useHistorialStore.getState().favorites,
+        isLightQuery: isSingleFoodQuery,
       });
 
       // Add cuisine diversity hint for week plan variety
@@ -568,21 +573,13 @@ export function useChatEngine(): ChatEngineResult {
         );
       }
 
-      // Only build and send catalogs when Gemini might need to generate food
-      const needsCatalog =
-        isWeekIntent ||
-        weekPlanPrefsRef.current === 'week_collecting_prefs' ||
-        Boolean(weekDates?.length) ||
-        /cambi(a|á)me|swap|sugeri|recomen|qué\s+(como|ceno|desayuno|meriendo)|almuerzo|cena|desayuno|merienda|snack|comida|plato|receta/i.test(text);
-
       let catalogFull = '';
       let catalogAnchor = '';
-      if (needsCatalog) {
-        const anchorWeekId =
-          weekDates && weekDates.length > 0
-            ? isoWeekIdFromYmd(weekDates[0])
-            : isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd'));
-
+      if (isWeekFlow) {
+        // Week plan: full catalog + weekly pool with cuisine diversity
+        const anchorWeekId = weekDates && weekDates.length > 0
+          ? isoWeekIdFromYmd(weekDates[0])
+          : isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd'));
         const filtered = filterIngredientsForUser(allIngredients, profile);
         catalogFull = catalogToPromptString(buildCatalogForPrompt(filtered));
         const personalizationSeed = buildPoolPersonalizationSeed(
@@ -594,6 +591,13 @@ export function useChatEngine(): ChatEngineResult {
           personalizationSeed,
         });
         catalogAnchor = formatWeeklyPoolForPrompt(weeklyPool, allIngredients);
+      } else if (isSingleFoodQuery) {
+        // Single dish: only weekly pool as light catalog (44 curated ingredients is plenty for 1 dish)
+        const pool = buildWeeklyIngredientPool(allIngredients, profile, {
+          weekId: isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd')),
+          personalizationSeed: `${profile.name ?? ''}|`,
+        });
+        catalogAnchor = formatWeeklyPoolForPrompt(pool, allIngredients);
       }
 
       const response = await sendMessage(

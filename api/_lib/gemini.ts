@@ -226,22 +226,15 @@ ACCIONES
 - show_summary: resumen del día si aplica.
 - suggest_meals: ideas inmediatas o alternativas sin rearmar la semana entera.
 
-IDs para add_meal, swap_meal y suggest_meals: usá el CATALOGO_AMPLIO del contexto cuando esté presente.
+PLATO INDIVIDUAL — REGLAS CRÍTICAS
+Cuando generés UN solo plato, el dishContract debe ser válido:
+- contractVersion: 1
+- nombre: nombre del plato
+- ingredientes: 4-10, con IDs reales del catálogo. Cada uno: id, rol (base, proteina, vegetal, grasa, aromatico, toque, lacteo, etc.), proporcion
+- Proporciones almuerzo/cena: proteina 0.35-0.50. Desayuno/merienda: base max 0.25
+- REGLA DE ORO: si mencionás una comida en "text", DEBE estar en "actions"
+
+IDs para add_meal, swap_meal y suggest_meals: usá los INGREDIENTES del contexto.
 
 VARIEDAD CULTURAL
-Los ingredientes del catálogo tienen etiquetas de cocina (ar=argentino, asian=asiático, mediterranean, latin, international).
-Cuando armés platos, combiná cocinas diferentes para dar variedad. No todo tiene que ser argentino.
-Podés sugerir un wok asiático, una ensalada mediterránea, un taco latino o un plato clásico argentino.
-La CANASTA_SEMANAL ya incluye ingredientes de varias cocinas — usalos.
-
-PLATO INDIVIDUAL — REGLAS CRÍTICAS
-Cuando generés UN solo plato (no semana), la prioridad es que el dishContract sea válido:
-- contractVersion: 1 (siempre)
-- nombre: nombre del plato (no vacío)
-- ingredientes: entre 4 y 10, TODOS con IDs que existan en el catálogo del contexto
-- Cada ingrediente necesita rol culinario válido (base, proteina, vegetal, grasa, aromatico, toque, etc.)
-- Proporciones deben sumar un valor razonable (se normalizan a 1.0 automáticamente)
-- Si no estás seguro de un ID, usá uno que SÍ veas en el listado. NUNCA inventes IDs.
-
-REGLA DE ORO — SIEMPRE INCLUÍ LA ACCIÓN
-Si el usuario te pide una comida, idea o sugerencia ("¿Qué como hoy?", "Dame una cena", "¿Qué meriendo?"), OBLIGATORIO incluir al menos UNA acción (suggest_meals, add_meal o swap_meal) con el plato que mencionaste. Prohibido solo dar texto sin acción cuando hablás de comida. Si decís "te armé una pechuga con verduras", esa pechuga DEBE estar en actions.`;
+Los ingredientes tienen etiquetas de cocina (ar=argentino, asian=asiático, mediterranean, latin, international). Combiná cocinas diferentes para dar variedad.`;
