@@ -386,13 +386,6 @@ export interface IngredientPortion {
 
 // ── Chat types ──
 
-export type ChatStep =
-  | 'welcome'
-  | 'meal_selected'
-  | 'dish_selected'
-  | 'confirmed'
-  | 'day_summary';
-
 export type ChatMessageType =
   | 'assistant-text'
   | 'assistant-options'

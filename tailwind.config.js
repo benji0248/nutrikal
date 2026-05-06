@@ -9,11 +9,9 @@ export default {
         surface2: 'var(--surface2)',
         border: 'var(--border)',
         accent: 'var(--accent)',
-        secondary: 'var(--secondary)',
         pink: '#ff6b9d',
         green: '#34d399',
         amber: '#fbbf24',
-        'warm-orange': '#f97316',
         muted: 'var(--muted)',
         'text-primary': 'var(--text-primary)',
         'text-muted': 'var(--muted)',
@@ -23,15 +21,11 @@ export default {
         body: ['"Plus Jakarta Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
-      borderRadius: {
-        '4xl': '2rem',
-        '5xl': '2.5rem',
-      },
+      borderRadius: {},
       animation: {
         'slide-up': 'slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
         'fade-in': 'fadeIn 0.18s ease-out',
         'scale-tap': 'scaleTap 0.12s ease-out',
-        shimmer: 'shimmer 1.5s infinite',
       },
       keyframes: {
         slideUp: {
@@ -46,10 +40,6 @@ export default {
           '0%': { transform: 'scale(1)' },
           '50%': { transform: 'scale(0.96)' },
           '100%': { transform: 'scale(1)' },
-        },
-        shimmer: {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(100%)' },
         },
       },
     },

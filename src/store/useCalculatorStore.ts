@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CalculatorEntry, CalculatorRecipe, Ingredient, Macros } from '../types';
+import type { CalculatorEntry, CalculatorRecipe, Ingredient } from '../types';
 import { computeTotalMacros } from '../utils/macroHelpers';
 import { generateId } from '../utils/dateHelpers';
 import * as api from '../services/apiService';
@@ -10,7 +10,6 @@ interface CalculatorState {
   activeRecipeId: string | null;
   calculatorMode: 'freeform' | 'recipe';
   recipeName: string;
-  isLoading: boolean;
 
   addEntry: (ingredientId: string, grams: number) => void;
   updateEntryGrams: (ingredientId: string, grams: number) => void;
@@ -20,8 +19,6 @@ interface CalculatorState {
   setRecipeName: (name: string) => void;
   saveCurrentAsRecipe: (name: string, allIngredients: Ingredient[]) => void;
   loadRecipe: (id: string) => void;
-  deleteRecipe: (id: string) => void;
-  getTotals: (allIngredients: Ingredient[]) => Macros;
   hydrateRecipes: (recipes: CalculatorRecipe[]) => void;
 }
 
@@ -31,7 +28,6 @@ export const useCalculatorStore = create<CalculatorState>()((set, get) => ({
   activeRecipeId: null,
   calculatorMode: 'freeform',
   recipeName: '',
-  isLoading: false,
 
   addEntry: (ingredientId, grams) =>
     set((state) => {
@@ -93,19 +89,6 @@ export const useCalculatorStore = create<CalculatorState>()((set, get) => ({
         calculatorMode: 'recipe',
       };
     }),
-
-  deleteRecipe: (id) => {
-    set((state) => ({
-      savedRecipes: state.savedRecipes.filter((r) => r.id !== id),
-      activeRecipeId: state.activeRecipeId === id ? null : state.activeRecipeId,
-    }));
-    api.deleteCalculatorRecipe(id).catch(console.error);
-  },
-
-  getTotals: (allIngredients) => {
-    const state = get();
-    return computeTotalMacros(state.entries, allIngredients);
-  },
 
   hydrateRecipes: (recipes) => {
     set({ savedRecipes: recipes });

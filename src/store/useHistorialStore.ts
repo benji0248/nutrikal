@@ -9,7 +9,6 @@ interface DishFrequency {
 
 interface HistorialState {
   favorites: string[];
-  isLoading: boolean;
   toggleFavorite: (dishName: string) => void;
   isFavorite: (dishName: string) => boolean;
   getFrequencyMap: () => Map<string, DishFrequency>;
@@ -18,7 +17,6 @@ interface HistorialState {
 
 export const useHistorialStore = create<HistorialState>()((set, get) => ({
   favorites: [],
-  isLoading: false,
 
   toggleFavorite: (dishName: string) => {
     const current = get().favorites;

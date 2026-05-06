@@ -7,7 +7,6 @@ const MAX_ENTRIES = 800;
 
 interface IngredientSignalState {
   entries: IngredientSignalEntry[];
-  isLoading: boolean;
   /** Reemplaza desde batch-load del servidor */
   hydrateSignals: (entries: IngredientSignalEntry[]) => void;
   /** Una o más filas; un solo POST al server */
@@ -16,7 +15,6 @@ interface IngredientSignalState {
 
 export const useIngredientSignalStore = create<IngredientSignalState>()((set, get) => ({
   entries: [],
-  isLoading: false,
 
   hydrateSignals: (incoming) => {
     set({ entries: Array.isArray(incoming) ? incoming : [] });

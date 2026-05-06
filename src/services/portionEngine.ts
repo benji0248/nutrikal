@@ -98,7 +98,7 @@ export function classifyMacroRole(ingredient: Ingredient): MacroRole {
  * @param allIngredients - Full ingredient database
  * @returns Array of HydratedIngredient with exact grams
  */
-export function computePortions(
+function computePortions(
   ingredientIds: string[],
   mealBudgetKcal: number,
   allIngredients: Ingredient[],
@@ -224,27 +224,6 @@ export function hydrateMeal(
     prepMinutes: mealLite.prepMinutes,
     humanPortion: mealLite.humanPortion,
   };
-}
-
-/**
- * Hydrate a full day of meals. Distributes dailyBudget across slots.
- */
-export function hydrateDayMeals(
-  meals: Partial<Record<MealType, AiMealLite>>,
-  dailyBudget: number,
-  allIngredients: Ingredient[],
-): Partial<Record<MealType, HydratedMeal>> {
-  const result: Partial<Record<MealType, HydratedMeal>> = {};
-
-  for (const mealType of Object.keys(meals) as MealType[]) {
-    const lite = meals[mealType];
-    if (!lite) continue;
-
-    const slotBudget = Math.floor(dailyBudget * SLOT_PERCENTAGES[mealType]);
-    result[mealType] = hydrateMeal(lite, slotBudget, allIngredients);
-  }
-
-  return result;
 }
 
 /**

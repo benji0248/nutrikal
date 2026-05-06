@@ -1,7 +1,7 @@
 import type { HydratedIngredient, Ingredient, MacroRole } from '../types';
 
 /** Gramos mostrados en múltiplos de este paso (redondeo hacia abajo). */
-export const GRAM_DISPLAY_STEP = 5;
+const GRAM_DISPLAY_STEP = 5;
 
 export function floorGramsToStep(
   grams: number,

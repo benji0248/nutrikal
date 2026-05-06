@@ -55,7 +55,7 @@ function kcalPerGram(ing: Ingredient): number {
  * Filtra IDs desconocidos, descarta proporciones no positivas, renormaliza a suma 1.
  * Ajusta topes blandos de aromatic / toque / endulzante antes de normalizar.
  */
-export function normalizeDishContract(
+function normalizeDishContract(
   raw: DishContract,
   allowedIds: Set<string>,
 ): DishContractIngredient[] {
@@ -200,7 +200,7 @@ function clampAndRepair(
   return hydrated;
 }
 
-export function isDishContractShape(x: unknown): x is DishContract {
+function isDishContractShape(x: unknown): x is DishContract {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
   if (typeof o.contractVersion !== 'number') return false;

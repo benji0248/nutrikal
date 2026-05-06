@@ -65,7 +65,7 @@ export function gramsToHumanPortion(
   return `${formatted} ${portion.unitPlural}`;
 }
 
-export interface HumanIngredient {
+interface HumanIngredient {
   name: string;
   humanPortion: string;
 }

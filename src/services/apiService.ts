@@ -188,16 +188,8 @@ export async function createMealsBatch(
   await post('/api/meals/batch', { meals });
 }
 
-export async function updateMeal(id: string, meal: Partial<Meal>): Promise<void> {
-  await put(`/api/meals/${encodeURIComponent(id)}`, { meal });
-}
-
 export async function deleteMeal(id: string): Promise<void> {
   await del(`/api/meals/${encodeURIComponent(id)}`);
-}
-
-export async function toggleMealCompleted(id: string): Promise<{ completed: boolean }> {
-  return patch(`/api/meals/${encodeURIComponent(id)}/toggle`);
 }
 
 // ── Day Notes ──
@@ -217,42 +209,16 @@ export async function loadProfile(): Promise<UserProfile | null> {
   return data.profile;
 }
 
-// ── Notifications ──
-
-export async function createNotification(notification: Notification): Promise<void> {
-  await post('/api/notifications', { notification });
-}
-
-export async function deleteNotification(id: string): Promise<void> {
-  await del(`/api/notifications/${encodeURIComponent(id)}`);
-}
-
-export async function toggleNotification(id: string): Promise<{ enabled: boolean }> {
-  return patch(`/api/notifications/${encodeURIComponent(id)}/toggle`);
-}
-
 // ── Calculator Recipes ──
 
 export async function saveCalculatorRecipe(recipe: CalculatorRecipe): Promise<void> {
   await post('/api/recipes/calculator', { recipe });
 }
 
-export async function deleteCalculatorRecipe(id: string): Promise<void> {
-  await del(`/api/recipes/calculator/${encodeURIComponent(id)}`);
-}
-
 // ── Custom Ingredients ──
 
 export async function createCustomIngredient(ingredient: Ingredient): Promise<void> {
   await post('/api/ingredients/custom', { ingredient });
-}
-
-export async function updateCustomIngredient(id: string, ingredient: Partial<Ingredient>): Promise<void> {
-  await put(`/api/ingredients/custom/${encodeURIComponent(id)}`, { ingredient });
-}
-
-export async function deleteCustomIngredient(id: string): Promise<void> {
-  await del(`/api/ingredients/custom/${encodeURIComponent(id)}`);
 }
 
 // ── Custom Dishes ──
@@ -285,10 +251,6 @@ export async function deleteShoppingList(id: string): Promise<void> {
 
 export async function toggleShoppingItem(listId: string, itemId: string): Promise<{ checked: boolean }> {
   return patch(`/api/shopping/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}/toggle`);
-}
-
-export async function clearCheckedItems(listId: string): Promise<void> {
-  await del(`/api/shopping/${encodeURIComponent(listId)}/checked`);
 }
 
 // ── Settings ──

@@ -61,7 +61,7 @@ Three states only. Never red.
 - clsx + tailwind-merge (className composition)
 - @google/generative-ai (Gemini AI — ONLY in `api/_lib/gemini.ts` and `api/_lib/embeddings.ts`)
 - pgvector (Supabase extension — dish embeddings for semantic search)
-- Fonts: @fontsource/syne, @fontsource/plus-jakarta-sans, @fontsource/jetbrains-mono, @fontsource/inter
+- Fonts: @fontsource/plus-jakarta-sans, @fontsource/jetbrains-mono
 
 ---
 
@@ -97,42 +97,37 @@ nutrikal/
 │   │   ├── embed.ts              POST — store dish embeddings async (fire-and-forget)
 │   │   └── search.ts             POST — semantic dish search via pgvector RPC
 │   └── data/
-│       ├── load.ts               GET — load user data from Supabase
-│       └── save.ts               PUT — save user data to Supabase
+│       └── batch-load.ts          GET — load all user data from Supabase
 ├── src/
 │   ├── components/
-│   │   ├── assistant/            ChatAssistant, ChatHeader, ChatMessageBubble,
+│   │   ├── assistant/            ChatAssistant, ChatMessageBubble,
 │   │   │                         OptionChips, DishCard, DishSearch,
 │   │   │                         DayEnergyBar, useChatEngine (hook)
 │   │   ├── auth/                 LoginScreen, RegisterScreen, LoadingScreen, UserMenu
 │   │   ├── calendar/             WeekView, MonthView, DayCard, DayView
 │   │   ├── layout/               BottomNav, Sidebar
-│   │   ├── meals/                MealSlot, MealForm, RecipeBank
+│   │   ├── meals/                MealSlot, MealForm
 │   │   ├── planner/              WeekPlanner, PlanReviewGrid, PlanMealCell, PlanAppliedView
 │   │   ├── profile/              ProfileSetup, ActivityLevel, DietaryPrefs, ProfileRecalibrate
 │   │   ├── shopping/             ShoppingList, ShoppingItem, ShoppingExport
 │   │   └── ui/                   Button, Input, Badge, Modal, BottomSheet,
-│   │                             SyncIndicator, ThemeToggle
+│   │                             ThemeToggle
 │   ├── data/
 │   │   ├── ingredients.ts        ~287 Argentine ingredients, per 100g macros
-│   │   ├── dishes.ts             ~80 Argentine dishes with ingredients + instructions
 │   │   └── ingredientPortions.ts human-readable portion lookup table
 │   ├── hooks/
-│   │   ├── useLocalStorage.ts    generic key-value with JSON parse safety
 │   │   ├── useSwipe.ts           touch swipe detection, returns ref
 │   │   └── useTheme.ts           system pref + localStorage persist
 │   ├── services/
 │   │   ├── apiService.ts         Auth + data load/save API calls
 │   │   ├── aiService.ts          AI chat: buildContext, sendMessage, compressCatalog
 │   │   ├── embeddingService.ts   Fire-and-forget dish embedding submission
-│   │   ├── gistService.ts        LEGACY — migratePayload still used for data migration
 │   │   ├── metabolicService.ts   TMB, TDEE, budget — pure functions
 │   │   ├── dishMatchService.ts   fuzzy search + macro computation
 │   │   └── shoppingService.ts    list generation + unit consolidation
 │   ├── store/
 │   │   ├── useAuthStore.ts       AppUser, AuthState, login/logout/restore
-│   │   ├── useGistSyncStore.ts   sync lifecycle, push/pull/hydrate (no persist)
-│   │   ├── useCalendarStore.ts   DayPlan CRUD, meals, notifications
+│   │   ├── useCalendarStore.ts   DayPlan CRUD, meals
 │   │   ├── useCalculatorStore.ts entries, saved recipes
 │   │   ├── useIngredientsStore.ts custom ingredients CRUD
 │   │   ├── useProfileStore.ts    metabolic profile, TMB/TDEE (never shown)
@@ -144,7 +139,7 @@ nutrikal/
 │   └── utils/
 │       ├── dateHelpers.ts        date-fns wrappers (getWeekDays, formatDateKey, etc.)
 │       ├── portionHelpers.ts     gramsToHumanPortion, getDishHumanIngredients
-│       └── macroHelpers.ts       computeMacros, formatMacro, percentages
+│       └── macroHelpers.ts       computeMacros, percentages
 ├── vite.config.ts
 └── tailwind.config.js            custom colors, fonts, animations
 ```
@@ -238,7 +233,7 @@ Before calling Gemini for "Armame la semana":
 3. **No raw Date arithmetic** — always use date-fns (addDays, subDays, format, etc.)
 4. **Named exports only** — every component: `export const Foo = ...` + props interface above it.
 5. **All types in `src/types/index.ts`** — never define types inside component files.
-6. **schedulePush debounced** — never call `push()` directly. Always `useGistSyncStore.getState().schedulePush()`. Debounce is 1500ms.
+6. **API calls fire-and-forget** — store actions call apiService functions directly, no sync store.
 7. **Mobile-first** — write mobile styles first, add `md:` and `lg:` prefixes for desktop.
 8. **No horizontal scroll** — ever, at any viewport width.
 9. **48px minimum touch targets** — all interactive elements, no exceptions.
@@ -285,7 +280,7 @@ Padding mobile:  px-4 py-3 (standard), px-6 (generous)
 
 ### Typography
 ```
-font-sans  = Syne              → headings, nav labels, badges, UI labels
+font-sans  = Plus Jakarta Sans  → headings, nav labels, badges, UI labels
 font-body  = Plus Jakarta Sans → body text, descriptions, meal names, instructions
 font-mono  = JetBrains Mono   → numbers in calculator ONLY (never elsewhere)
 ```
@@ -295,7 +290,6 @@ font-mono  = JetBrains Mono   → numbers in calculator ONLY (never elsewhere)
 animate-slide-up   → BottomSheet entrance (280ms cubic-bezier(0.32,0.72,0,1))
 animate-fade-in    → overlays, modals, messages (180ms ease-out)
 animate-scale-tap  → button press feedback (120ms)
-animate-shimmer    → loading skeleton (1500ms infinite)
 ```
 
 ---
@@ -318,10 +312,7 @@ export const Foo = ({ prop1, prop2 }: FooProps) => {
 - BottomSheets → only render below `md:`. Use `md:hidden` wrapper.
 
 ### Store mutation pattern
-Every action that mutates user data must end with:
-```typescript
-useGistSyncStore.getState().schedulePush()
-```
+Every action that mutates user data calls the API directly via `apiService.ts`.
 Exception: read-only selectors and navigation actions (setView, navigateWeek, etc.)
 
 ---
@@ -332,10 +323,9 @@ Exception: read-only selectors and navigation actions (setView, navigateWeek, et
 ```
 Component calls store action
   → store updates Zustand state (synchronous)
-  → Zustand persist writes to localStorage (automatic)
-  → store calls schedulePush()
-  → debounce 1500ms
-  → useGistSyncStore.push() serializes all stores → PUT /api/data/save
+  → store calls apiService function (async, fire-and-forget)
+  → apiService sends request to Vercel serverless endpoint
+  → endpoint writes to Supabase
 ```
 
 ### Read path (app mount)
@@ -343,7 +333,7 @@ Component calls store action
 App.tsx useEffect
   → useAuthStore.restoreSession()
     → reads localStorage('nutrikal-jwt')
-    → if token: validate → GET /api/data/load
+    → if token: validate → GET /api/data/batch-load
       → hydrateAllStores(payload)
 ```
 
@@ -365,7 +355,7 @@ AI generates dish → user applies to calendar
 | `style={{ color: '#7c6aff' }}` | `className="text-[var(--accent)]"` |
 | `new Date() + 86400000` | `addDays(new Date(), 1)` from date-fns |
 | Showing `meal.calories` to user | Only use internally for budget calculation |
-| `push()` called directly | `schedulePush()` always |
+| `push()` called directly | Use apiService functions directly |
 | Type defined inside component file | Add to `src/types/index.ts` |
 | `border-red-500` for nutrition warning | `border-amber-400` or warm orange |
 | Modal on mobile | BottomSheet on mobile, Modal on desktop |

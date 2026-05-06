@@ -122,7 +122,7 @@ export function getNextWeekDates(): string[] {
 /**
  * Get the current week dates starting from Monday.
  */
-export function getCurrentWeekDates(): string[] {
+function getCurrentWeekDates(): string[] {
   const today = new Date();
   const monday = startOfWeek(today, { weekStartsOn: 1 });
   return Array.from({ length: 7 }, (_, i) =>

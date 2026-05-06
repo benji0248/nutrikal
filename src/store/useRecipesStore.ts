@@ -7,7 +7,6 @@ const getUserId = (): string => useAuthStore.getState().user?.id ?? 'anonymous';
 
 interface RecipesState {
   customDishes: Dish[];
-  isLoading: boolean;
   addDish: (data: Omit<Dish, 'id' | 'isCustom' | 'createdBy'>) => void;
   updateDish: (id: string, partial: Partial<Omit<Dish, 'id' | 'isCustom' | 'createdBy'>>) => void;
   deleteDish: (id: string) => void;
@@ -16,7 +15,6 @@ interface RecipesState {
 
 export const useRecipesStore = create<RecipesState>()((set) => ({
   customDishes: [],
-  isLoading: false,
 
   addDish: (data) => {
     const dish: Dish = {

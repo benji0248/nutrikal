@@ -5,11 +5,9 @@ import * as api from '../services/apiService';
 
 interface ProfileState {
   profile: UserProfile | null;
-  isLoading: boolean;
 
   setProfile: (profile: UserProfile) => void;
   updateProfile: (partial: Partial<UserProfile>) => void;
-  clearProfile: () => void;
   getMetabolicResult: () => MetabolicResult | null;
   needsRecalibration: () => boolean;
   markRecalibrated: () => void;
@@ -18,7 +16,6 @@ interface ProfileState {
 
 export const useProfileStore = create<ProfileState>()((set, get) => ({
   profile: null,
-  isLoading: false,
 
   setProfile: (profile: UserProfile) => {
     set({ profile });
@@ -32,8 +29,6 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
     set({ profile: updated });
     api.saveProfile(updated).catch(console.error);
   },
-
-  clearProfile: () => set({ profile: null }),
 
   getMetabolicResult: (): MetabolicResult | null => {
     const { profile } = get();

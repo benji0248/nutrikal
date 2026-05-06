@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { DayPlan, Meal, MealType, Notification, ViewMode } from '../types';
-import { todayKey, generateId, navigateDay, navigateWeek, navigateMonth } from '../utils/dateHelpers';
+import { todayKey, navigateDay, navigateWeek, navigateMonth } from '../utils/dateHelpers';
 import * as api from '../services/apiService';
 
 export const createEmptyDayPlan = (date: string): DayPlan => ({
@@ -14,7 +14,6 @@ interface CalendarState {
   view: ViewMode;
   dayPlans: Record<string, DayPlan>;
   notifications: Notification[];
-  isLoading: boolean;
 
   setView: (v: ViewMode) => void;
   setCurrentDate: (d: string) => void;
@@ -24,11 +23,7 @@ interface CalendarState {
   goToToday: () => void;
   upsertMeal: (date: string, mealType: MealType, meal: Meal) => void;
   deleteMeal: (date: string, mealType: MealType, mealId: string) => void;
-  toggleMealCompleted: (date: string, mealType: MealType, mealId: string) => void;
   setNotes: (date: string, notes: string) => void;
-  addNotification: (n: Omit<Notification, 'id'>) => void;
-  toggleNotification: (id: string) => void;
-  deleteNotification: (id: string) => void;
   hydrateMeals: (meals: Array<{
     id: string; date: string; mealType: MealType; name: string;
     calories: number | null; notes: string | null; linkedRecipeId: string | null;
@@ -42,7 +37,6 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
   view: 'day',
   dayPlans: {},
   notifications: [],
-  isLoading: false,
 
   setView: (v) => set({ view: v }),
   setCurrentDate: (d) => set({ currentDate: d }),
@@ -99,28 +93,6 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
     api.deleteMeal(mealId).catch(console.error);
   },
 
-  toggleMealCompleted: (date, mealType, mealId) => {
-    set((s) => {
-      const existing = s.dayPlans[date];
-      if (!existing) return s;
-      return {
-        dayPlans: {
-          ...s.dayPlans,
-          [date]: {
-            ...existing,
-            meals: {
-              ...existing.meals,
-              [mealType]: existing.meals[mealType].map((m) =>
-                m.id === mealId ? { ...m, completed: !m.completed } : m,
-              ),
-            },
-          },
-        },
-      };
-    });
-    api.toggleMealCompleted(mealId).catch(console.error);
-  },
-
   setNotes: (date, notes) => {
     set((s) => {
       const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
@@ -129,30 +101,6 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
       };
     });
     api.setDayNotes(date, notes).catch(console.error);
-  },
-
-  addNotification: (n) => {
-    const notification: Notification = { ...n, id: generateId() };
-    set((s) => ({
-      notifications: [...s.notifications, notification],
-    }));
-    api.createNotification(notification).catch(console.error);
-  },
-
-  toggleNotification: (id) => {
-    set((s) => ({
-      notifications: s.notifications.map((n) =>
-        n.id === id ? { ...n, enabled: !n.enabled } : n,
-      ),
-    }));
-    api.toggleNotification(id).catch(console.error);
-  },
-
-  deleteNotification: (id) => {
-    set((s) => ({
-      notifications: s.notifications.filter((n) => n.id !== id),
-    }));
-    api.deleteNotification(id).catch(console.error);
   },
 
   hydrateMeals: (meals, dayNotes) => {

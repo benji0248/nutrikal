@@ -5,20 +5,16 @@ import * as api from '../services/apiService';
 
 interface ShoppingState {
   lists: ShoppingList[];
-  isLoading: boolean;
 
   addList: (list: ShoppingList) => void;
   removeList: (id: string) => void;
   toggleItem: (listId: string, itemId: string) => void;
-  clearChecked: (listId: string) => void;
-  clearAll: () => void;
   addItemsToActiveList: (items: ShoppingItem[]) => void;
   hydrateLists: (lists: ShoppingList[]) => void;
 }
 
 export const useShoppingStore = create<ShoppingState>()((set, get) => ({
   lists: [],
-  isLoading: false,
 
   addList: (list) => {
     set((s) => ({ lists: [list, ...s.lists] }));
@@ -45,19 +41,6 @@ export const useShoppingStore = create<ShoppingState>()((set, get) => ({
     }));
     api.toggleShoppingItem(listId, itemId).catch(console.error);
   },
-
-  clearChecked: (listId) => {
-    set((s) => ({
-      lists: s.lists.map((l) =>
-        l.id === listId
-          ? { ...l, items: l.items.filter((i) => !i.checked) }
-          : l,
-      ),
-    }));
-    api.clearCheckedItems(listId).catch(console.error);
-  },
-
-  clearAll: () => set({ lists: [] }),
 
   addItemsToActiveList: (items: ShoppingItem[]) => {
     const state = get();
