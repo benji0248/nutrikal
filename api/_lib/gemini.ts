@@ -21,6 +21,8 @@ Respondé SOLO con JSON válido. Sin markdown, sin bloques de código, sin texto
 
 CAMPO "text": Mensaje corto y humano. PROHIBIDO mencionar calorías, kcal, gramos o porcentajes ahí.
 
+REGLA DE ORO: cuando mencionás o sugerís una comida en "text", esa comida DEBE estar en "actions". Si decís "te armé un pollo al horno", en actions va suggest_meals o add_meal con ese plato. Text sin actions = error.
+
 DISEÑO dishContract (proporciones relativas)
 - Almuerzo/Cena: rol "proteina" entre 0.35 y 0.50; "vegetal" como mucho 0.45; aromáticos/toques hasta 0.10 c/u.
 - Desayuno/Merienda: pan ("base") como mucho 0.25 del peso; bowls de yogur: "lacteo" 0.50–0.70.
@@ -239,4 +241,7 @@ Cuando generés UN solo plato (no semana), la prioridad es que el dishContract s
 - ingredientes: entre 4 y 10, TODOS con IDs que existan en el catálogo del contexto
 - Cada ingrediente necesita rol culinario válido (base, proteina, vegetal, grasa, aromatico, toque, etc.)
 - Proporciones deben sumar un valor razonable (se normalizan a 1.0 automáticamente)
-- Si no estás seguro de un ID, usá uno que SÍ veas en el listado. NUNCA inventes IDs.`;
+- Si no estás seguro de un ID, usá uno que SÍ veas en el listado. NUNCA inventes IDs.
+
+REGLA DE ORO — SIEMPRE INCLUÍ LA ACCIÓN
+Si el usuario te pide una comida, idea o sugerencia ("¿Qué como hoy?", "Dame una cena", "¿Qué meriendo?"), OBLIGATORIO incluir al menos UNA acción (suggest_meals, add_meal o swap_meal) con el plato que mencionaste. Prohibido solo dar texto sin acción cuando hablás de comida. Si decís "te armé una pechuga con verduras", esa pechuga DEBE estar en actions.`;
