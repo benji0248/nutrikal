@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
 import {
-  getGeminiClient,
   SYSTEM_RULES_CORE,
   WEEK_FLOW_RULES,
   GENERAL_ASSISTANT_RULES,
 } from '../_lib/gemini.js';
+import { getDeepSeekClient } from '../_lib/deepseek.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
@@ -268,44 +268,44 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
       parts: [{ text: msg.text }],
     }));
 
-    chatApiLog(reqId, 'gemini_prepare', {
+    chatApiLog(reqId, 'deepseek_prepare', {
       systemPromptChars: fullSystemPrompt.length,
       historyTurns: history.length,
     });
 
-    // Raw mode: no rules, no prompt, just the user message
     const isRawTest = /pollo.*papa.*brocoli.*500\s*(calor[ií]as|kcal)/i.test(body.message) ||
       /pollo.*brocoli.*papa.*500\s*(calor[ií]as|kcal)/i.test(body.message);
 
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: isRawTest ? '' : fullSystemPrompt,
-      generationConfig: {
-        responseMimeType: isRawTest ? 'text/plain' : 'application/json',
-      },
-    });
+    const client = getDeepSeekClient();
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 
-    const chat = model.startChat({ history: isRawTest ? [] : history });
-    const tGemini = Date.now();
-    const result = await chat.sendMessage(body.message);
-    const geminiMs = Date.now() - tGemini;
-
-    let responseText: string;
-    try {
-      responseText = result.response.text();
-    } catch (textErr) {
-      chatApiLogError(reqId, 'gemini_text_extract_fail', textErr);
-      return res.status(502).json({
-        error: 'model_response',
-        text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
+    if (!isRawTest) {
+      messages.push({ role: 'system', content: fullSystemPrompt });
+    }
+    for (const msg of (body.context.conversationHistory || [])) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.text,
       });
     }
+    messages.push({ role: 'user', content: body.message });
+
+    const modelName = isRawTest ? 'deepseek-v4-flash' : 'deepseek-v4-pro';
+
+    const tDeepSeek = Date.now();
+    const result = await client.chat.completions.create({
+      model: modelName,
+      messages,
+      ...(isRawTest ? {} : { response_format: { type: 'json_object' } }),
+    });
+    const deepseekMs = Date.now() - tDeepSeek;
+
+    const responseText = result.choices?.[0]?.message?.content ?? '';
 
     // Raw mode: return text directly, no JSON parsing
     if (isRawTest) {
-      chatApiLog(reqId, 'gemini_done', {
-        geminiMs,
+      chatApiLog(reqId, 'deepseek_done', {
+        deepseekMs,
         rawChars: responseText.length,
         rawMode: true,
       });
@@ -319,7 +319,7 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
 
     let trimmed = responseText.trim();
     if (!trimmed) {
-      chatApiLog(reqId, 'gemini_empty_body', { geminiMs });
+      chatApiLog(reqId, 'deepseek_empty_body', { deepseekMs });
       return res.status(502).json({
         error: 'model_response',
         text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
@@ -339,14 +339,20 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
       parsedRaw = null;
     }
 
-    // Retry once if JSON parse failed (safety net even with responseMimeType)
+    // Retry once if JSON parse failed
     if (!jsonParseOk) {
-      chatApiLog(reqId, 'gemini_json_retry', { rawChars: trimmed.length });
+      chatApiLog(reqId, 'deepseek_json_retry', { rawChars: trimmed.length });
       try {
-        const retryResult = await chat.sendMessage(
-          'Tu respuesta anterior no fue JSON válido. Respondé SOLO con el JSON, sin markdown ni texto extra.',
-        );
-        const retryText = retryResult.response.text().trim();
+        const retryMessages = [...messages, {
+          role: 'user' as const,
+          content: 'Tu respuesta anterior no fue JSON válido. Respondé SOLO con el JSON, sin markdown ni texto extra.',
+        }];
+        const retryResult = await client.chat.completions.create({
+          model: modelName,
+          messages: retryMessages,
+          response_format: { type: 'json_object' },
+        });
+        const retryText = retryResult.choices?.[0]?.message?.content?.trim() ?? '';
         if (retryText) {
           const retryCleaned = retryText
             .replace(/^```(?:json)?\s*/i, '')
@@ -355,10 +361,10 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
           parsedRaw = JSON.parse(retryCleaned);
           jsonParseOk = true;
           trimmed = retryText;
-          chatApiLog(reqId, 'gemini_json_retry_ok', { retryChars: retryText.length });
+          chatApiLog(reqId, 'deepseek_json_retry_ok', { retryChars: retryText.length });
         }
       } catch (retryErr) {
-        chatApiLogError(reqId, 'gemini_json_retry_fail', retryErr);
+        chatApiLogError(reqId, 'deepseek_json_retry_fail', retryErr);
       }
     }
 
@@ -468,8 +474,8 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
         )
       : [];
 
-    chatApiLog(reqId, 'gemini_done', {
-      geminiMs,
+    chatApiLog(reqId, 'deepseek_done', {
+      deepseekMs,
       rawChars: trimmed.length,
       jsonParseOk,
       textOutChars: text.length,
