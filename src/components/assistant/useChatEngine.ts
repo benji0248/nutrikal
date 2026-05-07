@@ -592,12 +592,14 @@ export function useChatEngine(): ChatEngineResult {
         });
         catalogAnchor = formatWeeklyPoolForPrompt(weeklyPool, allIngredients);
       } else if (isSingleFoodQuery) {
-        // Single dish: only weekly pool as light catalog (44 curated ingredients is plenty for 1 dish)
-        const pool = buildWeeklyIngredientPool(allIngredients, profile, {
-          weekId: isoWeekIdFromYmd(format(new Date(), 'yyyy-MM-dd')),
-          personalizationSeed: `${profile.name ?? ''}|`,
-        });
-        catalogAnchor = formatWeeklyPoolForPrompt(pool, allIngredients);
+        // Extract ingredient mentions from user text, match against DB
+        const userText = text.toLowerCase();
+        const matched = allIngredients.filter((ing) =>
+          userText.includes(ing.name.toLowerCase()),
+        );
+        if (matched.length > 0) {
+          catalogAnchor = matched.map((i) => `${i.id}: ${i.name}`).join('\n');
+        }
       }
 
       const response = await sendMessage(
