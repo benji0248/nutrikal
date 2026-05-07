@@ -290,7 +290,7 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
     }
     messages.push({ role: 'user', content: body.message });
 
-    const modelName = isRawTest ? 'deepseek-v4-flash' : 'deepseek-v4-pro';
+    const modelName = 'deepseek-v4-pro';
 
     const tDeepSeek = Date.now();
     const result = await client.chat.completions.create({
