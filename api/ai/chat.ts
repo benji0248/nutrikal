@@ -273,16 +273,20 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
       historyTurns: history.length,
     });
 
+    // Raw mode: no rules, no prompt, just the user message
+    const isRawTest = /pollo.*papa.*brocoli.*500\s*(calor[ií]as|kcal)/i.test(body.message) ||
+      /pollo.*brocoli.*papa.*500\s*(calor[ií]as|kcal)/i.test(body.message);
+
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: 'gemini-3.1-flash-lite-preview',
-      systemInstruction: fullSystemPrompt,
+      systemInstruction: isRawTest ? '' : fullSystemPrompt,
       generationConfig: {
-        responseMimeType: 'application/json',
+        responseMimeType: isRawTest ? 'text/plain' : 'application/json',
       },
     });
 
-    const chat = model.startChat({ history });
+    const chat = model.startChat({ history: isRawTest ? [] : history });
     const tGemini = Date.now();
     const result = await chat.sendMessage(body.message);
     const geminiMs = Date.now() - tGemini;
@@ -295,6 +299,21 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
       return res.status(502).json({
         error: 'model_response',
         text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
+      });
+    }
+
+    // Raw mode: return text directly, no JSON parsing
+    if (isRawTest) {
+      chatApiLog(reqId, 'gemini_done', {
+        geminiMs,
+        rawChars: responseText.length,
+        rawMode: true,
+      });
+      return res.status(200).json({
+        text: responseText,
+        actions: [],
+        quickReplies: [],
+        remaining: rateAssertion.remaining,
       });
     }
 
