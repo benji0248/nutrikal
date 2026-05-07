@@ -279,7 +279,7 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
 
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.1-flash-lite-preview',
+      model: 'gemini-2.5-flash',
       systemInstruction: isRawTest ? '' : fullSystemPrompt,
       generationConfig: {
         responseMimeType: isRawTest ? 'text/plain' : 'application/json',

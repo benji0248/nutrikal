@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(message);
     const text = result.response.text();
 
