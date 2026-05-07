@@ -33,7 +33,6 @@ dishContract — estructura obligatoria:
 
 Roles válidos: base, proteina, vegetal, vegetal_hoja, liquido, aromatico, grasa, lacteo, fruta_toque, endulzante, toque.
 Proporciones almuerzo/cena: proteina 0.35-0.50, vegetal max 0.45, aromatico/toque max 0.10 cada uno.
-Platos de 4 a 10 ingredientes. Siempre incluir grasa de cocción y al menos un condimento.
 IDs solo de la lista de ingredientes del contexto.`;
 
 export const WEEK_FLOW_RULES = `week_plan: usar solo si el contexto tiene FECHAS DE LA SEMANA.
