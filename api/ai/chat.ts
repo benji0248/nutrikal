@@ -76,65 +76,24 @@ function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile'])
     ? profile.dislikedNames
     : profile.dislikedIds;
 
-  // Build disliked text with categories + exceptions
   const dislikedParts: string[] = [];
   const categories = profile.dislikedCategories ?? [];
   const exceptions = profile.allowedExceptionNames ?? [];
   for (const cat of categories) {
     if (exceptions.length > 0) {
-      dislikedParts.push(`${cat} en general (EXCEPTO ${exceptions.join(', ')} que sí le gustan)`);
+      dislikedParts.push(`${cat} (excepto ${exceptions.join(', ')})`);
     } else {
-      dislikedParts.push(`${cat} (todos)`);
+      dislikedParts.push(cat);
     }
   }
-  if (dislikedList.length > 0) {
-    dislikedParts.push(dislikedList.join(', '));
-  }
+  if (dislikedList.length > 0) dislikedParts.push(dislikedList.join(', '));
   const disliked = dislikedParts.length > 0 ? dislikedParts.join('; ') : 'ninguno';
 
-  const physicalText = [
-    profile.sex ? (profile.sex === 'male' ? 'masculino' : 'femenino') : null,
-    profile.age ? `${profile.age} años` : null,
-    profile.heightCm ? `${profile.heightCm}cm` : null,
-    profile.weightKg ? `${profile.weightKg}kg` : null,
-  ].filter(Boolean).join(', ');
+  const isVoseo = ['Argentina', 'Uruguay', 'Paraguay'].includes(nationality);
+  const lang = isVoseo ? 'voseo' : 'tuteo';
 
-  // Determine language style based on nationality
-  const isVoseo = ['Argentina', 'Uruguay', 'Paraguay', 'Costa Rica', 'Guatemala', 'Honduras', 'El Salvador', 'Nicaragua'].includes(nationality);
-  const langStyle = isVoseo
-    ? `Hablá en español con voseo (${nationality}). Usá modismos locales.`
-    : `Hablá en español con tuteo (${nationality}). Usá modismos locales.`;
-
-  return `Sos el nutricionista personal y Chef Ejecutivo de NutriKal para ${name}, de ${nationality}.
-
-NOMBRE EN SALUDOS Y TEXTO:
-Usá EXACTAMENTE el nombre tal como figura arriba ("${name}"), carácter por carácter. Prohibido inventar apodos, acortar o cambiar letras (ej.: no transformar "Benjamin" en "Benu"). Si el nombre es vacío o genérico, tratá al usuario de "vos" sin inventar un nombre.
-
-PERSONALIDAD:
-
-${langStyle}
-
-Cálido, cercano y conciso (1-3 oraciones). Nunca juzgás; ante la ansiedad, contenés.
-
-Criterio Culinario: Tu prioridad es que las comidas sean ricas, lógicas y "comibles". No sos una calculadora, sos un asistente que entiende de cocina real.
-
-DATOS DE ${name.toUpperCase()}:
-
-Perfil: ${physicalText || 'No especificado'}.
-
-Objetivo: ${goalText}. Restricciones: ${restrictions}.
-
-Ingredientes RECHAZADOS: ${disliked}. NUNCA los incluyas.
-
-LÓGICA DE PORCIONES (Sentido Común):
-
-El sistema NutriKal calcula gramos y kcal en el dispositivo. Vos NO calculás números, pero diseñás la estructura del plato.
-
-Listas de ingredientes: en cada turno el contexto indica qué IDs podés usar. Para la acción week_plan usá solo la CANASTA_SEMANAL; para suggest_meals, add_meal y swap_meal usá el CATALOGO_AMPLIO cuando esté en contexto. Armá platos completos (varios roles por plato), no solo dos ingredientes.
-
-Unidades Reales: Pensá en unidades físicas. Nadie come "0.2 yogures" o "40g de milanesa". Si incluís un ingrediente "unidad" (huevo, fruta, pote), intentá que sea el protagonista o una porción entera.
-
-Jerarquía: En platos principales, la proteína manda. Si hay que ajustar, que el sistema recorte carbohidratos o grasas, pero nunca dejes al usuario con una porción de carne minúscula.`;
+  return `Nutricionista de ${name}. ${nationality}, hablás con ${lang}.
+Objetivo: ${goalText}. Restricciones: ${restrictions}. No usar: ${disliked}.`;
 }
 
 function normalizeGeminiPayload(
@@ -230,22 +189,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
 
     if (isLightQuery) {
-      // Light mode: single dish — just the anchor pool, minimal context
-      contextParts.push(
-        `INGREDIENTES (usá solo estos IDs para esta comida):\n${body.catalogAnchor}`,
-      );
+      contextParts.push(`INGREDIENTES:\n${body.catalogAnchor}`);
     } else if (hasPool && hasFull) {
       contextParts.push(
-        `INGREDIENTES — DOS FUENTES (no mezcles reglas):\n` +
-          `1) CANASTA_SEMANAL — única fuente de IDs para la acción week_plan (toda la semana). Combiná items de las tres bandas (estructurales, contextuales, creativos) para platos con sentido culinario (ej. base + proteína + vegetales + grasa/condimento).\n` +
-          `${body.catalogAnchor}\n\n` +
-          `2) CATALOGO_AMPLIO — única fuente de IDs para suggest_meals, add_meal y swap_meal.\n` +
-          `${body.catalog}`,
+        `CANASTA (week_plan):\n${body.catalogAnchor}\n` +
+        `CATALOGO (suggest/add/swap):\n${body.catalog}`,
       );
     } else if (hasFull) {
-      contextParts.push(`INGREDIENTES PERMITIDOS (solo estos IDs):\n${body.catalog}`);
-    } else if (hasPool) {
-      contextParts.push(`INGREDIENTES (canasta semanal):\n${body.catalogAnchor}`);
+      contextParts.push(`INGREDIENTES:\n${body.catalog}`);
     }
 
     if (isLightQuery) {
@@ -263,9 +214,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 ${datesWithDay.join('\n')}
 OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha. NO generes solo 1 día.`);
     } else {
-      contextParts.push(
-        `SIN FECHAS DE SEMANA EN ESTE TURNO: no incluyas week_plan. Seguí WEEK_FLOW_RULES; la app muestra chips.`,
-      );
+      contextParts.push(`Plan semanal no disponible en este turno.`);
     }
 
     if (body.context.todayPlan) {
@@ -279,60 +228,24 @@ OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno
     if (body.context.preferences) {
       const p = body.context.preferences;
       const wr = p.weekRepetitionMode;
-      const weekRepBlock =
-        wr === 'full_unique'
-          ? `MODO REPETICIÓN (weekRepetitionMode: full_unique) — VARIEDAD TOTAL:
-- Estructura semanal obligatoria: 6 días de comidas alineadas al perfil + 1 día cheat (típicamente domingo; respetá lo que diga el contexto de fechas).
-- En los 6 días "normales": no repitas el mismo nombre de plato entre almuerzos y cenas (cada plato principal distinto). Desayunos y meriendas: maximizá variedad sin duplicar el mismo plato completo salvo que sea inevitable.
-- Podés combinar en la semana platos más rápidos y otros más elaborados salvo que el usuario pida todo muy práctico o muy elaborado.
-- El cheat day puede ser distinto y más indulgente.`
-          : wr === 'repeat_blocks'
-            ? `MODO REPETICIÓN (weekRepetitionMode: repeat_blocks) — REPETIR PARA COCINAR MENOS:
-- Estructura: 6 + 1 cheat.
-- Menos recetas distintas: podés usar patrones tipo 3+3 o repetir estilos de menú en los 6 días; mezclá platos más rápidos y otros más elaborados en la semana salvo que el usuario pida todo muy práctico o muy elaborado.
-- Variá desayunos y meriendas para que no se sienta monótono.`
-            : wr === 'balanced'
-              ? `MODO REPETICIÓN (weekRepetitionMode: balanced) — BALANCE:
-- Estructura: 6 + 1 cheat.
-- Mezclá variedad y repetición: repetí algunos almuerzos o cenas cuando tenga sentido (idealmente no más de 2 veces el mismo plato principal salvo excepción clara); el resto variado.
-- Combiná en la semana platos más rápidos y otros más elaborados salvo indicación explícita del usuario.`
-              : '';
-
-      contextParts.push(`PREFERENCIAS PARA EL PLAN:
-- Variedad (campo legacy): ${p.variety}
-- Tiempo de cocina (preferencia explícita; si es "normal", combiná en la semana platos más rápidos y otros más elaborados salvo que el usuario indique lo contrario): ${p.cookingTime}
-- Presupuesto: ${p.budget}
-${weekRepBlock ? `\n${weekRepBlock}\n` : ''}Respetá el modo de repetición anterior al armar week_plan cuando corresponda.`);
+      const modeLabel = wr === 'full_unique' ? 'platos distintos cada dia (6+1 cheat)'
+        : wr === 'repeat_blocks' ? 'repetir bloques (3+3)'
+        : wr === 'balanced' ? 'balance variedad/repeticion'
+        : '';
+      contextParts.push(`Prefs: variedad=${p.variety} tiempo=${p.cookingTime} presupuesto=${p.budget}${modeLabel ? ' modo=' + modeLabel : ''}`);
     }
 
     // Inject dish history for personalization
     const dishHistory = body.context.dishHistory;
     if (dishHistory && dishHistory.length > 0) {
-      const name = body.context.profile.name || 'el usuario';
-      const favDishes = dishHistory.filter((d) => d.isFavorite);
-      const frequentDishes = dishHistory.slice(0, 15);
+      const frequentDishes = dishHistory.slice(0, 10);
       const overRepeated = dishHistory.filter((d) => d.count >= 5);
-      const uniqueCount = dishHistory.length;
-
       const lines: string[] = [];
-      lines.push(`HISTORIAL DE ${name.toUpperCase()}:`);
-      lines.push(`Platos más frecuentes: ${frequentDishes.map((d) => `${d.name} (${d.count}x)`).join(', ')}`);
-
-      if (favDishes.length > 0) {
-        lines.push(`Favoritos marcados por ${name}: ${favDishes.map((d) => d.name).join(', ')}`);
-        lines.push(`→ Priorizá estos platos cuando encajen con el plan.`);
-      }
-
+      lines.push(`Platos frecuentes: ${frequentDishes.map((d) => `${d.name} (${d.count}x)`).join(', ')}.`);
       if (overRepeated.length > 0) {
-        lines.push(`⚠ Platos muy repetidos (5+ veces): ${overRepeated.map((d) => d.name).join(', ')}`);
-        lines.push(`→ Sugerí alternativas similares para variar.`);
+        lines.push(`Muy repetidos: ${overRepeated.map((d) => d.name).join(', ')} — sugerí alternativas.`);
       }
-
-      if (uniqueCount < 5) {
-        lines.push(`→ ${name} tiene poca variedad (${uniqueCount} platos únicos). Introducí platos nuevos gradualmente.`);
-      }
-
-      contextParts.push(lines.join('\n'));
+      contextParts.push(lines.join(' '));
     }
 
     if (body.context.cuisineDiversityHint) {
