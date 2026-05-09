@@ -1,18 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getDeepSeekClient } from '../_lib/deepseek.js';
+import { getGeminiClient } from '../_lib/gemini.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
 interface ChatRequestBody {
   message: string;
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
-}
-
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -64,36 +59,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       historyLen: body.history?.length ?? 0,
     });
 
-    const client = getDeepSeekClient();
-    const messages: ChatMessage[] = [];
+    const model = getGeminiClient().getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    for (const msg of body.history ?? []) {
-      messages.push({
-        role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content,
-      });
-    }
-    messages.push({ role: 'user', content: body.message });
+    const geminiHistory = (body.history ?? []).map((msg) => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }],
+    }));
 
-    const tDeepSeek = Date.now();
-    const result = await client.chat.completions.create({
-      model: 'deepseek-v4-pro',
-      messages,
+    const tGemini = Date.now();
+    const result = await model.generateContent({
+      contents: [
+        ...geminiHistory,
+        { role: 'user', parts: [{ text: body.message }] },
+      ],
     });
-    const deepseekMs = Date.now() - tDeepSeek;
+    const geminiMs = Date.now() - tGemini;
 
-    const responseText = result.choices?.[0]?.message?.content ?? '';
+    const responseText = result.response.text();
 
     if (!responseText.trim()) {
-      chatApiLog(reqId, 'deepseek_empty_body', { deepseekMs });
+      chatApiLog(reqId, 'gemini_empty_body', { geminiMs });
       return res.status(502).json({
         error: 'model_response',
         text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
       });
     }
 
-    chatApiLog(reqId, 'deepseek_done', {
-      deepseekMs,
+    chatApiLog(reqId, 'gemini_done', {
+      geminiMs,
       chars: responseText.length,
     });
 
