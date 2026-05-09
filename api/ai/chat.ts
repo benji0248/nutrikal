@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getGeminiClient } from '../_lib/gemini.js';
+import { getDeepSeekClient } from '../_lib/deepseek.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
@@ -59,34 +59,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       historyLen: body.history?.length ?? 0,
     });
 
-    const model = getGeminiClient().getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const client = getDeepSeekClient();
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 
-    const geminiHistory = (body.history ?? []).map((msg) => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
-    }));
+    for (const msg of body.history ?? []) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      });
+    }
+    messages.push({ role: 'user', content: body.message });
 
-    const tGemini = Date.now();
-    const result = await model.generateContent({
-      contents: [
-        ...geminiHistory,
-        { role: 'user', parts: [{ text: body.message }] },
-      ],
+    const tDeepSeek = Date.now();
+    const result = await client.chat.completions.create({
+      model: 'deepseek-v4-pro',
+      messages,
     });
-    const geminiMs = Date.now() - tGemini;
+    const deepseekMs = Date.now() - tDeepSeek;
 
-    const responseText = result.response.text();
+    const responseText = result.choices?.[0]?.message?.content ?? '';
 
     if (!responseText.trim()) {
-      chatApiLog(reqId, 'gemini_empty_body', { geminiMs });
+      chatApiLog(reqId, 'deepseek_empty_body', { deepseekMs });
       return res.status(502).json({
         error: 'model_response',
         text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
       });
     }
 
-    chatApiLog(reqId, 'gemini_done', {
-      geminiMs,
+    chatApiLog(reqId, 'deepseek_done', {
+      deepseekMs,
       chars: responseText.length,
     });
 
