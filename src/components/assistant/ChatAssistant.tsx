@@ -4,6 +4,7 @@ import type { ChatOption, AppTab } from '../../types';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
 import { useChatEngine } from './useChatEngine';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 interface ChatAssistantProps {
   onTabChange?: (tab: AppTab) => void;
@@ -26,6 +27,8 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [inputText, setInputText] = useState('');
+  const aiModel = useSettingsStore((s) => s.aiModel);
+  const setAiModel = useSettingsStore((s) => s.setAiModel);
 
   const wrappedHandleOption = useCallback(
     (option: ChatOption) => {
@@ -130,6 +133,32 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
         onSubmit={onSubmit}
         className="fixed bottom-28 md:bottom-6 left-0 right-0 w-full px-6 z-40"
       >
+        <div className="flex justify-end mb-2">
+          <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-0.5">
+            <button
+              type="button"
+              onClick={() => setAiModel('deepseek')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                aiModel === 'deepseek'
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'text-[var(--text-muted)]'
+              }`}
+            >
+              DeepSeek
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiModel('gemini')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                aiModel === 'gemini'
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'text-[var(--text-muted)]'
+              }`}
+            >
+              Gemini
+            </button>
+          </div>
+        </div>
         <div className="max-w-2xl mx-auto bg-[#ffffff] rounded-xl shadow-xl flex items-center p-2 gap-2 border border-[#bfcaba]/20">
           <button
             type="button"

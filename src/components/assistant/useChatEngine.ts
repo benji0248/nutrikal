@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ChatMessage, ChatOption, EnergyLevel, MealType, WeekPlan } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
+import { useSettingsStore } from '../../store/useSettingsStore';
 import { sendMessage, type SendMessageResult } from '../../services/aiService';
 
 export const AI_CONVERSATION_HISTORY_LIMIT = 10;
@@ -26,6 +27,7 @@ interface ChatEngineResult {
 
 export function useChatEngine(): ChatEngineResult {
   const profile = useProfileStore((s) => s.profile);
+  const aiModel = useSettingsStore((s) => s.aiModel);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => buildWelcomeMessages());
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +93,7 @@ export function useChatEngine(): ChatEngineResult {
     });
 
     try {
-      const result: SendMessageResult = await sendMessage(text, conversationRef.current);
+      const result: SendMessageResult = await sendMessage(text, conversationRef.current, aiModel);
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       setRemainingMessages(result.remaining);

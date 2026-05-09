@@ -1,3 +1,5 @@
+import type { AiModel } from '../store/useSettingsStore';
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
 
@@ -13,16 +15,19 @@ export interface SendMessageResult {
 export async function sendMessage(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
+  model: AiModel = 'deepseek',
 ): Promise<SendMessageResult> {
   const token = getToken();
   if (!token) throw new Error('Not authenticated');
+
+  const endpoint = model === 'gemini' ? '/api/ai/gemini' : '/api/ai/chat';
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}/api/ai/chat`, {
+    res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

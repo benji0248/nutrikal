@@ -2,20 +2,30 @@ import { create } from 'zustand';
 import * as api from '../services/apiService';
 import type { Theme } from '../types';
 
+export type AiModel = 'deepseek' | 'gemini';
+
 interface SettingsState {
   showCalories: boolean;
   theme: Theme;
+  aiModel: AiModel;
   setShowCalories: (value: boolean) => void;
+  setAiModel: (model: AiModel) => void;
   hydrateSettings: (settings: { theme: Theme; showCalories: boolean }) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
   showCalories: false,
   theme: 'dark',
+  aiModel: (localStorage.getItem('nutrikal-ai-model') as AiModel) || 'deepseek',
 
   setShowCalories: (value: boolean) => {
     set({ showCalories: value });
     api.saveSettings({ showCalories: value }).catch(console.error);
+  },
+
+  setAiModel: (model: AiModel) => {
+    set({ aiModel: model });
+    localStorage.setItem('nutrikal-ai-model', model);
   },
 
   hydrateSettings: (settings) => {
