@@ -104,9 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const model = getGeminiClient().getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: {
-        parts: [{ text: systemPrompt }],
-      },
+      systemInstruction: systemPrompt,
       generationConfig: {
         responseMimeType: 'application/json',
       },
