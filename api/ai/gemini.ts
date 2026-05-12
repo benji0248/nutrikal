@@ -1,13 +1,48 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getGeminiClient } from '../_lib/gemini.js';
+import { getGeminiClient, buildSystemPrompt, type GemProfile } from '../_lib/gemini.js';
+import { getSupabase } from '../_lib/supabase.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
 interface ChatRequestBody {
   message: string;
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
+}
+
+interface AiDishIngredient {
+  nombre: string;
+  rol: string;
+  gramos: number;
+}
+
+interface AiDishResponse {
+  nombre: string;
+  ingredientes: AiDishIngredient[];
+  preparacion: string;
+  tiempo_prep: number;
+  tip: string;
+}
+
+async function fetchProfile(userId: string): Promise<GemProfile> {
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase
+      .from('user_data')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const profile = (data?.data as Record<string, unknown>)?.profile as Record<string, unknown> | undefined;
+    return {
+      nationality: typeof profile?.nationality === 'string' ? profile.nationality : undefined,
+      restrictions: Array.isArray(profile?.restrictions) ? profile.restrictions as string[] : undefined,
+      name: typeof profile?.name === 'string' ? profile.name : undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -59,7 +94,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       historyLen: body.history?.length ?? 0,
     });
 
-    const model = getGeminiClient().getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const profile = await fetchProfile(userId);
+    const systemPrompt = buildSystemPrompt(profile);
+
+    chatApiLog(reqId, 'profile_loaded', {
+      nationality: profile.nationality ?? 'none',
+      restrictions: profile.restrictions?.length ?? 0,
+    });
+
+    const model = getGeminiClient().getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    });
 
     const geminiHistory = (body.history ?? []).map((msg) => ({
       role: msg.role === 'user' ? 'user' : 'model',
@@ -85,9 +136,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    let dish: AiDishResponse | undefined;
+    try {
+      dish = JSON.parse(responseText) as AiDishResponse;
+    } catch {
+      chatApiLog(reqId, 'gemini_json_parse_fail', { geminiMs, chars: responseText.length });
+    }
+
     chatApiLog(reqId, 'gemini_done', {
       geminiMs,
       chars: responseText.length,
+      hasDish: !!dish,
     });
 
     let remainingOut: number;
@@ -101,10 +160,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     chatApiLog(reqId, 'response_200', {
       user: redactUserId(userId),
       remaining: remainingOut,
+      hasDish: !!dish,
     });
 
     return res.status(200).json({
       text: responseText,
+      dish: dish ?? undefined,
       remaining: remainingOut,
     });
   } catch (err) {

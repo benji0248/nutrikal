@@ -3,6 +3,7 @@ import type { ChatMessage, ChatOption, EnergyLevel, MealType, WeekPlan } from '.
 import { useProfileStore } from '../../store/useProfileStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { sendMessage, type SendMessageResult } from '../../services/aiService';
+import { hydrateAiDish } from '../../services/dishMatchService';
 
 export const AI_CONVERSATION_HISTORY_LIMIT = 10;
 
@@ -106,15 +107,26 @@ export function useChatEngine(): ChatEngineResult {
         conversationRef.current = conversationRef.current.slice(-AI_CONVERSATION_HISTORY_LIMIT * 2);
       }
 
-      const displayText = result.text.trim()
-        || 'No recibí una respuesta del asistente. ¿Podés intentar de nuevo?';
+      if (result.dish) {
+        const hydrated = hydrateAiDish(result.dish);
+        addMessages({
+          id: makeId(),
+          type: 'assistant-dish',
+          text: hydrated.name,
+          dishSuggestion: hydrated,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        const displayText = result.text.trim()
+          || 'No recibí una respuesta del asistente. ¿Podés intentar de nuevo?';
 
-      addMessages({
-        id: makeId(),
-        type: 'assistant-text',
-        text: displayText,
-        timestamp: new Date().toISOString(),
-      });
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: displayText,
+          timestamp: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
 

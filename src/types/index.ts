@@ -99,6 +99,38 @@ export interface AiMeal {
   humanPortion?: string;
 }
 
+// ── AI dish response types (Gemini structured output) ──
+
+export interface AiDishIngredient {
+  nombre: string;
+  rol: CulinaryRole;
+  gramos: number;
+}
+
+export interface AiDishResponse {
+  nombre: string;
+  ingredientes: AiDishIngredient[];
+  preparacion: string;
+  tiempo_prep: number;
+  tip: string;
+}
+
+export interface HydratedAiIngredient {
+  name: string;
+  grams: number;
+  humanPortion: string;
+  ingredientId: string | null;
+}
+
+export interface HydratedAiDish {
+  name: string;
+  humanIngredients: HydratedAiIngredient[];
+  macros: Macros;
+  prepMinutes: number;
+  preparation: string;
+  tip: string;
+}
+
 // ── Portion Engine types (Phase 4/5 — Desacople) ──
 
 /** Gemini's new lightweight response — creative only, no numbers */
@@ -395,6 +427,7 @@ export type ChatMessageType =
   | 'assistant-text'
   | 'assistant-options'
   | 'assistant-meals'
+  | 'assistant-dish'
   | 'assistant-summary'
   | 'assistant-plan'
   | 'assistant-loading'
@@ -416,6 +449,7 @@ export interface ChatMessage {
   text?: string;
   options?: ChatOption[];
   mealSuggestions?: Array<AiMeal & { reason: string }>;
+  dishSuggestion?: HydratedAiDish;
   daySummary?: {
     meals: Array<{ mealType: MealType; name: string }>;
     energyLevel: EnergyLevel;

@@ -1,4 +1,5 @@
 import type { AiModel } from '../store/useSettingsStore';
+import type { AiDishResponse } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
@@ -10,6 +11,7 @@ function getToken(): string | null {
 export interface SendMessageResult {
   text: string;
   remaining: number;
+  dish?: AiDishResponse;
 }
 
 export async function sendMessage(
@@ -63,5 +65,6 @@ export async function sendMessage(
   return {
     text: String(body.text ?? ''),
     remaining: typeof body.remaining === 'number' ? body.remaining : 80,
+    dish: body.dish as AiDishResponse | undefined,
   };
 }

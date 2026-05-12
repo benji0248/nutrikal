@@ -5,6 +5,7 @@ import { OptionChips } from './OptionChips';
 import { DayEnergyBar } from './DayEnergyBar';
 import { WeekPlanner } from '../planner/WeekPlanner';
 import { PlanAppliedView } from '../planner/PlanAppliedView';
+import { DishCard } from './DishCard';
 
 
 interface ChatMessageBubbleProps {
@@ -103,6 +104,16 @@ export const ChatMessageBubble = ({
             </div>
           ))}
         </div>
+      );
+
+    case 'assistant-dish':
+      if (!message.dishSuggestion) return null;
+      return (
+        <DishCard
+          dish={message.dishSuggestion}
+          onRegenerate={chatBusy ? undefined : onRegeneratePlan}
+          chatBusy={chatBusy}
+        />
       );
 
     case 'assistant-plan':
