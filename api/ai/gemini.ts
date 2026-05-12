@@ -104,7 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const model = getGeminiClient().getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: systemPrompt,
       generationConfig: {
         responseMimeType: 'application/json',
       },
@@ -116,12 +115,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }));
 
     const tGemini = Date.now();
-    const result = await model.generateContent({
-      contents: [
-        ...geminiHistory,
-        { role: 'user', parts: [{ text: body.message }] },
-      ],
+    const chat = model.startChat({
+      systemInstruction: systemPrompt,
+      history: geminiHistory,
     });
+    const result = await chat.sendMessage(body.message);
     const geminiMs = Date.now() - tGemini;
 
     const responseText = result.response.text();
