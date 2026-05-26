@@ -108,7 +108,7 @@ const handlers: Record<string, RouteHandler> = {
     ] = await Promise.all([
       supabase.from('meals').select('*').eq('user_id', uid).gte('date', dateFrom).order('date', { ascending: true }),
       supabase.from('day_notes').select('*').eq('user_id', uid).gte('date', dateFrom),
-      supabase.from('user_profiles').select('*').eq('user_id', uid).single(),
+      supabase.from('user_profiles').select('*').eq('user_id', uid).maybeSingle(),
       supabase.from('notifications').select('*').eq('user_id', uid),
       supabase.from('calculator_recipes').select('*').eq('user_id', uid),
       supabase.from('custom_ingredients').select('*').eq('user_id', uid),
@@ -662,9 +662,12 @@ const handlers: Record<string, RouteHandler> = {
   },
 
   'GET profile': async (_req, res, auth) => {
-    const { data, error } = await getSupabase().from('user_profiles').select('*').eq('user_id', auth.userId).single();
-    if (error && error.code === 'PGRST116') return res.status(200).json({ profile: null });
-    if (error) return res.status(500).json({ error: 'Error al leer perfil' });
+    const { data, error } = await getSupabase().from('user_profiles').select('*').eq('user_id', auth.userId).maybeSingle();
+    if (error) {
+      console.error('GET profile error:', error.message, error.code);
+      return res.status(500).json({ error: 'Error al leer perfil' });
+    }
+    if (!data) return res.status(200).json({ profile: null });
     return res.status(200).json({
       profile: {
         id: data.profile_id, name: data.name, birthDate: data.birth_date, sex: data.sex,
@@ -678,15 +681,41 @@ const handlers: Record<string, RouteHandler> = {
   'PUT profile': async (req, res, auth) => {
     const { profile } = req.body;
     if (!profile) return res.status(400).json({ error: 'Perfil requerido' });
-    const { error } = await getSupabase().from('user_profiles').upsert({
-      user_id: auth.userId, profile_id: profile.id ?? auth.userId, name: profile.name, birth_date: profile.birthDate,
-      sex: profile.sex, height_cm: profile.heightCm, weight_kg: profile.weightKg, activity_level: profile.activityLevel,
-      goal: profile.goal, restrictions: profile.restrictions ?? [], disliked_ingredient_ids: profile.dislikedIngredientIds ?? [],
-      disliked_categories: profile.dislikedCategories ?? [], allowed_exceptions: profile.allowedExceptions ?? [],
-      nationality: profile.nationality ?? null, created_at: profile.createdAt ?? new Date().toISOString(),
-      updated_at: profile.updatedAt ?? new Date().toISOString(), last_recalibration: profile.lastRecalibration ?? new Date().toISOString(),
-    });
-    if (error) return res.status(500).json({ error: 'Error al guardar perfil' });
+
+    const heightCm = Number(profile.heightCm);
+    const weightKg = Number(profile.weightKg);
+    if (!profile.name || !profile.birthDate || !profile.sex || !Number.isFinite(heightCm) || !Number.isFinite(weightKg)) {
+      return res.status(400).json({ error: 'Datos de perfil incompletos' });
+    }
+
+    const now = new Date().toISOString();
+    const { error } = await getSupabase().from('user_profiles').upsert(
+      {
+        user_id: auth.userId,
+        profile_id: String(profile.id ?? auth.userId),
+        name: String(profile.name).trim(),
+        birth_date: String(profile.birthDate),
+        sex: String(profile.sex),
+        height_cm: heightCm,
+        weight_kg: weightKg,
+        activity_level: profile.activityLevel ?? 'moderate',
+        goal: profile.goal ?? 'maintain',
+        restrictions: profile.restrictions ?? [],
+        disliked_ingredient_ids: profile.dislikedIngredientIds ?? [],
+        disliked_categories: profile.dislikedCategories ?? [],
+        allowed_exceptions: profile.allowedExceptions ?? [],
+        nationality: profile.nationality ?? null,
+        created_at: profile.createdAt ?? now,
+        updated_at: profile.updatedAt ?? now,
+        last_recalibration: profile.lastRecalibration ?? now,
+      },
+      { onConflict: 'user_id' },
+    );
+
+    if (error) {
+      console.error('PUT profile error:', error.message, error.code, error.details);
+      return res.status(500).json({ error: 'Error al guardar perfil' });
+    }
     return res.status(200).json({ ok: true });
   },
 

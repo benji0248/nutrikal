@@ -128,6 +128,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       recentDishes: recentDishes.length,
     });
 
+    if (!process.env.GEMINI_API_KEY) {
+      chatApiLog(reqId, 'gemini_config_missing', {});
+      return res.status(503).json({
+        error: 'config',
+        text: 'El asistente no está configurado en el servidor. Avisale al administrador.',
+      });
+    }
+
     const model = getGeminiClient().getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: GEMINI_GENERATION_CONFIG,
@@ -190,9 +198,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err) {
     chatApiLogError(reqId, 'handler_uncaught', err);
-    return res.status(500).json({
-      error: 'internal',
-      text: 'Algo salió mal. Intentá de nuevo en unos segundos.',
+    const message = err instanceof Error ? err.message : 'unknown';
+    const isConfig = message.includes('GEMINI_API_KEY') || message.includes('SUPABASE');
+    return res.status(isConfig ? 503 : 500).json({
+      error: isConfig ? 'config' : 'internal',
+      text: isConfig
+        ? 'El asistente no está disponible ahora. Probá más tarde.'
+        : 'Algo salió mal. Intentá de nuevo en unos segundos.',
     });
   }
 }

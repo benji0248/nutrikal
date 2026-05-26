@@ -162,7 +162,7 @@ export function buildSystemPrompt(profile: GemProfile, options: BuildPromptOptio
     restrictions,
     '',
     '## Creatividad y variedad',
-    '- Tienes libertad total para ser creativo y variado; no hay restricciones de historial.',
+    '- Cada respuesta: plato distinto en nombre, técnica y presentación.',
     antiRepeat,
     '',
     '## Ingredientes que menciona el usuario',
@@ -191,6 +191,5 @@ export function buildSystemPrompt(profile: GemProfile, options: BuildPromptOptio
 /** Config de generación con variedad alta (Gemini). */
 export const GEMINI_GENERATION_CONFIG = {
   responseMimeType: 'application/json' as const,
-  temperature: 1,
-  topP: 0.95,
+  temperature: 0.95,
 };
