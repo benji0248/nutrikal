@@ -35,6 +35,7 @@ export function useChatEngine(): ChatEngineResult {
   const [remainingMessages, setRemainingMessages] = useState<number | null>(null);
 
   const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const lastUserPromptRef = useRef<string | null>(null);
   const prevProfileRef = useRef(profile);
   const sendingLockRef = useRef(false);
 
@@ -80,10 +81,18 @@ export function useChatEngine(): ChatEngineResult {
     setMessages((prev) => [...prev, ...msgs]);
   }
 
-  async function sendToAi(text: string) {
+  async function sendToAi(text: string, options?: { variation?: boolean }) {
     if (!profile) return;
     if (sendingLockRef.current) return;
     sendingLockRef.current = true;
+
+    const promptForApi = options?.variation
+      ? `${text.trim()}\n\n[Generá otro plato completamente distinto: distinto nombre, técnica y presentación. No repitas platos de esta conversación.]`
+      : text.trim();
+
+    if (!options?.variation) {
+      lastUserPromptRef.current = text.trim();
+    }
 
     setIsLoading(true);
     const loadingId = makeId();
@@ -94,13 +103,17 @@ export function useChatEngine(): ChatEngineResult {
     });
 
     try {
-      const result: SendMessageResult = await sendMessage(text, conversationRef.current, aiModel);
+      const result: SendMessageResult = await sendMessage(
+        promptForApi,
+        conversationRef.current,
+        aiModel,
+      );
 
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       setRemainingMessages(result.remaining);
 
       conversationRef.current.push(
-        { role: 'user', content: text },
+        { role: 'user', content: promptForApi },
         { role: 'assistant', content: result.text },
       );
       if (conversationRef.current.length > AI_CONVERSATION_HISTORY_LIMIT * 2) {
@@ -185,7 +198,11 @@ export function useChatEngine(): ChatEngineResult {
     handleOption,
     handleSendMessage,
     handleApplyPlan: () => {},
-    handleRegeneratePlan: () => {},
+    handleRegeneratePlan: () => {
+      const last = lastUserPromptRef.current;
+      if (!last || isLoading) return;
+      sendToAi(last, { variation: true });
+    },
     handleSwapMeal: () => {},
     energyLevel: 'green',
     energyRatio: 0.5,

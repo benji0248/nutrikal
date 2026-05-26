@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getGeminiClient, buildSystemPrompt, type GemProfile } from '../_lib/gemini.js';
+import {
+  getGeminiClient,
+  buildSystemPrompt,
+  extractRecentDishNames,
+  GEMINI_GENERATION_CONFIG,
+  type GemProfile,
+} from '../_lib/gemini.js';
 import { getSupabase } from '../_lib/supabase.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
@@ -28,16 +34,34 @@ interface AiDishResponse {
 async function fetchProfile(userId: string): Promise<GemProfile> {
   try {
     const supabase = getSupabase();
-    const { data } = await supabase
+
+    const { data: row } = await supabase
+      .from('user_profiles')
+      .select('name, nationality, restrictions')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (row) {
+      return {
+        nationality: typeof row.nationality === 'string' ? row.nationality : undefined,
+        restrictions: Array.isArray(row.restrictions) ? (row.restrictions as string[]) : undefined,
+        name: typeof row.name === 'string' ? row.name : undefined,
+      };
+    }
+
+    const { data: legacy } = await supabase
       .from('user_data')
       .select('data')
       .eq('user_id', userId)
       .maybeSingle();
 
-    const profile = (data?.data as Record<string, unknown>)?.profile as Record<string, unknown> | undefined;
+    const profile = (legacy?.data as Record<string, unknown> | undefined)?.profile as
+      | Record<string, unknown>
+      | undefined;
+
     return {
       nationality: typeof profile?.nationality === 'string' ? profile.nationality : undefined,
-      restrictions: Array.isArray(profile?.restrictions) ? profile.restrictions as string[] : undefined,
+      restrictions: Array.isArray(profile?.restrictions) ? (profile.restrictions as string[]) : undefined,
       name: typeof profile?.name === 'string' ? profile.name : undefined,
     };
   } catch {
@@ -95,18 +119,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const profile = await fetchProfile(userId);
-    const systemPrompt = buildSystemPrompt(profile);
+    const recentDishes = extractRecentDishNames(body.history ?? []);
+    const systemPrompt = buildSystemPrompt(profile, { recentDishes });
 
     chatApiLog(reqId, 'profile_loaded', {
       nationality: profile.nationality ?? 'none',
       restrictions: profile.restrictions?.length ?? 0,
+      recentDishes: recentDishes.length,
     });
 
     const model = getGeminiClient().getGenerativeModel({
       model: 'gemini-2.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-      },
+      generationConfig: GEMINI_GENERATION_CONFIG,
     });
 
     const geminiHistory = (body.history ?? []).map((msg) => ({
