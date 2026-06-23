@@ -13,7 +13,7 @@ import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { useRecipesStore } from '../../store/useRecipesStore';
 import { getMealCalories } from '../../utils/macroHelpers';
-import { gramsToHumanPortion, getDishHumanIngredients } from '../../utils/portionHelpers';
+import { getDishHumanIngredients, formatPortionDisplay } from '../../utils/portionHelpers';
 
 interface MealSlotProps {
   date: string;
@@ -131,6 +131,7 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
         <div className="px-4 pb-4 space-y-3">
           {meals.map((meal) => {
             const hasIngredients = !!(meal.aiIngredients?.length || meal.entries?.length || meal.linkedRecipeId);
+            const hasRecipeDetail = hasIngredients || !!meal.preparation;
             const isMealExpanded = expandedMealId === meal.id;
 
             return (
@@ -143,7 +144,7 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-heading font-bold text-text-primary truncate">{meal.name}</p>
                       <p className="text-[11px] font-body text-muted truncate mt-0.5">
-                        {hasIngredients ? 'Ver receta / porciones' : 'Porción sugerida'}
+                        {hasRecipeDetail ? 'Ver receta / porciones' : 'Porción sugerida'}
                       </p>
                       
                       {showCalories && getMealCalories(meal, allIngredients) !== undefined && (
@@ -156,7 +157,7 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-surface/90 rounded-lg p-0.5 backdrop-blur-sm">
-                    {hasIngredients && (
+                    {hasRecipeDetail && (
                       <button
                         onClick={() => setExpandedMealId(isMealExpanded ? null : meal.id)}
                         className="p-1.5 rounded-md hover:bg-surface2 transition-colors flex-shrink-0"
@@ -185,8 +186,25 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
                   </div>
                 </div>
 
-                {isMealExpanded && hasIngredients && (
-                  <MealIngredients meal={meal} allIngredients={allIngredients} />
+                {isMealExpanded && (
+                  <div className="border-t border-border/20">
+                    {hasIngredients && (
+                      <MealIngredients meal={meal} allIngredients={allIngredients} />
+                    )}
+                    {meal.preparation && (
+                      <div className="px-4 pb-3 pt-2">
+                        <p className="text-[11px] font-body font-semibold uppercase tracking-wide text-muted mb-1">
+                          Preparación
+                        </p>
+                        <p className="text-xs font-body text-text-primary leading-relaxed whitespace-pre-wrap">
+                          {meal.preparation}
+                        </p>
+                        {meal.tip && (
+                          <p className="mt-2 text-[11px] font-body text-muted italic">{meal.tip}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -272,12 +290,13 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
 
 function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients: import('../../types').Ingredient[] }) {
   const customDishes = useRecipesStore((s) => s.customDishes);
+  const useGrams = useSettingsStore((s) => s.useGrams);
   const ingredients = useMemo(() => {
     // AI-generated ingredients
     if (meal.aiIngredients?.length) {
       return meal.aiIngredients.map((ai) => ({
         name: ai.name,
-        humanPortion: `${ai.grams}g`,
+        humanPortion: useGrams ? `${Math.round(ai.grams)}g` : `${ai.grams}g`,
       }));
     }
 
@@ -297,13 +316,13 @@ function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients:
         const ing = allIngredients.find((i) => i.id === entry.ingredientId);
         return {
           name: ing?.name ?? entry.ingredientId,
-          humanPortion: gramsToHumanPortion(entry.ingredientId, entry.grams, ing),
+          humanPortion: formatPortionDisplay(entry.ingredientId, entry.grams, ing, useGrams),
         };
       });
     }
 
     return [];
-  }, [meal, allIngredients, customDishes]);
+  }, [meal, allIngredients, customDishes, useGrams]);
 
   if (ingredients.length === 0) return null;
 

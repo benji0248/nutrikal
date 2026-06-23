@@ -1,32 +1,13 @@
 {
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/business/(.*)", "destination": "/api/business?route=$1" },
-    { "source": "/api/data/(.*)", "destination": "/api/business?route=data/$1" },
-    { "source": "/api/data", "destination": "/api/business?route=data" },
-    { "source": "/api/dishes/(.*)", "destination": "/api/business?route=dishes/$1" },
-    { "source": "/api/dishes", "destination": "/api/business?route=dishes" },
-    { "source": "/api/favorites/(.*)", "destination": "/api/business?route=favorites/$1" },
-    { "source": "/api/favorites", "destination": "/api/business?route=favorites" },
-    { "source": "/api/ingredients/(.*)", "destination": "/api/business?route=ingredients/$1" },
-    { "source": "/api/ingredients", "destination": "/api/business?route=ingredients" },
-    { "source": "/api/meals/(.*)", "destination": "/api/business?route=meals/$1" },
-    { "source": "/api/meals", "destination": "/api/business?route=meals" },
-    { "source": "/api/notes/(.*)", "destination": "/api/business?route=notes/$1" },
-    { "source": "/api/notes", "destination": "/api/business?route=notes" },
-    { "source": "/api/notifications/(.*)", "destination": "/api/business?route=notifications/$1" },
-    { "source": "/api/notifications", "destination": "/api/business?route=notifications" },
-    { "source": "/api/profile/(.*)", "destination": "/api/business?route=profile/$1" },
-    { "source": "/api/profile", "destination": "/api/business?route=profile" },
-    { "source": "/api/recipes/(.*)", "destination": "/api/business?route=recipes/$1" },
-    { "source": "/api/recipes", "destination": "/api/business?route=recipes" },
-    { "source": "/api/settings/(.*)", "destination": "/api/business?route=settings/$1" },
-    { "source": "/api/settings", "destination": "/api/business?route=settings" },
-    { "source": "/api/shopping/(.*)", "destination": "/api/business?route=shopping/$1" },
-    { "source": "/api/shopping", "destination": "/api/business?route=shopping" },
-    { "source": "/api/signals/(.*)", "destination": "/api/business?route=signals/$1" },
-    { "source": "/api/signals", "destination": "/api/business?route=signals" },
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/((?!auth(?:/|$)|ai(?:/|$)).*)",
+      "destination": "/api/business?route=$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

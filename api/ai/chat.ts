@@ -59,6 +59,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       historyLen: body.history?.length ?? 0,
     });
 
+    if (!process.env.DEEPSEEK_API_KEY) {
+      chatApiLog(reqId, 'deepseek_config_missing', {});
+      return res.status(503).json({
+        error: 'config',
+        text: 'DeepSeek no está configurado. Agregá DEEPSEEK_API_KEY en .env.local o usá el modo Gemini.',
+      });
+    }
+
     const client = getDeepSeekClient();
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 

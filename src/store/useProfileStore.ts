@@ -5,21 +5,52 @@ import * as api from '../services/apiService';
 
 interface ProfileState {
   profile: UserProfile | null;
+  saveError: string | null;
 
   setProfile: (profile: UserProfile) => void;
+  persistProfile: (profile: UserProfile) => Promise<boolean>;
   updateProfile: (partial: Partial<UserProfile>) => void;
   getMetabolicResult: () => MetabolicResult | null;
   needsRecalibration: () => boolean;
   markRecalibrated: () => void;
   hydrateProfile: (profile: UserProfile | null) => void;
+  clearSaveError: () => void;
+}
+
+async function saveInBackground(
+  profile: UserProfile,
+  set: (partial: Partial<ProfileState>) => void,
+) {
+  try {
+    await api.saveProfile(profile);
+    set({ saveError: null });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al guardar perfil';
+    set({ saveError: msg });
+    console.error('Profile save error:', e);
+  }
 }
 
 export const useProfileStore = create<ProfileState>()((set, get) => ({
   profile: null,
+  saveError: null,
 
   setProfile: (profile: UserProfile) => {
     set({ profile });
-    api.saveProfile(profile).catch(console.error);
+    void saveInBackground(profile, set);
+  },
+
+  persistProfile: async (profile: UserProfile) => {
+    set({ profile, saveError: null });
+    try {
+      await api.saveProfile(profile);
+      return true;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error al guardar perfil';
+      set({ saveError: msg });
+      console.error('Profile save error:', e);
+      return false;
+    }
   },
 
   updateProfile: (partial: Partial<UserProfile>) => {
@@ -27,7 +58,7 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
     if (!current) return;
     const updated = { ...current, ...partial, updatedAt: new Date().toISOString() };
     set({ profile: updated });
-    api.saveProfile(updated).catch(console.error);
+    void saveInBackground(updated, set);
   },
 
   getMetabolicResult: (): MetabolicResult | null => {
@@ -54,10 +85,14 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
     set({ profile: updated });
-    api.saveProfile(updated).catch(console.error);
+    void saveInBackground(updated, set);
   },
 
   hydrateProfile: (profile) => {
     set({ profile });
+  },
+
+  clearSaveError: () => {
+    set({ saveError: null });
   },
 }));

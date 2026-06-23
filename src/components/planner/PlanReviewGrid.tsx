@@ -60,16 +60,38 @@ export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanR
 
       {activeDayData && (
         <div className="mt-2 space-y-2">
-          <div className="flex items-baseline justify-between">
-            <p className="font-body text-xs font-medium capitalize text-[#191c17]">
-              {format(parseISO(activeDayData.date), "EEEE d 'de' MMMM", { locale: es })}
-            </p>
-            {showCalories && dayKcal > 0 && (
+          <div className="flex items-baseline justify-between gap-2">
+            <div>
+              <p className="font-body text-xs font-medium capitalize text-[#191c17]">
+                {format(parseISO(activeDayData.date), "EEEE d 'de' MMMM", { locale: es })}
+              </p>
+              {activeDayData.dayLabel && (
+                <span className="mt-0.5 inline-block rounded-full bg-[#fd9d1a]/20 px-2 py-0.5 text-[10px] font-body font-semibold text-[#663b00]">
+                  {activeDayData.dayLabel}
+                </span>
+              )}
+            </div>
+            {showCalories && dayKcal > 0 && activeDayData.dayMode !== 'full_free' && (
               <span className="font-mono text-xs text-[#226046]">
                 {dayKcal} kcal
               </span>
             )}
           </div>
+
+          {activeDayData.dayMode === 'full_free' ? (
+            <div className="rounded-2xl bg-[#f8faf1] p-4 text-center">
+              <p className="font-body text-sm font-medium text-[#191c17]">Día libre</p>
+              <p className="mt-1 text-xs font-body text-[#707a6c]">
+                Sin menú planificado. Comé a tu ritmo; el resto de la semana sigue armado.
+              </p>
+            </div>
+          ) : (
+          <>
+          {activeDayData.dayMode === 'maintenance' && (
+            <p className="text-[11px] font-body text-[#707a6c]">
+              Calorías de mantenimiento (sin déficit este día).
+            </p>
+          )}
           {MEAL_TYPE_ORDER.map((mt) => {
             const planned = activeDayData.meals[mt];
             return (
@@ -88,6 +110,8 @@ export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanR
               </div>
             );
           })}
+          </>
+          )}
         </div>
       )}
     </div>

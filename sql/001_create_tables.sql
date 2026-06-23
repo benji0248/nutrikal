@@ -1,5 +1,5 @@
 -- NutriKal: Migrate from blob-sync to REST API
--- Run this in Supabase SQL Editor BEFORE deploying the new code.
+-- Run 000_base_tables.sql FIRST, then this file in Supabase SQL Editor.
 -- All tables use user_id UUID referencing users(id) ON DELETE CASCADE.
 
 -- ═══════════════════════════════════════════════════════════════
@@ -147,7 +147,8 @@ CREATE INDEX IF NOT EXISTS idx_shopping_items_list ON shopping_items(list_id);
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   theme TEXT DEFAULT 'dark',
-  show_calories BOOLEAN DEFAULT FALSE
+  show_calories BOOLEAN DEFAULT FALSE,
+  use_grams BOOLEAN DEFAULT FALSE
 );
 
 -- ═══════════════════════════════════════════════════════════════

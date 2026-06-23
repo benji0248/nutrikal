@@ -12,6 +12,7 @@ import {
   getWeekDays,
   formatDateKey,
 } from '../../utils/dateHelpers';
+import { getCurrentMealType } from '../../utils/mealTimeHelpers';
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
 import type { MealType } from '../../types';
@@ -35,14 +36,6 @@ const MEAL_TIME_LABELS: Record<MealType, string> = {
   cena: '15:00 – 21:00',
   snack: 'Todo el día',
 };
-
-function getCurrentMealType(): MealType | null {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour < 11) return 'desayuno';
-  if (hour >= 11 && hour < 15) return 'almuerzo';
-  if (hour >= 15 && hour < 21) return 'cena';
-  return null;
-}
 
 interface DayViewProps {
   onNavigateToAssistant?: () => void;

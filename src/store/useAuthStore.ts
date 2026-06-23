@@ -74,6 +74,9 @@ export const useAuthStore = create<AuthStoreState>()(
         import('./useProfileStore').then(({ useProfileStore }) =>
           useProfileStore.setState({ profile: null }),
         );
+        import('./useWeekPlanningStore').then(({ useWeekPlanningStore }) =>
+          useWeekPlanningStore.setState({ weekPlanning: null, saveError: null }),
+        );
         import('./useShoppingStore').then(({ useShoppingStore }) =>
           useShoppingStore.setState({ lists: [] }),
         );
@@ -86,9 +89,13 @@ export const useAuthStore = create<AuthStoreState>()(
         import('./useIngredientSignalStore').then(({ useIngredientSignalStore }) =>
           useIngredientSignalStore.setState({ entries: [] }),
         );
-        import('./useSettingsStore').then(({ useSettingsStore }) =>
-          useSettingsStore.setState({ showCalories: false, theme: 'dark' }),
+        import('./usePlanRotationStore').then(({ usePlanRotationStore }) =>
+          usePlanRotationStore.getState().clear(),
         );
+        import('./useSettingsStore').then(({ useSettingsStore }) => {
+          useSettingsStore.setState({ showCalories: false, useGrams: false, theme: 'dark' });
+          localStorage.removeItem('nutrikal-use-grams');
+        });
       },
 
       restoreSession: async () => {

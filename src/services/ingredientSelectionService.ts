@@ -6,6 +6,11 @@ import type {
   Cuisine,
 } from '../types';
 import { filterIngredientsForUser } from './ingredientFilter';
+import {
+  buildIngredientTasteScores,
+  rankIngredientsByTaste,
+  type TasteSelectionContext,
+} from './ingredientTasteModel';
 
 /**
  * Cantidades por banda en la canasta semanal (rotación por semana ISO + semilla de historial).
@@ -13,9 +18,22 @@ import { filterIngredientsForUser } from './ingredientFilter';
  */
 const WEEKLY_POOL_COUNTS = {
   structural: 10,
-  contextual: 20,
-  creative: 14,
+  contextual: 16,
+  creative: 2,
 } as const;
+
+/** Ingredientes cotidianos — prioridad en la canasta semanal. */
+const STAPLE_IDS = new Set([
+  'ing_001', 'ing_002', 'ing_005', 'ing_006', 'ing_007', 'ing_008', 'ing_010',
+  'ing_013', 'ing_015', 'ing_022', 'ing_032', 'ing_036', 'ing_037', 'ing_038',
+  'ing_039', 'ing_040', 'ing_041', 'ing_042', 'ing_043', 'ing_045', 'ing_046',
+  'ing_048', 'ing_050', 'ing_052', 'ing_059', 'ing_065', 'ing_066', 'ing_076',
+  'ing_077', 'ing_078', 'ing_082', 'ing_086', 'ing_088', 'ing_101', 'ing_103',
+  'ing_104', 'ing_107', 'ing_108', 'ing_114', 'ing_117', 'ing_121', 'ing_124',
+  'ing_126', 'ing_127', 'ing_128', 'ing_132', 'ing_135', 'ing_146', 'ing_147',
+  'ing_148', 'ing_149', 'ing_154', 'ing_156', 'ing_159', 'ing_228', 'ing_229',
+  'ing_253', 'ing_254', 'ing_257',
+]);
 
 /** Semilla estable a partir de platos frecuentes en calendario — rota el shuffle sin llamadas a API. */
 export function buildPoolPersonalizationSeed(
@@ -82,6 +100,10 @@ export interface SelectionOptions {
   weekId: string;
   /** Opcional: variar el shuffle según historial de platos (nombre + frecuencias). */
   personalizationSeed?: string;
+  /** Incrementa en cada generación de plan para rotar la canasta en la misma semana ISO. */
+  poolGeneration?: number;
+  /** Señales + historial de canastas → selección ponderada (aprende con el uso). */
+  tasteContext?: TasteSelectionContext;
 }
 
 /**
@@ -95,7 +117,11 @@ export function buildWeeklyIngredientPool(
   options: SelectionOptions,
 ): WeeklyIngredientPool {
   const filtered = filterIngredientsForUser(allIngredients, profile);
-  const seedKey = `${options.weekId}|${options.personalizationSeed ?? ''}`;
+  const gen =
+    options.poolGeneration != null && options.poolGeneration > 0
+      ? `|g${options.poolGeneration}`
+      : '';
+  const seedKey = `${options.weekId}|${options.personalizationSeed ?? ''}${gen}`;
   const rng = makeRng(hashSeed(seedKey));
 
   const byLevel: Record<IngredientLevel, Ingredient[]> = { 1: [], 2: [], 3: [] };
@@ -105,11 +131,21 @@ export function buildWeeklyIngredientPool(
 
   const { structural: n1, contextual: n2, creative: n3 } = WEEKLY_POOL_COUNTS;
 
-  // Pick with cuisine diversity: ensure min cuisines represented
+  const tasteScores = options.tasteContext
+    ? buildIngredientTasteScores(filtered, options.tasteContext)
+    : null;
+
+  const orderPool = (pool: Ingredient[]): Ingredient[] => {
+    const staples = pool.filter((i) => STAPLE_IDS.has(i.id));
+    const others = pool.filter((i) => !STAPLE_IDS.has(i.id));
+    const rank = (list: Ingredient[]) =>
+      tasteScores ? rankIngredientsByTaste(list, tasteScores, rng) : shuffle(list, rng);
+    return [...rank(staples), ...rank(others)];
+  };
+
   const pickDiverse = (pool: Ingredient[], n: number, minCuisines: number): string[] => {
     if (pool.length <= n) return pool.map((i) => i.id);
 
-    // Group by cuisine
     const byCuisine = new Map<string | undefined, Ingredient[]>();
     for (const ing of pool) {
       const key = ing.cuisine;
@@ -118,32 +154,27 @@ export function buildWeeklyIngredientPool(
       byCuisine.set(key, group);
     }
 
-    const shuffled = shuffle(pool, rng);
+    const ranked = orderPool(pool);
     const selected: string[] = [];
     const selectedCuisines = new Set<string>();
 
-    // Phase 1: pick one from each cuisine until we hit minCuisines or run out
     const cuisineKeys = shuffle(
       [...byCuisine.keys()].filter((k): k is string => k !== undefined),
       rng,
     );
     for (const cuisine of cuisineKeys) {
       if (selectedCuisines.size >= minCuisines) break;
-      const group = byCuisine.get(cuisine);
-      if (!group || group.length === 0) continue;
-      const pick = shuffle(group, rng)[0];
-      if (pick && !selected.includes(pick.id)) {
+      const group = orderPool(byCuisine.get(cuisine) ?? []);
+      const pick = group.find((ing) => !selected.includes(ing.id));
+      if (pick) {
         selected.push(pick.id);
         selectedCuisines.add(cuisine);
       }
     }
 
-    // Phase 2: fill remaining slots from the global shuffle
-    for (const ing of shuffled) {
+    for (const ing of ranked) {
       if (selected.length >= n) break;
-      if (!selected.includes(ing.id)) {
-        selected.push(ing.id);
-      }
+      if (!selected.includes(ing.id)) selected.push(ing.id);
     }
 
     return selected;
@@ -153,7 +184,7 @@ export function buildWeeklyIngredientPool(
     weekId: options.weekId,
     structural: pickDiverse(byLevel[1], n1, 2),
     contextual: pickDiverse(byLevel[2], n2, 3),
-    creative: shuffle(byLevel[3], rng).slice(0, n3).map((i) => i.id),
+    creative: orderPool(byLevel[3]).slice(0, n3).map((i) => i.id),
   };
 }
 
@@ -163,6 +194,7 @@ export function buildWeeklyIngredientPool(
 export function formatWeeklyPoolForPrompt(
   pool: WeeklyIngredientPool,
   allIngredients: Ingredient[],
+  tasteAware = false,
 ): string {
   const map = new Map(allIngredients.map((i) => [i.id, i] as const));
   const idLines = (ids: string[]): string =>
@@ -174,15 +206,21 @@ export function formatWeeklyPoolForPrompt(
       .filter(Boolean)
       .join('\n');
 
+  const tasteNote = tasteAware
+    ? ' (priorizá ingredientes que el usuario suele aceptar; evitá los que rechazó o repitió mucho en canastas recientes).'
+    : '';
+
   return [
-    'CANASTA SEMANAL (solo para acción week_plan; combiná bandas para platos completos):',
+    `CANASTA SEMANAL${tasteNote} — usá estos ingredientes (priorizá estructurales y contextuales):`,
     'ESTRUCTURALES:',
     idLines(pool.structural),
     'CONTEXTUALES:',
     idLines(pool.contextual),
-    'CREATIVOS:',
-    idLines(pool.creative),
-  ].join('\n');
+    pool.creative.length ? 'OPCIONALES:' : '',
+    pool.creative.length ? idLines(pool.creative) : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**

@@ -55,6 +55,7 @@ function buildExportPayload(): AppPayload {
     settings: {
       theme: settings.theme,
       showCalories: settings.showCalories,
+      useGrams: settings.useGrams,
     },
     profile: profile ?? undefined,
     shoppingLists: shopping.lists,
@@ -90,6 +91,7 @@ function hydrateFromImport(payload: AppPayload) {
   useSettingsStore.getState().hydrateSettings({
     theme: payload.settings?.theme ?? 'dark',
     showCalories: payload.settings?.showCalories ?? false,
+    useGrams: payload.settings?.useGrams ?? false,
   });
   useIngredientSignalStore.setState({
     entries: payload.ingredientSignalLog ?? [],

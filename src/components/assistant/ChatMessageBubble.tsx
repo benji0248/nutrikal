@@ -1,18 +1,21 @@
-import { Loader2, Clock, Bot } from 'lucide-react';
-import type { ChatMessage, ChatOption, EnergyLevel, MealType, WeekPlan } from '../../types';
+import { Clock, Bot } from 'lucide-react';
+import type { ChatMessage, ChatOption, EnergyLevel, HydratedAiDish, MealType, WeekPlan } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
 import { OptionChips } from './OptionChips';
 import { DayEnergyBar } from './DayEnergyBar';
 import { WeekPlanner } from '../planner/WeekPlanner';
 import { PlanAppliedView } from '../planner/PlanAppliedView';
 import { DishCard } from './DishCard';
+import { CookingLoader } from './CookingLoader';
 
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
   onOptionSelect: (option: ChatOption) => void;
   onApplyPlan: (plan: WeekPlan) => void;
+  onApplyDish: (dish: HydratedAiDish, date: string, mealType: MealType) => void;
   onRegeneratePlan: () => void;
+  onRegenerateDish: (messageId: string, dish: HydratedAiDish, mealType?: MealType) => void;
   onSwapMeal: (date: string, mealType: MealType) => void;
   energyLevel: EnergyLevel;
   energyRatio: number;
@@ -25,9 +28,12 @@ export const ChatMessageBubble = ({
   message,
   onOptionSelect,
   onApplyPlan,
+  onApplyDish,
   onRegeneratePlan,
+  onRegenerateDish,
   onSwapMeal,
   energyRatio,
+  showCalories = false,
   chatBusy = false,
 }: ChatMessageBubbleProps) => {
   switch (message.type) {
@@ -44,14 +50,16 @@ export const ChatMessageBubble = ({
       );
 
     case 'assistant-loading':
+      if (message.loadingStyle === 'cooking') {
+        return <CookingLoader />;
+      }
       return (
         <div className="flex mr-12 items-start gap-3 animate-fade-in">
           <div className="w-8 h-8 rounded-full bg-[#226046] flex items-center justify-center flex-shrink-0 text-white">
             <Bot size={16} />
           </div>
-          <div className="bg-[#f3f5eb] text-[#191c17] rounded-t-xl rounded-br-xl px-5 py-3 shadow-sm flex items-center gap-2">
-            <Loader2 size={16} className="animate-spin shrink-0 text-[#226046]" />
-            <span className="font-body text-sm font-medium">Pensando...</span>
+          <div className="bg-[#f3f5eb] text-[#191c17] rounded-t-xl rounded-br-xl px-5 py-3 shadow-sm">
+            <span className="font-body text-sm font-medium">Un momento…</span>
           </div>
         </div>
       );
@@ -111,7 +119,18 @@ export const ChatMessageBubble = ({
       return (
         <DishCard
           dish={message.dishSuggestion}
-          onRegenerate={chatBusy ? undefined : onRegeneratePlan}
+          showCalories={showCalories}
+          defaultMealType={message.mealType}
+          onApply={
+            message.mealType && !chatBusy
+              ? (dish, date, mealType) => onApplyDish(dish, date, mealType)
+              : undefined
+          }
+          onRegenerate={
+            chatBusy || !message.dishSuggestion
+              ? undefined
+              : () => onRegenerateDish(message.id, message.dishSuggestion!, message.mealType)
+          }
           chatBusy={chatBusy}
         />
       );

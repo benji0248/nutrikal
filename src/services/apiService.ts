@@ -4,6 +4,8 @@ import type {
   MealType,
   Notification,
   UserProfile,
+  WeekPlanningProfile,
+  PlanMemory,
   CalculatorRecipe,
   Ingredient,
   Dish,
@@ -13,7 +15,6 @@ import type {
   Theme,
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
 
 // ── Error class ──
@@ -21,6 +22,7 @@ const JWT_KEY = 'nutrikal-jwt';
 interface ApiError {
   error: string;
   field?: string;
+  dbMessage?: string | null;
 }
 
 export class ApiAuthError extends Error {
@@ -59,18 +61,19 @@ async function handleResponse<T>(res: Response): Promise<T> {
   }
   if (!res.ok) {
     const err = data as ApiError;
-    throw new ApiAuthError(err.error || 'Error inesperado', res.status, err.field);
+    const detail = err.dbMessage ? `: ${err.dbMessage}` : '';
+    throw new ApiAuthError(`${err.error || 'Error inesperado'}${detail}`, res.status, err.field);
   }
   return data as T;
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() });
+  const res = await fetch(path, { headers: authHeaders() });
   return handleResponse<T>(res);
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(path, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(body),
@@ -79,7 +82,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(path, {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(body),
@@ -88,7 +91,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function patch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(path, {
     method: 'PATCH',
     headers: authHeaders(),
   });
@@ -101,7 +104,7 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
     headers: authHeaders(),
   };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${BASE_URL}${path}`, opts);
+  const res = await fetch(path, opts);
   return handleResponse<T>(res);
 }
 
@@ -118,7 +121,7 @@ export async function register(
   password: string,
   displayName?: string,
 ): Promise<AuthResponse> {
-  const res = await fetch(`${BASE_URL}/api/auth/register`, {
+  const res = await fetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password, displayName }),
@@ -130,7 +133,7 @@ export async function login(
   identifier: string,
   password: string,
 ): Promise<AuthResponse> {
-  const res = await fetch(`${BASE_URL}/api/auth/login`, {
+  const res = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifier, password }),
@@ -139,7 +142,7 @@ export async function login(
 }
 
 export async function validateSession(token: string): Promise<AppUser> {
-  const res = await fetch(`${BASE_URL}/api/auth/me`, {
+  const res = await fetch('/api/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await handleResponse<{ user: AppUser }>(res);
@@ -160,6 +163,7 @@ export interface BatchLoadResponse {
     calories: number | null; notes: string | null; linkedRecipeId: string | null;
     entries: unknown[]; aiIngredients: unknown[]; completed: boolean;
     prepMinutes?: number | null; humanPortion?: string | null;
+    preparation?: string | null; tip?: string | null;
   }>;
   dayNotes: Array<{ date: string; notes: string }>;
   profile: UserProfile | null;
@@ -168,7 +172,9 @@ export interface BatchLoadResponse {
   customIngredients: Ingredient[];
   customDishes: Dish[];
   shoppingLists: ShoppingList[];
-  settings: { theme: Theme; showCalories: boolean };
+  settings: { theme: Theme; showCalories: boolean; useGrams?: boolean };
+  weekPlanning: WeekPlanningProfile | null;
+  planMemory: PlanMemory | null;
   favorites: string[];
   ingredientSignals: IngredientSignalEntry[];
 }
@@ -184,7 +190,19 @@ export async function createMeal(date: string, mealType: MealType, meal: Meal): 
 }
 
 export async function createMealsBatch(
-  meals: Array<{ date: string; mealType: MealType; id: string; name: string; calories?: number; aiIngredients?: unknown[]; entries?: unknown[]; prepMinutes?: number; humanPortion?: string }>,
+  meals: Array<{
+    date: string;
+    mealType: MealType;
+    id: string;
+    name: string;
+    calories?: number;
+    aiIngredients?: unknown[];
+    entries?: unknown[];
+    prepMinutes?: number;
+    humanPortion?: string;
+    preparation?: string;
+    tip?: string;
+  }>,
 ): Promise<void> {
   await post('/api/meals/batch', { meals });
 }
@@ -208,6 +226,24 @@ export async function saveProfile(profile: UserProfile): Promise<void> {
 export async function loadProfile(): Promise<UserProfile | null> {
   const data = await get<{ profile: UserProfile | null }>('/api/profile');
   return data.profile;
+}
+
+export async function saveWeekPlanning(weekPlanning: WeekPlanningProfile): Promise<void> {
+  await put('/api/week-planning', { weekPlanning });
+}
+
+export async function loadWeekPlanning(): Promise<WeekPlanningProfile | null> {
+  const data = await get<{ weekPlanning: WeekPlanningProfile | null }>('/api/week-planning');
+  return data.weekPlanning;
+}
+
+export async function savePlanMemory(planMemory: PlanMemory): Promise<void> {
+  await put('/api/plan-memory', { planMemory });
+}
+
+export async function loadPlanMemory(): Promise<PlanMemory | null> {
+  const data = await get<{ planMemory: PlanMemory | null }>('/api/plan-memory');
+  return data.planMemory;
 }
 
 // ── Calculator Recipes ──
@@ -256,7 +292,11 @@ export async function toggleShoppingItem(listId: string, itemId: string): Promis
 
 // ── Settings ──
 
-export async function saveSettings(settings: { theme?: Theme; showCalories?: boolean }): Promise<void> {
+export async function saveSettings(settings: {
+  theme?: Theme;
+  showCalories?: boolean;
+  useGrams?: boolean;
+}): Promise<void> {
   await put('/api/settings', settings);
 }
 

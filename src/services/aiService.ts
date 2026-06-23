@@ -1,7 +1,5 @@
-import type { AiModel } from '../store/useSettingsStore';
 import type { AiDishResponse } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
 
 function getToken(): string | null {
@@ -17,25 +15,28 @@ export interface SendMessageResult {
 export async function sendMessage(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  model: AiModel = 'deepseek',
+  options?: { mealType?: string; mealBudgetKcal?: number },
 ): Promise<SendMessageResult> {
   const token = getToken();
   if (!token) throw new Error('Not authenticated');
-
-  const endpoint = model === 'gemini' ? '/api/ai/gemini' : '/api/ai/chat';
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${endpoint}`, {
+    res = await fetch('/api/ai/gemini', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({
+        message,
+        history,
+        ...(options?.mealType ? { mealType: options.mealType } : {}),
+        ...(options?.mealBudgetKcal ? { mealBudgetKcal: options.mealBudgetKcal } : {}),
+      }),
       signal: controller.signal,
     });
   } catch (fetchErr) {
@@ -55,6 +56,9 @@ export async function sendMessage(
         text: typeof body.text === 'string' ? body.text : '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana.',
         remaining: 0,
       };
+    }
+    if (res.status === 503 && typeof body.text === 'string') {
+      throw new Error(body.text);
     }
     const msg = typeof body.text === 'string' ? body.text
       : typeof body.error === 'string' ? body.error

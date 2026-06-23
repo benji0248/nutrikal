@@ -73,12 +73,12 @@ const JERGA_MAP: Record<string, string> = {
   do: 'Hablá en español dominicano (tú, klk, cálido).',
 };
 
-function getJerga(code: string): string {
+export function getJerga(code: string): string {
   return JERGA_MAP[code] ?? 'Hablá en español neutro y cálido.';
 }
 
 /** La IA ya conoce cada cocina; el perfil solo define el default cuando el usuario no especifica. */
-function getCuisineContext(code: string, displayName?: string): string {
+export function getCuisineContext(code: string, displayName?: string): string {
   if (code === 'neutral' || !displayName) {
     return 'Si el usuario no indica estilo culinario, proponé platos variados y coherentes con lo que pida.';
   }
@@ -116,6 +116,47 @@ export interface GemProfile {
 export interface BuildPromptOptions {
   /** Nombres de platos ya sugeridos en la conversación — evitar repetirlos. */
   recentDishes?: string[];
+  /** Presupuesto calórico objetivo para esta comida (kcal totales del plato). */
+  mealBudgetKcal?: number;
+  /** Etiqueta legible del slot (ej. "almuerzo"). */
+  mealTypeLabel?: string;
+  /** Objetivo nutricional del usuario. */
+  goal?: 'lose' | 'maintain' | 'gain';
+  /** Presupuesto calórico diario (solo contexto, no objetivo del plato). */
+  dailyBudgetKcal?: number;
+}
+
+const GOAL_HINTS: Record<'lose' | 'maintain' | 'gain', string> = {
+  lose: 'El usuario busca bajar de peso: platos saciantes, buena proteína, porciones moderadas.',
+  maintain: 'El usuario mantiene peso: plato equilibrado y satisfactorio.',
+  gain: 'El usuario busca ganar masa: plato con buena densidad calórica y proteína.',
+};
+
+function buildNutritionBlock(options: BuildPromptOptions): string[] {
+  if (options.mealBudgetKcal != null && options.mealBudgetKcal > 0) {
+    const mealLabel = options.mealTypeLabel ?? 'esta comida';
+    const goalHint = options.goal ? GOAL_HINTS[options.goal] : '';
+    const dailyNote = options.dailyBudgetKcal
+      ? `Contexto (NO es el objetivo del plato): el usuario come ~${options.dailyBudgetKcal} kcal por día repartidas en desayuno, almuerzo, cena y merienda.`
+      : '';
+    return [
+      '## Nutrición y porciones',
+      `Estás generando el ${mealLabel} del usuario: UNA sola comida, no el menú del día entero.`,
+      `Objetivo calórico de ESTE plato: ~${options.mealBudgetKcal} kcal en total (suma de todos los ingredientes con sus gramos).`,
+      `NO uses el presupuesto diario como meta del plato. Solo ${options.mealBudgetKcal} kcal para el ${mealLabel}.`,
+      dailyNote,
+      'Ajustá las cantidades en "gramos" para acercarte a ese objetivo (margen ±10%). Porciones de plato normal, no banquete.',
+      goalHint,
+      '- No menciones calorías, macros ni números en "preparacion" ni "tip".',
+      '- Los gramos en "ingredientes" deben ser coherentes con el objetivo calórico del slot.',
+    ].filter(Boolean);
+  }
+
+  return [
+    '## Nutrición',
+    '- No calcules ni menciones calorías, macros ni gramos exactos en la preparación; solo en el array "ingredientes" con gramos estimados.',
+    '- Si el usuario pide un objetivo calórico, ajustá porciones de forma razonable en "gramos"; el sistema calcula el resto.',
+  ];
 }
 
 /** Extrae nombres de platos del historial (respuestas JSON del asistente). */
@@ -137,7 +178,7 @@ export function extractRecentDishNames(
       if (match?.[1]) names.push(match[1].trim());
     }
   }
-  return [...new Set(names)].slice(-12);
+  return Array.from(new Set(names)).slice(-12);
 }
 
 export function buildSystemPrompt(profile: GemProfile, options: BuildPromptOptions = {}): string {
@@ -170,9 +211,7 @@ export function buildSystemPrompt(profile: GemProfile, options: BuildPromptOptio
     '- Tenés libertad total para sumar los que quieras (quesos, huevos, hierbas, salsas, legumbres, frutos secos, etc.) si encajan con la cultura y el plato.',
     '- No limites la receta a solo esos ingredientes: enriquecé con técnicas y extras que eleven el plato.',
     '',
-    '## Nutrición',
-    '- No calcules ni menciones calorías, macros ni gramos exactos en la preparación; solo en el array "ingredientes" con gramos estimados.',
-    '- Si el usuario pide un objetivo calórico, ajustá porciones de forma razonable en "gramos"; el sistema calcula el resto.',
+    ...buildNutritionBlock(options),
     '',
     '## Salida',
     'Respondé ÚNICAMENTE con este JSON (sin markdown, sin texto extra):',

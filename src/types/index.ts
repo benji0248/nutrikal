@@ -97,6 +97,9 @@ export interface AiMeal {
   totalKcal: number;
   prepMinutes?: number;
   humanPortion?: string;
+  /** Solo para persistir al calendario; oculto en preview semanal. */
+  preparation?: string;
+  tip?: string;
 }
 
 // ── AI dish response types (Gemini structured output) ──
@@ -193,7 +196,12 @@ export interface WeeklyIngredientPool {
   creative: string[];
 }
 
-export type IngredientSignalAction = 'aceptado' | 'modificado' | 'ignorado' | 'repetido';
+export type IngredientSignalAction =
+  | 'aceptado'
+  | 'modificado'
+  | 'ignorado'
+  | 'repetido'
+  | 'rechazado';
 
 export interface IngredientSignalEntry {
   id: string;
@@ -250,6 +258,9 @@ export interface Meal {
   completed?: boolean;
   prepMinutes?: number;
   humanPortion?: string;
+  /** Pasos de preparación (visible al expandir en calendario, no en preview semanal). */
+  preparation?: string;
+  tip?: string;
 }
 
 export interface DayPlan {
@@ -289,6 +300,7 @@ export interface AppPayload {
   settings: {
     theme: Theme;
     showCalories?: boolean;
+    useGrams?: boolean;
   };
   profile?: UserProfile;
   shoppingLists?: ShoppingList[];
@@ -455,6 +467,8 @@ export interface ChatMessage {
     energyLevel: EnergyLevel;
   };
   weekPlan?: WeekPlan;
+  mealType?: MealType;
+  loadingStyle?: 'cooking';
   timestamp: string;
 }
 
@@ -502,6 +516,10 @@ export type PlannedMeal = AiMeal;
 export interface PlannedDay {
   date: string;
   meals: Partial<Record<MealType, PlannedMeal>>;
+  /** Modo del día para la UI del plan semanal */
+  dayMode?: WeekdayFlexMode;
+  /** Etiqueta visible: "Edgy", "Día libre", etc. */
+  dayLabel?: string;
 }
 
 export interface WeekPlan {
@@ -511,6 +529,7 @@ export interface WeekPlan {
 
 /**
  * Cómo repartir variedad vs repetición en los 6 días "normales" (el séptimo es cheat day).
+ * @deprecated Prefer `WeekPlanningProfile.mealRhythmMode`
  */
 export type WeekRepetitionMode = 'full_unique' | 'repeat_blocks' | 'balanced';
 
@@ -520,6 +539,88 @@ export interface PlanPreferences {
   budget: 'economico' | 'normal' | 'premium';
   /** Preferencia explícita del usuario (chips o frases reconocidas). */
   weekRepetitionMode?: WeekRepetitionMode;
+}
+
+/** Cuántas comidas estructura el día. */
+export type MealPattern = 'four' | 'three_no_snack' | 'no_breakfast' | 'two_main';
+
+/** Ritmo de planificación semanal. */
+export type MealRhythmMode =
+  | 'carryover_dinner_to_lunch'
+  | 'streak'
+  | 'max_variety'
+  | 'balanced';
+
+export type FlexMealScope = 'one_meal' | 'meal_plus_snack';
+
+/** Cómo tratar un día de la semana en el plan. */
+export type WeekdayFlexMode = 'normal' | 'maintenance' | 'full_free';
+
+export interface WeekdayFlexRule {
+  /** 0 = domingo … 6 = sábado (date-fns getDay) */
+  weekday: number;
+  mode: WeekdayFlexMode;
+  /** Nombre propio, ej. "Edgy" para sábado en mantenimiento */
+  nickname?: string;
+}
+
+/** Preferencias estables de plan semanal (Ajustes + wizard). */
+export interface WeekPlanningProfile {
+  mealPattern: MealPattern;
+  mealRhythmMode: MealRhythmMode;
+  streakDays?: 2 | 3 | 4;
+  /** Reglas por día; prioridad sobre campos legacy de flex. */
+  weekdayFlexRules: WeekdayFlexRule[];
+  /** @deprecated Usar weekdayFlexRules */
+  flexMealsPerWeek?: 0 | 1 | 2;
+  /** @deprecated Usar weekdayFlexRules */
+  flexMealScope?: FlexMealScope;
+  /** @deprecated Usar weekdayFlexRules */
+  preferredFlexWeekdays?: number[];
+  cookingTime: PlanPreferences['cookingTime'];
+  budget: PlanPreferences['budget'];
+  completedAt: string;
+}
+
+/** Memoria de rotación semanal (DB: user_profiles.plan_memory). */
+export interface PlanMemory {
+  avoidDishNames: string[];
+  /** Incrementa en cada generación de plan; aporta variedad al shuffle. */
+  poolGeneration: number;
+  lastWeekId: string | null;
+  /** Últimas canastas (ids) para no repetir ingredientes seguidos. */
+  recentPoolHistory: string[][];
+}
+
+export type WeekPlanSlotLink =
+  | 'prev.cena'
+  | { sameAsTemplateId: string };
+
+export interface WeekPlanSkeletonSlot {
+  mealType: MealType;
+  templateId: string;
+  link?: WeekPlanSlotLink;
+  isFlexMeal?: boolean;
+  dishHint?: string;
+  coreIngredientIds?: string[];
+}
+
+export interface WeekPlanSkeletonDay {
+  date: string;
+  dayMode?: WeekdayFlexMode;
+  slots: WeekPlanSkeletonSlot[];
+}
+
+export interface WeekPlanSkeleton {
+  days: WeekPlanSkeletonDay[];
+}
+
+/** Respuesta del endpoint week-plan antes de hidratar en cliente. */
+export interface WeekPlanGenerateResponse {
+  skeleton: WeekPlanSkeleton;
+  rawDishes: Record<string, AiDishResponse>;
+  text?: string;
+  remaining: number;
 }
 
 export interface AiChatContext {
@@ -583,6 +684,29 @@ export const DISH_CATEGORY_LABELS: Record<DishCategory, string> = {
   cena: 'Cena',
   snack: 'Snack',
   postre: 'Postre',
+};
+
+export const MEAL_PATTERN_LABELS: Record<MealPattern, string> = {
+  four: '4 comidas (desayuno, almuerzo, cena y merienda)',
+  three_no_snack: '3 comidas (sin merienda)',
+  no_breakfast: 'Sin desayuno (almuerzo, cena y merienda)',
+  two_main: '2 comidas fuertes (almuerzo y cena)',
+};
+
+export const MEAL_RHYTHM_LABELS: Record<MealRhythmMode, string> = {
+  carryover_dinner_to_lunch: 'Ceno hoy, almuerzo mañana',
+  streak: 'Mismo menú varios días seguidos',
+  max_variety: 'Variedad cada día',
+  balanced: 'Un poco de cada cosa',
+};
+
+export const DEFAULT_WEEK_PLANNING: Omit<WeekPlanningProfile, 'completedAt'> = {
+  mealPattern: 'four',
+  mealRhythmMode: 'balanced',
+  streakDays: 3,
+  weekdayFlexRules: [],
+  cookingTime: 'normal',
+  budget: 'normal',
 };
 
 export const SHOPPING_SECTION_LABELS: Record<ShoppingSection, string> = {

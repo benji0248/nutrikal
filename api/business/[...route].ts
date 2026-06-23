@@ -1,9 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
 import { getSupabase } from '../_lib/supabase.js';
+import { normalizePlanMemory } from '../_lib/planMemory.js';
 
 interface AuthenticatedRequest {
   userId: string;
+}
+
+function exposeDbErrors(): boolean {
+  const vercelEnv = process.env.VERCEL_ENV ?? '';
+  return vercelEnv === 'preview' || vercelEnv === 'development' || process.env.NODE_ENV !== 'production';
 }
 
 type RouteHandler = (
@@ -62,25 +69,60 @@ async function withAuth(
   res: VercelResponse,
   fn: (auth: AuthenticatedRequest, segments: string[]) => Promise<VercelResponse | void>,
 ) {
+  const reqId = randomUUID();
   try {
+    const segments = getSegments(req);
+    console.log('[business] request_in', JSON.stringify({
+      reqId,
+      method: req.method,
+      url: req.url,
+      segments,
+      origin: req.headers.origin ?? null,
+      acrMethod: req.headers['access-control-request-method'] ?? null,
+      acrHeaders: req.headers['access-control-request-headers'] ?? null,
+    }));
+
+    if (req.method === 'OPTIONS') {
+      console.log('[business] options_request', JSON.stringify({ reqId, segments }));
+      return res.status(405).json({ error: 'Method not allowed', reqId });
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Token requerido' });
+      console.warn('[business] auth_missing_bearer', JSON.stringify({ reqId, hasAuthHeader: !!authHeader }));
+      return res.status(401).json({ error: 'Token requerido', reqId });
     }
 
     const decoded = verifyToken(authHeader.slice(7));
     const auth: AuthenticatedRequest = { userId: decoded.sub };
-    const segments = getSegments(req);
+    console.log('[business] auth_ok', JSON.stringify({
+      reqId,
+      userIdPrefix: decoded.sub.slice(0, 8),
+      userIdLen: decoded.sub.length,
+      username: decoded.username ?? null,
+      email: decoded.email ?? null,
+    }));
     return await fn(auth, segments);
   } catch (err) {
     if (
       (err as Error).name === 'JsonWebTokenError' ||
       (err as Error).name === 'TokenExpiredError'
     ) {
-      return res.status(401).json({ error: 'Token inválido o expirado' });
+      console.warn('[business] auth_invalid_token', JSON.stringify({
+        reqId,
+        errorName: (err as Error).name,
+        errorMessage: (err as Error).message,
+      }));
+      return res.status(401).json({ error: 'Token inválido o expirado', reqId });
     }
-    console.error(`Business API error [${req.method} ${req.url}]:`, err);
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('[business] withAuth_uncaught', JSON.stringify({
+      reqId,
+      method: req.method,
+      url: req.url,
+      errorName: (err as Error).name,
+      errorMessage: (err as Error).message,
+    }));
+    return res.status(500).json({ error: 'Error interno del servidor', reqId });
   }
 }
 
@@ -119,6 +161,13 @@ const handlers: Record<string, RouteHandler> = {
       supabase.from('ingredient_signals').select('*').eq('user_id', uid).order('fecha', { ascending: false }).limit(Number(req.query.signalLimit) || 800),
     ]);
 
+    const parseWeekPlanning = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object') return null;
+      const w = raw as Record<string, unknown>;
+      if (typeof w.completedAt !== 'string') return null;
+      return w;
+    };
+
     const profileFromRow = (profileRow: Record<string, unknown> | null) => (
       profileRow
         ? {
@@ -142,7 +191,10 @@ const handlers: Record<string, RouteHandler> = {
         : null
     );
 
-    let profile = profileFromRow((profileRes.data as Record<string, unknown> | null) ?? null);
+    const profileRow = (profileRes.data as Record<string, unknown> | null) ?? null;
+    let profile = profileFromRow(profileRow);
+    const weekPlanning = parseWeekPlanning(profileRow?.week_planning);
+    const planMemory = normalizePlanMemory(profileRow?.plan_memory);
 
     // Backward compatibility: some users still have profile only in legacy user_data blob.
     if (!profile) {
@@ -187,6 +239,8 @@ const handlers: Record<string, RouteHandler> = {
       completed: m.completed ?? false,
       prepMinutes: m.prep_minutes ?? null,
       humanPortion: m.human_portion ?? null,
+      preparation: m.preparation ?? null,
+      tip: m.tip ?? null,
     }));
 
     const dayNotes = (notesRes.data ?? []).map((n) => ({ date: n.date, notes: n.notes }));
@@ -242,9 +296,11 @@ const handlers: Record<string, RouteHandler> = {
       })),
     }));
     const settingsRow = settingsRes.data;
+    const settingsResError = settingsRes.error;
     const settings = {
       theme: settingsRow?.theme ?? 'dark',
       showCalories: settingsRow?.show_calories ?? false,
+      useGrams: settingsResError ? undefined : (settingsRow?.use_grams ?? false),
     };
     const favorites = (favoritesRes.data ?? []).map((f) => f.dish_name as string);
     const ingredientSignals = (signalsRes.data ?? []).map((s) => ({
@@ -270,7 +326,45 @@ const handlers: Record<string, RouteHandler> = {
       settings,
       favorites,
       ingredientSignals,
+      weekPlanning,
+      planMemory,
     });
+  },
+
+  'GET plan-memory': async (_req, res, auth) => {
+    const { data, error } = await getSupabase()
+      .from('user_profiles')
+      .select('plan_memory')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: 'Error al leer memoria de plan' });
+    return res.status(200).json({ planMemory: normalizePlanMemory(data?.plan_memory) });
+  },
+
+  'PUT plan-memory': async (req, res, auth) => {
+    const { planMemory } = req.body ?? {};
+    const normalized = normalizePlanMemory(planMemory);
+    const supabase = getSupabase();
+    const { data: existing } = await supabase
+      .from('user_profiles')
+      .select('user_id')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (!existing) {
+      return res.status(400).json({ error: 'Creá tu perfil nutricional primero' });
+    }
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({
+        plan_memory: normalized,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', auth.userId);
+    if (error) {
+      console.error('PUT plan-memory error:', error.message);
+      return res.status(500).json({ error: 'Error al guardar memoria de plan' });
+    }
+    return res.status(200).json({ ok: true, planMemory: normalized });
   },
 
   'POST data/migrate': async (_req, res, auth) => {
@@ -336,7 +430,7 @@ const handlers: Record<string, RouteHandler> = {
       id: string; name: string; createdAt: string; dateRange: { from: string; to: string };
       items: Array<{ id: string; ingredientId: string; name: string; quantity: string; section: string; checked: boolean }>;
     }>;
-    const settings = (blob.settings ?? {}) as { theme?: string; showCalories?: boolean };
+    const settings = (blob.settings ?? {}) as { theme?: string; showCalories?: boolean; useGrams?: boolean };
     const favoriteDishes = (blob.favoriteDishes ?? []) as string[];
     const signals = (blob.ingredientSignalLog ?? []) as Array<{
       id: string; fecha: string; comida: string;
@@ -417,7 +511,20 @@ const handlers: Record<string, RouteHandler> = {
       }
     }
 
-    await supabase.from('user_settings').upsert({ user_id: uid, theme: settings.theme ?? 'dark', show_calories: settings.showCalories ?? false });
+    {
+      const settingsPayload = {
+        user_id: uid,
+        theme: settings.theme ?? 'dark',
+        show_calories: settings.showCalories ?? false,
+        use_grams: settings.useGrams ?? false,
+      };
+      let { error: settingsErr } = await supabase.from('user_settings').upsert(settingsPayload);
+      if (settingsErr?.message?.includes('use_grams')) {
+        const { use_grams: _d, ...fallback } = settingsPayload;
+        settingsErr = (await supabase.from('user_settings').upsert(fallback)).error;
+      }
+      if (settingsErr) console.error('migrate: user_settings upsert error', settingsErr);
+    }
     if (favoriteDishes.length > 0) {
       await supabase.from('favorites').insert(favoriteDishes.map((name) => ({ user_id: uid, dish_name: name })));
     }
@@ -563,6 +670,7 @@ const handlers: Record<string, RouteHandler> = {
       calories: meal.calories ?? null, notes: meal.notes ?? null, linked_recipe_id: meal.linkedRecipeId ?? null,
       entries: meal.entries ?? [], ai_ingredients: meal.aiIngredients ?? [], completed: meal.completed ?? false,
       prep_minutes: meal.prepMinutes ?? null, human_portion: meal.humanPortion ?? null,
+      preparation: meal.preparation ?? null, tip: meal.tip ?? null,
     });
     if (error) return res.status(500).json({ error: 'Error al guardar comida' });
     return res.status(200).json({ ok: true });
@@ -575,6 +683,7 @@ const handlers: Record<string, RouteHandler> = {
       calories: m.calories ?? null, notes: m.notes ?? null, linked_recipe_id: m.linkedRecipeId ?? null,
       entries: m.entries ?? [], ai_ingredients: m.aiIngredients ?? [], completed: m.completed ?? false,
       prep_minutes: m.prepMinutes ?? null, human_portion: m.humanPortion ?? null,
+      preparation: m.preparation ?? null, tip: m.tip ?? null,
     }));
     const { error } = await getSupabase().from('meals').upsert(rows);
     if (error) return res.status(500).json({ error: 'Error al guardar comidas' });
@@ -593,6 +702,8 @@ const handlers: Record<string, RouteHandler> = {
     if (meal.completed !== undefined) updates.completed = meal.completed;
     if (meal.prepMinutes !== undefined) updates.prep_minutes = meal.prepMinutes;
     if (meal.humanPortion !== undefined) updates.human_portion = meal.humanPortion;
+    if (meal.preparation !== undefined) updates.preparation = meal.preparation;
+    if (meal.tip !== undefined) updates.tip = meal.tip;
     const { error } = await getSupabase().from('meals').update(updates).eq('id', id).eq('user_id', auth.userId);
     if (error) return res.status(500).json({ error: 'Error al actualizar comida' });
     return res.status(200).json({ ok: true });
@@ -665,9 +776,18 @@ const handlers: Record<string, RouteHandler> = {
     const { data, error } = await getSupabase().from('user_profiles').select('*').eq('user_id', auth.userId).maybeSingle();
     if (error) {
       console.error('GET profile error:', error.message, error.code);
-      return res.status(500).json({ error: 'Error al leer perfil' });
+      return res.status(500).json({
+        error: 'Error al leer perfil',
+        ...(exposeDbErrors()
+          ? { dbCode: error.code ?? null, dbMessage: error.message ?? null }
+          : {}),
+      });
     }
-    if (!data) return res.status(200).json({ profile: null });
+    if (!data) return res.status(200).json({ profile: null, weekPlanning: null });
+    const weekPlanning =
+      data.week_planning && typeof data.week_planning === 'object' && typeof (data.week_planning as { completedAt?: string }).completedAt === 'string'
+        ? data.week_planning
+        : null;
     return res.status(200).json({
       profile: {
         id: data.profile_id, name: data.name, birthDate: data.birth_date, sex: data.sex,
@@ -676,9 +796,55 @@ const handlers: Record<string, RouteHandler> = {
         dislikedCategories: data.disliked_categories ?? [], allowedExceptions: data.allowed_exceptions ?? [],
         nationality: data.nationality ?? undefined, createdAt: data.created_at, updatedAt: data.updated_at, lastRecalibration: data.last_recalibration,
       },
+      weekPlanning,
     });
   },
+
+  'GET week-planning': async (_req, res, auth) => {
+    const { data, error } = await getSupabase()
+      .from('user_profiles')
+      .select('week_planning')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: 'Error al leer rutina semanal' });
+    const wp = data?.week_planning;
+    const weekPlanning =
+      wp && typeof wp === 'object' && typeof (wp as { completedAt?: string }).completedAt === 'string'
+        ? wp
+        : null;
+    return res.status(200).json({ weekPlanning });
+  },
+
+  'PUT week-planning': async (req, res, auth) => {
+    const { weekPlanning } = req.body ?? {};
+    if (!weekPlanning || typeof weekPlanning.completedAt !== 'string') {
+      return res.status(400).json({ error: 'Rutina semanal incompleta' });
+    }
+    const supabase = getSupabase();
+    const { data: existing } = await supabase
+      .from('user_profiles')
+      .select('user_id')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (!existing) {
+      return res.status(400).json({ error: 'Creá tu perfil nutricional primero' });
+    }
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({
+        week_planning: weekPlanning,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', auth.userId);
+    if (error) {
+      console.error('PUT week-planning error:', error.message);
+      return res.status(500).json({ error: 'Error al guardar rutina semanal' });
+    }
+    return res.status(200).json({ ok: true });
+  },
+
   'PUT profile': async (req, res, auth) => {
+    const reqId = randomUUID();
     const { profile } = req.body;
     if (!profile) return res.status(400).json({ error: 'Perfil requerido' });
 
@@ -689,33 +855,78 @@ const handlers: Record<string, RouteHandler> = {
     }
 
     const now = new Date().toISOString();
+    const payload = {
+      user_id: auth.userId,
+      profile_id: String(profile.id ?? auth.userId),
+      name: String(profile.name).trim(),
+      birth_date: String(profile.birthDate),
+      sex: String(profile.sex),
+      height_cm: heightCm,
+      weight_kg: weightKg,
+      activity_level: profile.activityLevel ?? 'moderate',
+      goal: profile.goal ?? 'maintain',
+      restrictions: profile.restrictions ?? [],
+      disliked_ingredient_ids: profile.dislikedIngredientIds ?? [],
+      disliked_categories: profile.dislikedCategories ?? [],
+      allowed_exceptions: profile.allowedExceptions ?? [],
+      nationality: profile.nationality ?? null,
+      created_at: profile.createdAt ?? now,
+      updated_at: profile.updatedAt ?? now,
+      last_recalibration: profile.lastRecalibration ?? now,
+    };
+
     const { error } = await getSupabase().from('user_profiles').upsert(
       {
-        user_id: auth.userId,
-        profile_id: String(profile.id ?? auth.userId),
-        name: String(profile.name).trim(),
-        birth_date: String(profile.birthDate),
-        sex: String(profile.sex),
-        height_cm: heightCm,
-        weight_kg: weightKg,
-        activity_level: profile.activityLevel ?? 'moderate',
-        goal: profile.goal ?? 'maintain',
-        restrictions: profile.restrictions ?? [],
-        disliked_ingredient_ids: profile.dislikedIngredientIds ?? [],
-        disliked_categories: profile.dislikedCategories ?? [],
-        allowed_exceptions: profile.allowedExceptions ?? [],
-        nationality: profile.nationality ?? null,
-        created_at: profile.createdAt ?? now,
-        updated_at: profile.updatedAt ?? now,
-        last_recalibration: profile.lastRecalibration ?? now,
+        ...payload,
       },
       { onConflict: 'user_id' },
     );
 
     if (error) {
-      console.error('PUT profile error:', error.message, error.code, error.details);
-      return res.status(500).json({ error: 'Error al guardar perfil' });
+      console.error('PUT profile error:', {
+        reqId,
+        userId: auth.userId,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        payloadSummary: {
+          profileId: payload.profile_id,
+          sex: payload.sex,
+          activityLevel: payload.activity_level,
+          goal: payload.goal,
+          nationality: payload.nationality,
+          restrictionsCount: Array.isArray(payload.restrictions) ? payload.restrictions.length : -1,
+          dislikedIngredientIdsCount: Array.isArray(payload.disliked_ingredient_ids)
+            ? payload.disliked_ingredient_ids.length
+            : -1,
+          dislikedCategoriesCount: Array.isArray(payload.disliked_categories)
+            ? payload.disliked_categories.length
+            : -1,
+          allowedExceptionsCount: Array.isArray(payload.allowed_exceptions)
+            ? payload.allowed_exceptions.length
+            : -1,
+        },
+      });
+      const showDbDetails = exposeDbErrors();
+      return res.status(500).json({
+        error: 'Error al guardar perfil',
+        reqId,
+        ...(showDbDetails
+          ? {
+              dbCode: error.code ?? null,
+              dbMessage: error.message ?? null,
+            }
+          : {}),
+      });
     }
+    console.log('PUT profile ok:', JSON.stringify({
+      reqId,
+      userId: auth.userId,
+      profileId: payload.profile_id,
+      nationality: payload.nationality,
+      updatedAt: payload.updated_at,
+    }));
     return res.status(200).json({ ok: true });
   },
 
@@ -746,17 +957,40 @@ const handlers: Record<string, RouteHandler> = {
 
   'GET settings': async (_req, res, auth) => {
     const { data, error } = await getSupabase().from('user_settings').select('*').eq('user_id', auth.userId).single();
-    if (error && error.code === 'PGRST116') return res.status(200).json({ settings: { theme: 'dark', showCalories: false } });
+    if (error && error.code === 'PGRST116') return res.status(200).json({ settings: { theme: 'dark', showCalories: false, useGrams: false } });
     if (error) return res.status(500).json({ error: 'Error al leer ajustes' });
-    return res.status(200).json({ settings: { theme: data.theme ?? 'dark', showCalories: data.show_calories ?? false } });
+    return res.status(200).json({ settings: { theme: data.theme ?? 'dark', showCalories: data.show_calories ?? false, useGrams: data.use_grams ?? false } });
   },
   'PUT settings': async (req, res, auth) => {
-    const { theme, showCalories } = req.body;
-    const updates: Record<string, unknown> = { user_id: auth.userId };
-    if (theme !== undefined) updates.theme = theme;
-    if (showCalories !== undefined) updates.show_calories = showCalories;
-    const { error } = await getSupabase().from('user_settings').upsert(updates);
-    if (error) return res.status(500).json({ error: 'Error al guardar ajustes' });
+    const { theme, showCalories, useGrams } = req.body ?? {};
+    const supabase = getSupabase();
+
+    const { data: existing } = await supabase
+      .from('user_settings')
+      .select('theme, show_calories, use_grams')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+
+    const merged = {
+      user_id: auth.userId,
+      theme: theme ?? existing?.theme ?? 'dark',
+      show_calories: showCalories ?? existing?.show_calories ?? false,
+      use_grams: useGrams ?? existing?.use_grams ?? false,
+    };
+
+    let { error } = await supabase.from('user_settings').upsert(merged);
+
+    // Column may not exist yet — save other settings without failing the toggle
+    if (error && typeof error.message === 'string' && error.message.includes('use_grams')) {
+      const { use_grams: _drop, ...withoutUseGrams } = merged;
+      const retry = await supabase.from('user_settings').upsert(withoutUseGrams);
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('PUT settings error:', error.message, error.code);
+      return res.status(500).json({ error: 'Error al guardar ajustes', dbMessage: error.message });
+    }
     return res.status(200).json({ ok: true });
   },
 
@@ -886,9 +1120,21 @@ function normalizeKey(method: string | undefined, segments: string[]): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   return withAuth(req, res, async (auth, segments) => {
     const key = normalizeKey(req.method, segments);
+    console.log('[business] route_resolved', JSON.stringify({
+      method: req.method,
+      url: req.url,
+      segments,
+      key,
+    }));
     const handlerFn = handlers[key];
     if (!handlerFn) {
-      return res.status(404).json({ error: 'Route not found' });
+      console.warn('[business] route_not_found', JSON.stringify({
+        method: req.method,
+        url: req.url,
+        segments,
+        key,
+      }));
+      return res.status(404).json({ error: 'Route not found', key });
     }
     return handlerFn(req, res, auth, segments);
   });

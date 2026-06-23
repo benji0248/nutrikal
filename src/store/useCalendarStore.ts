@@ -30,6 +30,7 @@ interface CalendarState {
     calories: number | null; notes: string | null; linkedRecipeId: string | null;
     entries: unknown[]; aiIngredients: unknown[]; completed: boolean;
     prepMinutes?: number | null; humanPortion?: string | null;
+    preparation?: string | null; tip?: string | null;
   }>, dayNotes: Array<{ date: string; notes: string }>) => void;
   hydrateNotifications: (notifications: Notification[]) => void;
 }
@@ -142,6 +143,8 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
         completed: m.completed,
         prepMinutes: m.prepMinutes ?? undefined,
         humanPortion: m.humanPortion ?? undefined,
+        preparation: m.preparation ?? undefined,
+        tip: m.tip ?? undefined,
       };
       dayPlans[m.date].meals[m.mealType].push(calMeal);
     }

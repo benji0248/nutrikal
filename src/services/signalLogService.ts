@@ -1,4 +1,4 @@
-import type { AiMeal, IngredientSignalEntry, WeekPlan } from '../types';
+import type { AiMeal, IngredientSignalEntry, MealType, WeekPlan } from '../types';
 import { MEAL_TYPE_ORDER } from '../types';
 import { useIngredientSignalStore } from '../store/useIngredientSignalStore';
 
@@ -34,4 +34,20 @@ export function recordWeekPlanApplied(plan: WeekPlan): void {
   if (rows.length > 0) {
     useIngredientSignalStore.getState().appendMany(rows);
   }
+}
+
+/** Plato descartado al regenerar o cambiar una comida del plan. */
+export function recordMealRejected(fecha: string, comida: MealType, meal: AiMeal): void {
+  const refs = refsFromAiMeal(meal);
+  useIngredientSignalStore.getState().appendMany([
+    {
+      fecha,
+      comida,
+      ingredientes_sugeridos: refs,
+      ingredientes_finales: [],
+      ingredientes_removidos: refs,
+      ingredientes_agregados: [],
+      accion: 'rechazado',
+    },
+  ]);
 }

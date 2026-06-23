@@ -1,8 +1,6 @@
 import type { AiMeal, MealType } from '../types';
 import { chatClientLog } from '../utils/chatFlowLog';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
-
 interface DishToEmbed {
   dishName: string;
   ingredients: Array<{ name: string; grams: number; kcal: number }>;
@@ -40,7 +38,7 @@ export function submitDishesForEmbedding(dishes: DishToEmbed[]): void {
     sampleNames: dishes.slice(0, 4).map((d) => d.dishName).join(' | '),
   });
 
-  fetch(`${BASE_URL}/api/ai/embed`, {
+  fetch('/api/ai/embed', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

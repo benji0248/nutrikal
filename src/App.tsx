@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone } from 'lucide-react';
+import { WeekPlanningSetup } from './components/profile/WeekPlanningSetup';
+import { MEAL_PATTERN_LABELS } from './types';
+import { normalizeWeekPlanningProfile } from './utils/flexDayHelpers';
+import { WEEKDAY_FLEX_MODE_LABELS } from './utils/flexDayHelpers';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
@@ -12,6 +16,8 @@ import { useRecipesStore } from './store/useRecipesStore';
 import { useShoppingStore } from './store/useShoppingStore';
 import { useHistorialStore } from './store/useHistorialStore';
 import { useIngredientSignalStore } from './store/useIngredientSignalStore';
+import { useWeekPlanningStore } from './store/useWeekPlanningStore';
+import { usePlanRotationStore } from './store/usePlanRotationStore';
 import { batchLoadAllData, loadProfile, migrateUser } from './services/apiService';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
@@ -99,8 +105,10 @@ function AuthenticatedApp() {
         useRecipesStore.getState().hydrateDishes(data.customDishes);
         useShoppingStore.getState().hydrateLists(data.shoppingLists);
         useSettingsStore.getState().hydrateSettings(data.settings);
+        useWeekPlanningStore.getState().hydrateWeekPlanning(data.weekPlanning ?? null);
         useHistorialStore.getState().hydrateFavorites(data.favorites);
         useIngredientSignalStore.getState().hydrateSignals(data.ingredientSignals);
+        usePlanRotationStore.getState().hydrate(data.planMemory ?? undefined);
       } catch (e) {
         console.error('Init data load error:', e);
         try {
@@ -241,14 +249,74 @@ function AuthenticatedApp() {
   );
 }
 
+function WeekPlanningSettingsRow() {
+  const weekPlanning = useWeekPlanningStore((s) => s.weekPlanning);
+  const [showSetup, setShowSetup] = useState(false);
+
+  return (
+    <>
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">
+          Mi rutina semanal
+        </h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2">
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-full bg-[#226046]/10 flex items-center justify-center text-[#226046] shrink-0">
+                <CalendarDays size={24} />
+              </div>
+              {weekPlanning?.completedAt ? (
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#191c17] text-sm truncate">
+                    {MEAL_PATTERN_LABELS[weekPlanning.mealPattern]}
+                  </p>
+                  <p className="text-xs text-[#40493d] truncate">
+                    {(() => {
+                      const wp = normalizeWeekPlanningProfile(weekPlanning);
+                      if (wp.weekdayFlexRules.length === 0) return 'Todos los días normales';
+                      return wp.weekdayFlexRules
+                        .map((r) => {
+                          const d = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][r.weekday];
+                          return `${d}: ${r.nickname ?? WEEKDAY_FLEX_MODE_LABELS[r.mode]}`;
+                        })
+                        .join(' · ');
+                    })()}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="font-semibold text-[#191c17]">Sin configurar</p>
+                  <p className="text-sm text-[#40493d]">Para planificar tu semana</p>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSetup(true)}
+              className="bg-[#226046] text-[#ffffff] px-4 py-2 rounded-full text-sm font-medium hover:scale-95 transition-transform shrink-0"
+            >
+              {weekPlanning?.completedAt ? 'Editar' : 'Configurar'}
+            </button>
+          </div>
+        </div>
+      </section>
+      <WeekPlanningSetup
+        isOpen={showSetup}
+        onClose={() => setShowSetup(false)}
+        existing={weekPlanning}
+      />
+    </>
+  );
+}
+
 function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
   const showCalories = useSettingsStore((s) => s.showCalories);
   const setShowCalories = useSettingsStore((s) => s.setShowCalories);
-
-  const [useGrams, setUseGrams] = useState(true);
+  const useGrams = useSettingsStore((s) => s.useGrams);
+  const setUseGrams = useSettingsStore((s) => s.setUseGrams);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -313,6 +381,8 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
           </div>
         </div>
       </section>
+
+      <WeekPlanningSettingsRow />
 
       <section className="space-y-4">
         <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Preferencias</h2>

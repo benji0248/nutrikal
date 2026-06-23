@@ -10,6 +10,7 @@ import {
   Home,
   Check,
   UserCircle,
+  AlertCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ChatOption } from '../../types';
@@ -33,6 +34,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Home,
   Check,
   UserCircle,
+  AlertCircle,
 };
 
 export const OptionChips = ({ options, onSelect, disabled = false }: OptionChipsProps) => {

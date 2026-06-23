@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import type { Sex, Goal, ActivityLevel, DietaryRestriction, UserProfile } from '../../types';
 import { GOAL_LABELS, GOAL_DESCRIPTIONS } from '../../types';
 import { Button } from '../ui/Button';
@@ -39,7 +39,9 @@ interface ProfileSetupProps {
 type Step = 0 | 1 | 2 | 3;
 
 export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupProps) {
-  const setProfile = useProfileStore((s) => s.setProfile);
+  const persistProfile = useProfileStore((s) => s.persistProfile);
+  const saveError = useProfileStore((s) => s.saveError);
+  const clearSaveError = useProfileStore((s) => s.clearSaveError);
   const user = useAuthStore((s) => s.user);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients = [...INGREDIENTS_DB, ...customIngredients];
@@ -62,6 +64,11 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
   const [countryQuery, setCountryQuery] = useState(nationality);
   const [showCountries, setShowCountries] = useState(false);
   const countryInputRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) clearSaveError();
+  }, [isOpen, clearSaveError]);
 
   const filteredCountries = useMemo(() => {
     const q = countryQuery.toLowerCase().trim();
@@ -81,7 +88,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
     return true;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const now = new Date().toISOString();
     const profile: UserProfile = {
       id: existingProfile?.id ?? generateId(),
@@ -101,8 +108,10 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       updatedAt: now,
       lastRecalibration: now,
     };
-    setProfile(profile);
-    onClose();
+    setSaving(true);
+    const ok = await persistProfile(profile);
+    setSaving(false);
+    if (ok) onClose();
   };
 
   const stepLabels = ['Datos', 'Actividad', 'Objetivo', 'Preferencias'];
@@ -318,6 +327,11 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       )}
 
       {/* Navigation */}
+      {saveError && (
+        <p className="text-sm text-red-600 dark:text-red-400 font-body px-1" role="alert">
+          {saveError}
+        </p>
+      )}
       <div className="flex gap-2 pt-1">
         {step > 0 && (
           <Button
@@ -340,9 +354,9 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
             Siguiente
           </Button>
         ) : (
-          <Button tone="journal" variant="primary" onClick={handleSave} fullWidth>
+          <Button tone="journal" variant="primary" onClick={handleSave} disabled={saving} fullWidth>
             <span className="inline-flex items-center justify-center gap-2">
-              {existingProfile ? 'Guardar cambios' : 'Calcular mi plan'}
+              {saving ? 'Guardando…' : existingProfile ? 'Guardar cambios' : 'Calcular mi plan'}
               {!existingProfile && <ArrowRight size={18} strokeWidth={2.25} aria-hidden />}
             </span>
           </Button>

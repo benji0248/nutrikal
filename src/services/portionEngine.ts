@@ -7,6 +7,7 @@ import type {
   HydratedIngredient,
   HydratedMeal,
   MealType,
+  MealPattern,
 } from '../types';
 import {
   floorGramsToStep,
@@ -22,6 +23,29 @@ const SLOT_PERCENTAGES: Record<MealType, number> = {
   cena: 0.30,
   snack: 0.10,
 };
+
+const PATTERN_SLOT_PCTS: Record<MealPattern, Partial<Record<MealType, number>>> = {
+  four: { desayuno: 0.25, almuerzo: 0.35, cena: 0.30, snack: 0.10 },
+  three_no_snack: { desayuno: 0.28, almuerzo: 0.40, cena: 0.32 },
+  no_breakfast: { almuerzo: 0.45, cena: 0.40, snack: 0.15 },
+  two_main: { almuerzo: 0.50, cena: 0.50 },
+};
+
+export function getActiveMealSlots(pattern: MealPattern): MealType[] {
+  const pcts = PATTERN_SLOT_PCTS[pattern];
+  return (Object.keys(pcts) as MealType[]).filter((mt) => (pcts[mt] ?? 0) > 0);
+}
+
+export function getMealSlotBudgetForPattern(
+  dailyBudget: number,
+  mealType: MealType,
+  pattern: MealPattern,
+): number {
+  const pcts = PATTERN_SLOT_PCTS[pattern];
+  const pct = pcts[mealType];
+  if (pct == null || pct <= 0) return 0;
+  return Math.floor(dailyBudget * pct);
+}
 
 // ── Base grams per role to establish proportions ──
 
@@ -253,6 +277,10 @@ export function hydratedToAiMeal(hydrated: HydratedMeal): AiMeal {
 export function getMealSlotBudget(
   dailyBudget: number,
   mealType: MealType,
+  pattern: MealPattern = 'four',
 ): number {
+  if (pattern !== 'four') {
+    return getMealSlotBudgetForPattern(dailyBudget, mealType, pattern);
+  }
   return Math.floor(dailyBudget * SLOT_PERCENTAGES[mealType]);
 }

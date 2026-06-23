@@ -1,4 +1,3 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const JWT_KEY = 'nutrikal-jwt';
 
 interface SearchResult {
@@ -15,7 +14,7 @@ export async function searchDishes(
   const token = localStorage.getItem(JWT_KEY);
   if (!token) return [];
 
-  const res = await fetch(`${BASE_URL}/api/ai/search`, {
+  const res = await fetch('/api/ai/search', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

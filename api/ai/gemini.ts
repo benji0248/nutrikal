@@ -8,13 +8,23 @@ import {
   GEMINI_GENERATION_CONFIG,
   type GemProfile,
 } from '../_lib/gemini.js';
+import {
+  computeDailyBudget,
+  getMealSlotBudget,
+  isMealType,
+  mealTypeLabel,
+  type MetabolicProfile,
+} from '../_lib/metabolic.js';
 import { getSupabase } from '../_lib/supabase.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
+import { isGeminiTransientError, withGeminiRetry } from '../_lib/geminiRetry.js';
 
 interface ChatRequestBody {
   message: string;
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
+  mealType?: string;
+  mealBudgetKcal?: number;
 }
 
 interface AiDishIngredient {
@@ -31,21 +41,39 @@ interface AiDishResponse {
   tip: string;
 }
 
-async function fetchProfile(userId: string): Promise<GemProfile> {
+interface FetchedProfile extends GemProfile {
+  metabolic?: MetabolicProfile;
+}
+
+async function fetchProfile(userId: string): Promise<FetchedProfile> {
   try {
     const supabase = getSupabase();
 
     const { data: row } = await supabase
       .from('user_profiles')
-      .select('name, nationality, restrictions')
+      .select(
+        'name, nationality, restrictions, birth_date, sex, height_cm, weight_kg, activity_level, goal',
+      )
       .eq('user_id', userId)
       .maybeSingle();
 
     if (row) {
+      const metabolic = hasMetabolicFields(row)
+        ? {
+            birthDate: String(row.birth_date),
+            sex: row.sex as MetabolicProfile['sex'],
+            heightCm: Number(row.height_cm),
+            weightKg: Number(row.weight_kg),
+            activityLevel: row.activity_level as MetabolicProfile['activityLevel'],
+            goal: row.goal as MetabolicProfile['goal'],
+          }
+        : undefined;
+
       return {
         nationality: typeof row.nationality === 'string' ? row.nationality : undefined,
         restrictions: Array.isArray(row.restrictions) ? (row.restrictions as string[]) : undefined,
         name: typeof row.name === 'string' ? row.name : undefined,
+        metabolic,
       };
     }
 
@@ -59,14 +87,48 @@ async function fetchProfile(userId: string): Promise<GemProfile> {
       | Record<string, unknown>
       | undefined;
 
+    const metabolic = profile && hasMetabolicFieldsFromLegacy(profile)
+      ? {
+          birthDate: String(profile.birthDate),
+          sex: profile.sex as MetabolicProfile['sex'],
+          heightCm: Number(profile.heightCm),
+          weightKg: Number(profile.weightKg),
+          activityLevel: profile.activityLevel as MetabolicProfile['activityLevel'],
+          goal: profile.goal as MetabolicProfile['goal'],
+        }
+      : undefined;
+
     return {
       nationality: typeof profile?.nationality === 'string' ? profile.nationality : undefined,
       restrictions: Array.isArray(profile?.restrictions) ? (profile.restrictions as string[]) : undefined,
       name: typeof profile?.name === 'string' ? profile.name : undefined,
+      metabolic,
     };
   } catch {
     return {};
   }
+}
+
+function hasMetabolicFields(row: Record<string, unknown>): boolean {
+  return (
+    typeof row.birth_date === 'string'
+    && (row.sex === 'male' || row.sex === 'female')
+    && Number.isFinite(Number(row.height_cm))
+    && Number.isFinite(Number(row.weight_kg))
+    && typeof row.activity_level === 'string'
+    && typeof row.goal === 'string'
+  );
+}
+
+function hasMetabolicFieldsFromLegacy(profile: Record<string, unknown>): boolean {
+  return (
+    typeof profile.birthDate === 'string'
+    && (profile.sex === 'male' || profile.sex === 'female')
+    && Number.isFinite(Number(profile.heightCm))
+    && Number.isFinite(Number(profile.weightKg))
+    && typeof profile.activityLevel === 'string'
+    && typeof profile.goal === 'string'
+  );
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -116,16 +178,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       user: redactUserId(userId),
       messageLen: body.message.length,
       historyLen: body.history?.length ?? 0,
+      mealType: body.mealType ?? null,
     });
 
     const profile = await fetchProfile(userId);
     const recentDishes = extractRecentDishNames(body.history ?? []);
-    const systemPrompt = buildSystemPrompt(profile, { recentDishes });
+
+    let mealBudgetKcal: number | undefined;
+    let dailyBudgetKcal: number | undefined;
+    let mealTypeLabelStr: string | undefined;
+
+    if (body.mealType && isMealType(body.mealType)) {
+      mealTypeLabelStr = mealTypeLabel(body.mealType);
+      if (typeof body.mealBudgetKcal === 'number' && body.mealBudgetKcal > 0) {
+        mealBudgetKcal = Math.round(body.mealBudgetKcal);
+      } else if (profile.metabolic) {
+        dailyBudgetKcal = computeDailyBudget(profile.metabolic);
+        mealBudgetKcal = getMealSlotBudget(dailyBudgetKcal, body.mealType);
+      }
+    } else if (profile.metabolic && typeof body.mealBudgetKcal === 'number' && body.mealBudgetKcal > 0) {
+      mealBudgetKcal = Math.round(body.mealBudgetKcal);
+    }
+
+    if (profile.metabolic && dailyBudgetKcal == null) {
+      dailyBudgetKcal = computeDailyBudget(profile.metabolic);
+    }
+
+    const systemPrompt = buildSystemPrompt(profile, {
+      recentDishes,
+      mealBudgetKcal,
+      mealTypeLabel: mealTypeLabelStr,
+      dailyBudgetKcal,
+      goal: profile.metabolic?.goal,
+    });
 
     chatApiLog(reqId, 'profile_loaded', {
       nationality: profile.nationality ?? 'none',
       restrictions: profile.restrictions?.length ?? 0,
       recentDishes: recentDishes.length,
+      mealBudgetKcal: mealBudgetKcal ?? null,
+      dailyBudgetKcal: dailyBudgetKcal ?? null,
     });
 
     if (!process.env.GEMINI_API_KEY) {
@@ -148,10 +240,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const tGemini = Date.now();
     const chat = model.startChat({
-      systemInstruction: systemPrompt,
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       history: geminiHistory,
     });
-    const result = await chat.sendMessage(body.message);
+    const result = await withGeminiRetry(() => chat.sendMessage(body.message), 'gemini_chat');
     const geminiMs = Date.now() - tGemini;
 
     const responseText = result.response.text();
@@ -200,6 +292,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     chatApiLogError(reqId, 'handler_uncaught', err);
     const message = err instanceof Error ? err.message : 'unknown';
     const isConfig = message.includes('GEMINI_API_KEY') || message.includes('SUPABASE');
+    if (isGeminiTransientError(err)) {
+      return res.status(503).json({
+        error: 'model_busy',
+        text: 'El servicio de IA está con mucha demanda ahora. Esperá un minuto y probá de nuevo.',
+      });
+    }
     return res.status(isConfig ? 503 : 500).json({
       error: isConfig ? 'config' : 'internal',
       text: isConfig
