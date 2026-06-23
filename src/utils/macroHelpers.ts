@@ -48,11 +48,6 @@ export function getMealCalories(meal: Meal, allIngredients: Ingredient[]): numbe
   return undefined;
 }
 
-export function formatMacro(value: number, unit: string): string {
-  if (unit === 'kcal') return `${Math.round(value)} kcal`;
-  return `${value.toFixed(1)}g`;
-}
-
 export function getMacroPercent(value: number, dailyRef: number): number {
   if (dailyRef <= 0) return 0;
   return Math.min(Math.round((value / dailyRef) * 100), 100);

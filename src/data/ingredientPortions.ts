@@ -140,6 +140,72 @@ export const INGREDIENT_PORTIONS: Record<string, IngredientPortion> = {
   ing_266: { unit: 'scoop', unitPlural: 'scoops', gramsPerUnit: 30 },
   ing_270: { unit: 'pizca', unitPlural: 'pizcas', gramsPerUnit: 1 },
   ing_272: { unit: 'vasito', unitPlural: 'vasitos', gramsPerUnit: 200 },
+
+  // ── ESPECIAS / CONDIMENTOS ──
+  ing_273: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 2 },
+  ing_274: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 2 },
+  ing_275: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 2 },
+  ing_276: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 2 },
+  ing_277: { unit: 'trozo', unitPlural: 'trozos', gramsPerUnit: 15 },
+  ing_278: { unit: 'ramita', unitPlural: 'ramitas', gramsPerUnit: 5 },
+  ing_279: { unit: 'ramita', unitPlural: 'ramitas', gramsPerUnit: 5 },
+  ing_283: { unit: 'hoja', unitPlural: 'hojas', gramsPerUnit: 2 },
+  ing_284: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 3 },
+  ing_287: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 15 },
+
+  // ── ASIÁTICOS ──
+  ing_288: { unit: 'trozo', unitPlural: 'trozos', gramsPerUnit: 100 },
+  ing_289: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 18 },
+  ing_290: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 15 },
+  ing_291: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 5 },
+  ing_292: { unit: 'porción', unitPlural: 'porciones', gramsPerUnit: 100 },
+  ing_294: { unit: 'taza', unitPlural: 'tazas', gramsPerUnit: 240 },
+  ing_295: { unit: 'taza', unitPlural: 'tazas', gramsPerUnit: 70 },
+  ing_296: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 20 },
+  ing_297: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 15 },
+  ing_298: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 30 },
+  ing_299: { unit: 'hoja', unitPlural: 'hojas', gramsPerUnit: 3 },
+  ing_302: { unit: 'taza', unitPlural: 'tazas', gramsPerUnit: 155 },
+
+  // ── MEDITERRÁNEOS ──
+  ing_303: { unit: 'cubo', unitPlural: 'cubos', gramsPerUnit: 30 },
+  ing_304: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 30 },
+  ing_305: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 15 },
+  ing_306: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 4 },
+  ing_307: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 9 },
+  ing_308: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 15 },
+  ing_310: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 10 },
+  ing_311: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 60 },
+  ing_312: { unit: 'feta', unitPlural: 'fetas', gramsPerUnit: 30 },
+  ing_313: { unit: 'pote', unitPlural: 'potes', gramsPerUnit: 170 },
+  ing_314: { unit: 'taza', unitPlural: 'tazas', gramsPerUnit: 90 },
+  ing_315: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 4 },
+  ing_316: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 25 },
+  ing_317: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 90 },
+
+  // ── LATINOS ──
+  ing_318: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 3 },
+  ing_319: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 15 },
+  ing_320: { unit: 'feta', unitPlural: 'fetas', gramsPerUnit: 40 },
+  ing_321: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 120 },
+  ing_322: { unit: 'feta', unitPlural: 'fetas', gramsPerUnit: 30 },
+  ing_323: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 80 },
+  ing_324: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 60 },
+  ing_325: { unit: 'unidad', unitPlural: 'unidades', gramsPerUnit: 100 },
+  ing_326: { unit: 'rodaja', unitPlural: 'rodajas', gramsPerUnit: 80 },
+  ing_327: { unit: 'empanada', unitPlural: 'empanadas', gramsPerUnit: 120 },
+
+  // ── OTROS VERSÁTILES ──
+  ing_328: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 10 },
+  ing_329: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 16 },
+  ing_330: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 17 },
+  ing_331: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 20 },
+  ing_332: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 12 },
+  ing_333: { unit: 'taza', unitPlural: 'tazas', gramsPerUnit: 80 },
+  ing_334: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 10 },
+  ing_335: { unit: 'cucharada', unitPlural: 'cucharadas', gramsPerUnit: 20 },
+  ing_336: { unit: 'taza', unitPlural: 'tazas', gramsPerUnit: 240 },
+  ing_337: { unit: 'cucharadita', unitPlural: 'cucharaditas', gramsPerUnit: 4 },
 };
 
 /**

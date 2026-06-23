@@ -10,7 +10,6 @@ import {
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
-  isSameDay,
   isToday as isTodayFns,
   parseISO,
   getDay,
@@ -21,13 +20,9 @@ export const formatDateKey = (date: Date): string => format(date, 'yyyy-MM-dd');
 export const parseDate = (dateStr: string): Date => parseISO(dateStr);
 export const todayKey = (): string => formatDateKey(new Date());
 export const isToday = (date: Date): boolean => isTodayFns(date);
-export const isSameDayCheck = (a: Date, b: Date): boolean => isSameDay(a, b);
-
-export const getMonday = (date: Date): Date =>
-  startOfWeek(date, { weekStartsOn: 1 });
 
 export const getWeekDays = (date: Date): Date[] => {
-  const start = getMonday(date);
+  const start = startOfWeek(date, { weekStartsOn: 1 });
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 };
 
@@ -78,9 +73,6 @@ export const getMonthLabel = (dateStr: string): string => {
   const d = parseDate(dateStr);
   return format(d, 'MMMM yyyy', { locale: es });
 };
-
-export const formatDayShort = (date: Date): string =>
-  format(date, 'EEE d', { locale: es });
 
 export const formatDayFull = (date: Date): string =>
   format(date, "EEEE d 'de' MMMM", { locale: es });

@@ -1,42 +1,38 @@
-import { clsx } from 'clsx';
+
 import type { EnergyLevel } from '../../types';
+
 
 interface DayEnergyBarProps {
   level: EnergyLevel;
-  ratio: number; // 0–1
+  ratio: number;
 }
 
-const LEVEL_COLORS: Record<EnergyLevel, { bg: string; fill: string; label: string }> = {
-  green: { bg: 'bg-green/10', fill: 'bg-green', label: 'Tenés margen' },
-  amber: { bg: 'bg-amber/10', fill: 'bg-amber', label: 'Vas bien' },
-  warm_orange: { bg: 'bg-warm-orange/10', fill: 'bg-warm-orange', label: 'Casi al tope' },
-};
-
 /**
- * Color-only energy bar. NEVER shows numbers or calories.
- * Green → Amber → Warm Orange. NEVER red.
+ * Barra de energía solo por color (sin números al usuario en copy).
  */
-export function DayEnergyBar({ level, ratio }: DayEnergyBarProps) {
-  const { bg, fill, label } = LEVEL_COLORS[level];
-  const width = Math.min(ratio * 100, 100);
-
+export function DayEnergyBar({ ratio }: DayEnergyBarProps) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-body font-medium text-text-primary">Tu día</p>
-        <p className={clsx('text-xs font-body font-medium', {
-          'text-green': level === 'green',
-          'text-amber': level === 'amber',
-          'text-warm-orange': level === 'warm_orange',
-        })}>
-          {label}
-        </p>
+    <div className="flex flex-col gap-2 p-3 bg-[#ffffff] rounded-2xl shadow-sm border border-[#e1e3da]/50">
+      <div className="flex items-end justify-between">
+        <span className="font-body text-[10px] font-bold uppercase tracking-widest text-[#707a6c]">
+          Energía del Día
+        </span>
+        <span className="font-mono text-sm font-bold text-[#226046]">
+          {Math.round(ratio * 100)}%
+        </span>
       </div>
-      <div className={clsx('w-full h-2.5 rounded-full overflow-hidden', bg)}>
-        <div
-          className={clsx('h-full rounded-full transition-all duration-500 ease-out', fill)}
-          style={{ width: `${width}%` }}
-        />
+
+      <div className="relative h-2 w-full overflow-hidden rounded-full bg-[#f3f5eb]">
+        <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+          <rect
+            x="0"
+            y="0"
+            width={ratio * 100}
+            height="100"
+            fill="#226046"
+            className="transition-all duration-1000 ease-out"
+          />
+        </svg>
       </div>
     </div>
   );

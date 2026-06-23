@@ -65,7 +65,18 @@ export function gramsToHumanPortion(
   return `${formatted} ${portion.unitPlural}`;
 }
 
-export interface HumanIngredient {
+/** Display portion according to user preference (grams vs household measures). */
+export function formatPortionDisplay(
+  ingredientId: string,
+  grams: number,
+  ingredient: Ingredient | undefined,
+  useGrams: boolean,
+): string {
+  if (useGrams) return `${Math.round(grams)}g`;
+  return gramsToHumanPortion(ingredientId, grams, ingredient);
+}
+
+interface HumanIngredient {
   name: string;
   humanPortion: string;
 }

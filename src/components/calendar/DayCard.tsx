@@ -33,8 +33,8 @@ export function DayCard({ date }: DayCardProps) {
   return (
     <div
       className={clsx(
-        'bg-surface/60 backdrop-blur-sm rounded-3xl border p-4 space-y-3 transition-all',
-        today ? 'border-accent/40 shadow-lg shadow-accent/5' : 'border-border/40',
+        'rounded-[1.5rem] bg-surface p-4 space-y-3 shadow-ambient transition-all',
+        today ? 'ring-2 ring-accent/30' : '',
       )}
     >
       <div className="flex items-center justify-between">

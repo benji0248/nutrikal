@@ -1,7 +1,7 @@
 export type MealType = 'desayuno' | 'almuerzo' | 'cena' | 'snack';
 export type Theme = 'dark' | 'light';
 export type ViewMode = 'day' | 'week' | 'month';
-export type AppTab = 'calendar' | 'recipes' | 'assistant' | 'shopping' | 'settings';
+export type AppTab = 'calendar' | 'historial' | 'assistant' | 'shopping' | 'settings';
 
 export type IngredientCategory =
   | 'carnes'
@@ -15,6 +15,8 @@ export type IngredientCategory =
   | 'ultraprocesados'
   | 'comidas_preparadas'
   | 'otros';
+
+export type Cuisine = 'ar' | 'asian' | 'mediterranean' | 'latin' | 'international';
 
 export const MEAL_TYPE_LABELS: Record<MealType, string> = {
   desayuno: 'Desayuno',
@@ -64,6 +66,7 @@ export interface Ingredient extends Macros {
   id: string;
   name: string;
   category: IngredientCategory;
+  cuisine?: Cuisine;
   isCustom?: boolean;
 }
 
@@ -94,6 +97,154 @@ export interface AiMeal {
   totalKcal: number;
   prepMinutes?: number;
   humanPortion?: string;
+  /** Solo para persistir al calendario; oculto en preview semanal. */
+  preparation?: string;
+  tip?: string;
+}
+
+// ── AI dish response types (Gemini structured output) ──
+
+export interface AiDishIngredient {
+  nombre: string;
+  rol: CulinaryRole;
+  gramos: number;
+}
+
+export interface AiDishResponse {
+  nombre: string;
+  ingredientes: AiDishIngredient[];
+  preparacion: string;
+  tiempo_prep: number;
+  tip: string;
+}
+
+export interface HydratedAiIngredient {
+  name: string;
+  grams: number;
+  humanPortion: string;
+  ingredientId: string | null;
+}
+
+export interface HydratedAiDish {
+  name: string;
+  humanIngredients: HydratedAiIngredient[];
+  macros: Macros;
+  prepMinutes: number;
+  preparation: string;
+  tip: string;
+}
+
+// ── Portion Engine types (Phase 4/5 — Desacople) ──
+
+/** Gemini's new lightweight response — creative only, no numbers */
+export interface AiMealLite {
+  name: string;
+  /** Legacy path: IDs only → portionEngine.computePortions */
+  ingredientIds?: string[];
+  /** Preferred path: roles + relative proportions → dishResolverService (local grams) */
+  dishContract?: DishContract;
+  humanPortion?: string;
+  prepMinutes?: number;
+}
+
+/** @see docs — IA devuelve solo sentido culinario; gramos = motor local */
+export const DISH_CONTRACT_VERSION = 1 as const;
+
+export type CulinaryRole =
+  | 'base'
+  | 'proteina'
+  | 'liquido'
+  | 'vegetal'
+  | 'vegetal_hoja'
+  | 'aromatico'
+  | 'fruta_toque'
+  | 'grasa'
+  | 'lacteo'
+  | 'endulzante'
+  | 'toque';
+
+export type DishContractType =
+  | 'plato_base_cereal'
+  | 'plato_base_proteina'
+  | 'ensalada'
+  | 'sopa_otro'
+  | 'desayuno'
+  | 'snack';
+
+export interface DishContractIngredient {
+  id: string;
+  rol: CulinaryRole;
+  /** Peso relativo; se normaliza a suma 1 en el cliente */
+  proporcion: number;
+}
+
+export interface DishContract {
+  contractVersion: number;
+  nombre: string;
+  descripcion_humana: string;
+  tipo_plato: DishContractType;
+  ingredientes: DishContractIngredient[];
+}
+
+/** Nivel de rotación semanal (1 estructural … 3 creativo) */
+export type IngredientLevel = 1 | 2 | 3;
+
+export interface WeeklyIngredientPool {
+  weekId: string;
+  structural: string[];
+  contextual: string[];
+  creative: string[];
+}
+
+export type IngredientSignalAction =
+  | 'aceptado'
+  | 'modificado'
+  | 'ignorado'
+  | 'repetido'
+  | 'rechazado';
+
+export interface IngredientSignalEntry {
+  id: string;
+  fecha: string;
+  comida: MealType;
+  ingredientes_sugeridos: string[];
+  ingredientes_finales: string[];
+  ingredientes_removidos: string[];
+  ingredientes_agregados: string[];
+  accion: IngredientSignalAction;
+}
+
+/** Macro role classification for portion engine */
+export type MacroRole = 'protein' | 'energy' | 'fat' | 'volume';
+
+/** Result from portionEngine: fully hydrated ingredient with exact grams */
+export interface HydratedIngredient {
+  ingredientId: string;
+  name: string;
+  grams: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  macroRole: MacroRole;
+}
+
+/** Fully hydrated meal with exact macros computed by portionEngine */
+export interface HydratedMeal {
+  name: string;
+  ingredients: HydratedIngredient[];
+  totalKcal: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  prepMinutes?: number;
+  humanPortion?: string;
+}
+
+/** Compact catalog entry sent to Gemini (id + name only) */
+export interface CatalogEntry {
+  id: string;
+  name: string;
 }
 
 export interface Meal {
@@ -105,6 +256,11 @@ export interface Meal {
   entries?: CalculatorEntry[];
   aiIngredients?: AiIngredient[];
   completed?: boolean;
+  prepMinutes?: number;
+  humanPortion?: string;
+  /** Pasos de preparación (visible al expandir en calendario, no en preview semanal). */
+  preparation?: string;
+  tip?: string;
 }
 
 export interface DayPlan {
@@ -122,14 +278,7 @@ export interface Notification {
   mealType?: MealType;
 }
 
-/** @deprecated Use AppUser instead — GistUser is kept for backward compat */
-export interface GistUser {
-  login: string;
-  name: string;
-  avatarUrl: string;
-  token: string;
-  gistId: string | null;
-}
+
 
 export interface AppUser {
   id: string;
@@ -140,14 +289,8 @@ export interface AppUser {
 
 export type AuthView = 'login' | 'register';
 
-export type SyncStatus =
-  | 'idle'
-  | 'syncing'
-  | 'success'
-  | 'error'
-  | 'offline';
-
-export interface GistPayload {
+/** Payload serializado para exportar/importar como backup JSON */
+export interface AppPayload {
   version: number;
   lastModified: string;
   dayPlans: Record<string, DayPlan>;
@@ -157,10 +300,14 @@ export interface GistPayload {
   settings: {
     theme: Theme;
     showCalories?: boolean;
+    useGrams?: boolean;
   };
   profile?: UserProfile;
   shoppingLists?: ShoppingList[];
   customDishes?: Dish[];
+  favoriteDishes?: string[];
+  /** Señales implícitas para el motor de selección futuro (sin fricción) */
+  ingredientSignalLog?: IngredientSignalEntry[];
 }
 
 export type AuthState =
@@ -288,17 +435,11 @@ export interface IngredientPortion {
 
 // ── Chat types ──
 
-export type ChatStep =
-  | 'welcome'
-  | 'meal_selected'
-  | 'dish_selected'
-  | 'confirmed'
-  | 'day_summary';
-
 export type ChatMessageType =
   | 'assistant-text'
   | 'assistant-options'
   | 'assistant-meals'
+  | 'assistant-dish'
   | 'assistant-summary'
   | 'assistant-plan'
   | 'assistant-loading'
@@ -320,11 +461,14 @@ export interface ChatMessage {
   text?: string;
   options?: ChatOption[];
   mealSuggestions?: Array<AiMeal & { reason: string }>;
+  dishSuggestion?: HydratedAiDish;
   daySummary?: {
     meals: Array<{ mealType: MealType; name: string }>;
     energyLevel: EnergyLevel;
   };
   weekPlan?: WeekPlan;
+  mealType?: MealType;
+  loadingStyle?: 'cooking';
   timestamp: string;
 }
 
@@ -365,11 +509,17 @@ export interface AiShowSummaryAction {
   type: 'show_summary';
 }
 
-export interface PlannedMeal extends AiMeal {}
+/** PlannedMeal = rehydrated meal ready for display. Gemini returns dishContract, but by the time
+ *  this type is used (in WeekPlan), rehydrateRawMeal() has already resolved it to AiMeal format. */
+export type PlannedMeal = AiMeal;
 
 export interface PlannedDay {
   date: string;
   meals: Partial<Record<MealType, PlannedMeal>>;
+  /** Modo del día para la UI del plan semanal */
+  dayMode?: WeekdayFlexMode;
+  /** Etiqueta visible: "Edgy", "Día libre", etc. */
+  dayLabel?: string;
 }
 
 export interface WeekPlan {
@@ -377,10 +527,100 @@ export interface WeekPlan {
   applied: boolean;
 }
 
+/**
+ * Cómo repartir variedad vs repetición en los 6 días "normales" (el séptimo es cheat day).
+ * @deprecated Prefer `WeekPlanningProfile.mealRhythmMode`
+ */
+export type WeekRepetitionMode = 'full_unique' | 'repeat_blocks' | 'balanced';
+
 export interface PlanPreferences {
   variety: 'poca' | 'normal' | 'mucha';
   cookingTime: 'rapido' | 'normal' | 'elaborado';
   budget: 'economico' | 'normal' | 'premium';
+  /** Preferencia explícita del usuario (chips o frases reconocidas). */
+  weekRepetitionMode?: WeekRepetitionMode;
+}
+
+/** Cuántas comidas estructura el día. */
+export type MealPattern = 'four' | 'three_no_snack' | 'no_breakfast' | 'two_main';
+
+/** Ritmo de planificación semanal. */
+export type MealRhythmMode =
+  | 'carryover_dinner_to_lunch'
+  | 'streak'
+  | 'max_variety'
+  | 'balanced';
+
+export type FlexMealScope = 'one_meal' | 'meal_plus_snack';
+
+/** Cómo tratar un día de la semana en el plan. */
+export type WeekdayFlexMode = 'normal' | 'maintenance' | 'full_free';
+
+export interface WeekdayFlexRule {
+  /** 0 = domingo … 6 = sábado (date-fns getDay) */
+  weekday: number;
+  mode: WeekdayFlexMode;
+  /** Nombre propio, ej. "Edgy" para sábado en mantenimiento */
+  nickname?: string;
+}
+
+/** Preferencias estables de plan semanal (Ajustes + wizard). */
+export interface WeekPlanningProfile {
+  mealPattern: MealPattern;
+  mealRhythmMode: MealRhythmMode;
+  streakDays?: 2 | 3 | 4;
+  /** Reglas por día; prioridad sobre campos legacy de flex. */
+  weekdayFlexRules: WeekdayFlexRule[];
+  /** @deprecated Usar weekdayFlexRules */
+  flexMealsPerWeek?: 0 | 1 | 2;
+  /** @deprecated Usar weekdayFlexRules */
+  flexMealScope?: FlexMealScope;
+  /** @deprecated Usar weekdayFlexRules */
+  preferredFlexWeekdays?: number[];
+  cookingTime: PlanPreferences['cookingTime'];
+  budget: PlanPreferences['budget'];
+  completedAt: string;
+}
+
+/** Memoria de rotación semanal (DB: user_profiles.plan_memory). */
+export interface PlanMemory {
+  avoidDishNames: string[];
+  /** Incrementa en cada generación de plan; aporta variedad al shuffle. */
+  poolGeneration: number;
+  lastWeekId: string | null;
+  /** Últimas canastas (ids) para no repetir ingredientes seguidos. */
+  recentPoolHistory: string[][];
+}
+
+export type WeekPlanSlotLink =
+  | 'prev.cena'
+  | { sameAsTemplateId: string };
+
+export interface WeekPlanSkeletonSlot {
+  mealType: MealType;
+  templateId: string;
+  link?: WeekPlanSlotLink;
+  isFlexMeal?: boolean;
+  dishHint?: string;
+  coreIngredientIds?: string[];
+}
+
+export interface WeekPlanSkeletonDay {
+  date: string;
+  dayMode?: WeekdayFlexMode;
+  slots: WeekPlanSkeletonSlot[];
+}
+
+export interface WeekPlanSkeleton {
+  days: WeekPlanSkeletonDay[];
+}
+
+/** Respuesta del endpoint week-plan antes de hidratar en cliente. */
+export interface WeekPlanGenerateResponse {
+  skeleton: WeekPlanSkeleton;
+  rawDishes: Record<string, AiDishResponse>;
+  text?: string;
+  remaining: number;
 }
 
 export interface AiChatContext {
@@ -405,6 +645,8 @@ export interface AiChatContext {
   todayDate: string;
   weekDates: string[] | null;
   preferences: PlanPreferences | null;
+  dishHistory?: Array<{ name: string; count: number; lastDate: string; isFavorite: boolean }> | null;
+  cuisineDiversityHint?: string | null;
 }
 
 export interface AiChatResponse {
@@ -442,6 +684,29 @@ export const DISH_CATEGORY_LABELS: Record<DishCategory, string> = {
   cena: 'Cena',
   snack: 'Snack',
   postre: 'Postre',
+};
+
+export const MEAL_PATTERN_LABELS: Record<MealPattern, string> = {
+  four: '4 comidas (desayuno, almuerzo, cena y merienda)',
+  three_no_snack: '3 comidas (sin merienda)',
+  no_breakfast: 'Sin desayuno (almuerzo, cena y merienda)',
+  two_main: '2 comidas fuertes (almuerzo y cena)',
+};
+
+export const MEAL_RHYTHM_LABELS: Record<MealRhythmMode, string> = {
+  carryover_dinner_to_lunch: 'Ceno hoy, almuerzo mañana',
+  streak: 'Mismo menú varios días seguidos',
+  max_variety: 'Variedad cada día',
+  balanced: 'Un poco de cada cosa',
+};
+
+export const DEFAULT_WEEK_PLANNING: Omit<WeekPlanningProfile, 'completedAt'> = {
+  mealPattern: 'four',
+  mealRhythmMode: 'balanced',
+  streakDays: 3,
+  weekdayFlexRules: [],
+  cookingTime: 'normal',
+  budget: 'normal',
 };
 
 export const SHOPPING_SECTION_LABELS: Record<ShoppingSection, string> = {

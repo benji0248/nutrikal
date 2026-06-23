@@ -1,5 +1,3 @@
-@import '@fontsource/syne/400.css';
-@import '@fontsource/syne/700.css';
 @import '@fontsource/plus-jakarta-sans/400.css';
 @import '@fontsource/plus-jakarta-sans/500.css';
 @import '@fontsource/plus-jakarta-sans/600.css';
@@ -11,31 +9,22 @@
 @tailwind utilities;
 
 @layer base {
-  :root,
-  [data-theme='dark'] {
-    --bg: #0c0c11;
-    --surface: #14141c;
-    --surface2: #1c1c28;
-    --border: #252535;
-    --text-primary: #f0f0f5;
-    --muted: #606080;
-    --accent: #7c6aff;
-    --pink: #ff6b9d;
-    --green: #34d399;
-    --amber: #fbbf24;
-  }
-
-  [data-theme='light'] {
-    --bg: #f6f5f2;
+  /**
+   * Living Journal (light) — DESIGN.md
+   * Night Journal (dark) — bosques profundos, acento verde legible
+   */
+  :root {
+    --bg: #faf7f2;
     --surface: #ffffff;
-    --surface2: #eeedf8;
-    --border: #dddcef;
-    --text-primary: #1a1a2e;
-    --muted: #8080a8;
-    --accent: #7c6aff;
-    --pink: #ff6b9d;
-    --green: #34d399;
-    --amber: #fbbf24;
+    --surface2: #f3f5eb;
+    --border: rgba(25, 28, 23, 0.08);
+    --text-primary: #1A3626;  /* Dark green tinted text */
+    --muted: #5a6258;
+    --accent: #215D3E; /* Dark green accent from mockup */
+    --secondary: #895100;
+    --pink: #b84d6f;
+    --green: #215D3E;
+    --amber: #f59e0b;
   }
 
   * {
@@ -56,23 +45,13 @@
     min-height: 100dvh;
   }
 
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.035;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23a)' opacity='1'/%3E%3C/svg%3E");
-  }
-
   #root {
     min-height: 100dvh;
   }
 
   ::selection {
-    background: var(--accent);
-    color: white;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--text-primary);
   }
 
   ::-webkit-scrollbar {
@@ -109,7 +88,12 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .font-heading {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  /** DESIGN.md §4 — sombra ambiental */
+  .shadow-ambient {
+    box-shadow: 0px 20px 40px rgba(25, 28, 23, 0.06);
   }
 }
 

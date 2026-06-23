@@ -1,10 +1,9 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Send, UserCircle } from 'lucide-react';
+import { Plus, Send, UserCircle } from 'lucide-react';
 import type { ChatOption, AppTab } from '../../types';
-import { ChatHeader } from './ChatHeader';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
-import { Button } from '../ui/Button';
+import { WeekPlanningSetup } from '../profile/WeekPlanningSetup';
 import { useChatEngine } from './useChatEngine';
 
 interface ChatAssistantProps {
@@ -17,93 +16,110 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     hasProfile,
     handleOption,
     handleSendMessage,
+    handleApplyDish,
     handleApplyPlan,
     handleRegeneratePlan,
+    handleRegenerateDish,
     handleSwapMeal,
     energyLevel,
     energyRatio,
     showCalories,
     isLoading,
+    hasWeekPlanningProfile,
+    runWeekPlanGeneration,
   } = useChatEngine();
 
   const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [showWeekPlanningSetup, setShowWeekPlanningSetup] = useState(false);
   const [inputText, setInputText] = useState('');
 
-  const wrappedHandleOption = useCallback((option: ChatOption) => {
-    if (option.action === 'create_profile') {
-      setShowProfileSetup(true);
-      return;
-    }
-    if (option.action === 'go_calendar' && onTabChange) {
-      onTabChange('calendar');
-      return;
-    }
-    if (option.action === 'go_shopping' && onTabChange) {
-      onTabChange('shopping');
-      return;
-    }
-    handleOption(option);
-  }, [handleOption, onTabChange]);
+  const wrappedHandleOption = useCallback(
+    (option: ChatOption) => {
+      if (option.action === 'create_profile') {
+        setShowProfileSetup(true);
+        return;
+      }
+      if (option.action === 'go_calendar' && onTabChange) {
+        onTabChange('calendar');
+        return;
+      }
+      if (option.action === 'go_shopping' && onTabChange) {
+        onTabChange('shopping');
+        return;
+      }
+      if (option.action === 'week_plan') {
+        if (!hasWeekPlanningProfile) {
+          setShowWeekPlanningSetup(true);
+          return;
+        }
+      }
+      handleOption(option);
+    },
+    [handleOption, onTabChange, hasWeekPlanningProfile],
+  );
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
     }, 50);
     return () => clearTimeout(timer);
   }, [messages]);
 
-  const onSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() || isLoading) return;
-    handleSendMessage(inputText.trim());
-    setInputText('');
-  }, [inputText, isLoading, handleSendMessage]);
+  const onSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!inputText.trim() || isLoading) return;
+      handleSendMessage(inputText.trim());
+      setInputText('');
+    },
+    [inputText, isLoading, handleSendMessage],
+  );
 
   if (!hasProfile) {
     return (
-      <div className="flex flex-col items-center justify-center -mx-4 -mt-6 -mb-24 md:-mb-6 h-[calc(100dvh-60px-64px)] md:h-[calc(100dvh-60px)] px-6">
-        <div className="flex flex-col items-center text-center max-w-sm space-y-6">
-          <div className="w-20 h-20 rounded-3xl bg-accent/20 flex items-center justify-center">
-            <span className="text-accent font-heading font-bold text-3xl">N</span>
+      <div className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-transparent text-[#191c17]">
+        <div className="flex max-w-sm flex-col items-center space-y-6 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#226046]/15 shadow-sm">
+            <span className="font-heading text-3xl font-bold text-[#226046]">
+              N
+            </span>
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-heading font-bold text-text-primary">
+            <h2 className="font-heading text-2xl font-bold text-[#191c17]">
               Bienvenido a NutriKal
             </h2>
-            <p className="text-base font-body text-muted leading-relaxed">
+            <p className="font-body text-base leading-relaxed text-[#707a6c]">
               Tu asistente de nutrición personalizado
             </p>
           </div>
-          <p className="text-sm font-body text-muted/80 leading-relaxed">
+          <p className="font-body text-sm leading-relaxed opacity-90 text-[#707a6c]">
             Son 4 preguntas rápidas. Después te armo el plan de la semana.
           </p>
-          <Button
-            variant="primary"
-            icon={<UserCircle size={20} />}
+          <button
+            type="button"
             onClick={() => setShowProfileSetup(true)}
-            fullWidth
+            className="inline-flex w-full min-h-[52px] items-center justify-center gap-2 rounded-full px-6 py-3 font-body font-semibold transition-all active:scale-[0.98] bg-[#226046] text-[#ffffff]"
           >
+            <UserCircle size={20} />
             Crear mi perfil
-          </Button>
+          </button>
         </div>
-        <ProfileSetup
-          isOpen={showProfileSetup}
-          onClose={() => setShowProfileSetup(false)}
-        />
+        <ProfileSetup isOpen={showProfileSetup} onClose={() => setShowProfileSetup(false)} />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col -mx-4 -mt-6 -mb-24 md:-mb-6 h-[calc(100dvh-60px-64px)] md:h-[calc(100dvh-60px)]">
-      <ChatHeader />
+    <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-transparent text-[#191c17]">
 
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4"
+        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-24 pb-32 md:pt-6 md:pb-32"
       >
         {messages.map((msg) => (
           <ChatMessageBubble
@@ -111,11 +127,14 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
             message={msg}
             onOptionSelect={wrappedHandleOption}
             onApplyPlan={handleApplyPlan}
+            onApplyDish={handleApplyDish}
             onRegeneratePlan={handleRegeneratePlan}
+            onRegenerateDish={handleRegenerateDish}
             onSwapMeal={handleSwapMeal}
             energyLevel={energyLevel}
             energyRatio={energyRatio}
             showCalories={showCalories}
+            chatBusy={isLoading}
           />
         ))}
         <div ref={bottomRef} />
@@ -123,31 +142,44 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
       <form
         onSubmit={onSubmit}
-        className="sticky bottom-0 border-t border-border bg-surface px-4 py-3 safe-bottom"
+        className="fixed bottom-28 md:bottom-6 left-0 right-0 w-full px-6 z-40"
       >
-        <div className="flex items-center gap-2">
+        <div className="max-w-2xl mx-auto bg-[#ffffff] rounded-xl shadow-xl flex items-center p-2 gap-2 border border-[#bfcaba]/20">
+          <button
+            type="button"
+            className="p-2 text-[#707a6c] hover:text-[#226046]"
+            aria-label="Adjuntos"
+            disabled
+          >
+            <Plus size={20} />
+          </button>
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Escribí tu mensaje..."
+            placeholder="Escribe tu consulta..."
             disabled={isLoading}
-            className="flex-1 bg-surface2 rounded-2xl px-4 py-3 text-sm font-body text-text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 min-h-[48px] disabled:opacity-50"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-medium placeholder:text-[#707a6c]/50 outline-none px-2"
           />
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="w-12 h-12 rounded-2xl bg-accent flex items-center justify-center text-white disabled:opacity-40 transition-all active:scale-95"
+            className="w-10 h-10 bg-[#226046] text-[#ffffff] rounded-lg flex items-center justify-center disabled:opacity-40 transition-opacity"
             aria-label="Enviar mensaje"
           >
-            <Send size={20} />
+            <Send size={18} className="translate-x-[2px]" />
           </button>
         </div>
       </form>
 
-      <ProfileSetup
-        isOpen={showProfileSetup}
-        onClose={() => setShowProfileSetup(false)}
+      <ProfileSetup isOpen={showProfileSetup} onClose={() => setShowProfileSetup(false)} />
+      <WeekPlanningSetup
+        isOpen={showWeekPlanningSetup}
+        onClose={() => setShowWeekPlanningSetup(false)}
+        onComplete={() => {
+          setShowWeekPlanningSetup(false);
+          runWeekPlanGeneration();
+        }}
       />
     </div>
   );

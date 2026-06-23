@@ -1,14 +1,21 @@
 import { CheckCircle } from 'lucide-react';
+import { JOURNAL } from '../assistant/journalTokens';
 
 export const PlanAppliedView = () => {
   return (
-    <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
-      <CheckCircle size={24} className="text-green-500 shrink-0" />
+    <div
+      className="flex animate-fade-in items-center gap-3 rounded-[1.25rem] p-4"
+      style={{
+        backgroundColor: 'rgba(34, 96, 70, 0.1)',
+        boxShadow: JOURNAL.ambientShadow,
+      }}
+    >
+      <CheckCircle size={24} className="shrink-0" style={{ color: JOURNAL.primary }} />
       <div>
-        <p className="text-sm font-body font-medium text-text-primary">
+        <p className="font-body text-sm font-medium" style={{ color: JOURNAL.onSurface }}>
           Plan aplicado al calendario
         </p>
-        <p className="text-xs font-body text-muted mt-0.5">
+        <p className="mt-0.5 font-body text-xs" style={{ color: JOURNAL.muted }}>
           Los ingredientes se agregaron a tu lista de compras.
         </p>
       </div>

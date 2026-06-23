@@ -57,15 +57,11 @@ export const useAuthStore = create<AuthStoreState>()(
       },
 
       logout: () => {
-        // Clear JWT
         localStorage.removeItem(JWT_KEY);
-        // Clear all nutrikal keys
-        const keys = Object.keys(localStorage).filter((k) => k.startsWith('nutrikal-'));
-        keys.forEach((k) => localStorage.removeItem(k));
 
         set({ user: null, authState: 'unauthenticated', error: null, errorField: undefined });
 
-        // Reset data stores
+        // Reset all data stores
         import('./useCalendarStore').then(({ useCalendarStore }) =>
           useCalendarStore.setState({ dayPlans: {}, notifications: [] }),
         );
@@ -78,12 +74,28 @@ export const useAuthStore = create<AuthStoreState>()(
         import('./useProfileStore').then(({ useProfileStore }) =>
           useProfileStore.setState({ profile: null }),
         );
+        import('./useWeekPlanningStore').then(({ useWeekPlanningStore }) =>
+          useWeekPlanningStore.setState({ weekPlanning: null, saveError: null }),
+        );
         import('./useShoppingStore').then(({ useShoppingStore }) =>
           useShoppingStore.setState({ lists: [] }),
         );
         import('./useRecipesStore').then(({ useRecipesStore }) =>
           useRecipesStore.setState({ customDishes: [] }),
         );
+        import('./useHistorialStore').then(({ useHistorialStore }) =>
+          useHistorialStore.setState({ favorites: [] }),
+        );
+        import('./useIngredientSignalStore').then(({ useIngredientSignalStore }) =>
+          useIngredientSignalStore.setState({ entries: [] }),
+        );
+        import('./usePlanRotationStore').then(({ usePlanRotationStore }) =>
+          usePlanRotationStore.getState().clear(),
+        );
+        import('./useSettingsStore').then(({ useSettingsStore }) => {
+          useSettingsStore.setState({ showCalories: false, useGrams: false, theme: 'dark' });
+          localStorage.removeItem('nutrikal-use-grams');
+        });
       },
 
       restoreSession: async () => {

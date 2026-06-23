@@ -1,131 +1,28 @@
+import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
-import { getGeminiClient, SYSTEM_RULES } from '../_lib/gemini.js';
-import { checkRateLimit } from '../_lib/rateLimit.js';
+import { getDeepSeekClient } from '../_lib/deepseek.js';
+import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
+import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 
 interface ChatRequestBody {
   message: string;
-  context: {
-    profile: {
-      name: string;
-      goal: string;
-      restrictions: string[];
-      dislikedIds: string[];
-      dislikedNames: string[];
-      dislikedCategories: string[];
-      allowedExceptionNames: string[];
-      dailyBudget: number;
-      nationality?: string;
-      sex?: string;
-      heightCm?: number;
-      weightKg?: number;
-      age?: number;
-    };
-    todayPlan: unknown | null;
-    weekSummary: string | null;
-    conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
-    todayDate: string;
-    weekDates: string[] | null;
-    preferences: {
-      variety: string;
-      cookingTime: string;
-      budget: string;
-    } | null;
-  };
-}
-
-const GOAL_TEXT: Record<string, string> = {
-  lose: 'perder peso de forma saludable',
-  maintain: 'mantener su peso actual',
-  gain: 'ganar masa muscular',
-};
-
-const RESTRICTION_TEXT: Record<string, string> = {
-  vegetarian: 'vegetariano (sin carne ni pescado)',
-  vegan: 'vegano (sin productos animales)',
-  gluten_free: 'sin gluten (celíaco)',
-  lactose_free: 'sin lácteos',
-  low_sodium: 'bajo en sodio',
-  diabetic: 'apto para diabéticos (bajo índice glucémico)',
-};
-
-function buildPersonalizedPrompt(profile: ChatRequestBody['context']['profile']): string {
-  const name = profile.name || 'el usuario';
-  const nationality = profile.nationality ?? 'Argentina';
-  const goalText = GOAL_TEXT[profile.goal] ?? 'mantener su peso actual';
-
-  const restrictions = profile.restrictions.length > 0
-    ? profile.restrictions.map((r) => RESTRICTION_TEXT[r] || r).join(', ')
-    : 'ninguna';
-
-  const dislikedList = profile.dislikedNames?.length > 0
-    ? profile.dislikedNames
-    : profile.dislikedIds;
-
-  // Build disliked text with categories + exceptions
-  const dislikedParts: string[] = [];
-  const categories = profile.dislikedCategories ?? [];
-  const exceptions = profile.allowedExceptionNames ?? [];
-  for (const cat of categories) {
-    if (exceptions.length > 0) {
-      dislikedParts.push(`${cat} en general (EXCEPTO ${exceptions.join(', ')} que sí le gustan)`);
-    } else {
-      dislikedParts.push(`${cat} (todos)`);
-    }
-  }
-  if (dislikedList.length > 0) {
-    dislikedParts.push(dislikedList.join(', '));
-  }
-  const disliked = dislikedParts.length > 0 ? dislikedParts.join('; ') : 'ninguno';
-
-  const physicalLines: string[] = [];
-  if (profile.sex) physicalLines.push(`Sexo biológico: ${profile.sex === 'male' ? 'masculino' : 'femenino'}`);
-  if (profile.age) physicalLines.push(`Edad: ${profile.age} años`);
-  if (profile.heightCm) physicalLines.push(`Altura: ${profile.heightCm} cm`);
-  if (profile.weightKg) physicalLines.push(`Peso: ${profile.weightKg} kg`);
-
-  // Determine language style based on nationality
-  const isVoseo = ['Argentina', 'Uruguay', 'Paraguay', 'Costa Rica', 'Guatemala', 'Honduras', 'El Salvador', 'Nicaragua'].includes(nationality);
-  const langStyle = isVoseo
-    ? `Hablá en español con voseo (vos, hacé, dale, bárbaro). Usá modismos de ${nationality}.`
-    : `Hablá en español con tuteo (tú, haz). Usá modismos de ${nationality}.`;
-
-  return `Sos el nutricionista personal de NutriKal para ${name}, de ${nationality}.
-
-PERSONALIDAD:
-- ${langStyle}
-- Cálido, cercano, conciso. Nunca juzgás. Si alguien tiene ansiedad o comió de más, lo contenés.
-- Mensajes CORTOS: 1-3 oraciones máximo. No expliques de más.
-
-DATOS DE ${name.toUpperCase()}:
-${physicalLines.length > 0 ? physicalLines.map((l) => `- ${l}`).join('\n') + '\n' : ''}- Restricciones: ${restrictions}
-- A ${name} NO le gustan estos ingredientes (NUNCA los incluyas en ninguna comida): ${disliked}
-
-PRESUPUESTO CALÓRICO — REGLA CRÍTICA:
-- DÍAS NORMALES (lunes a sábado): el presupuesto es EXACTAMENTE ${profile.dailyBudget} kcal. YA incluye el ajuste por su objetivo. NO lo modifiques, NO le restes nada.
-  Distribución: ~25% desayuno (~${Math.round(profile.dailyBudget * 0.25)} kcal), ~35% almuerzo (~${Math.round(profile.dailyBudget * 0.35)} kcal), ~30% cena (~${Math.round(profile.dailyBudget * 0.30)} kcal), ~10% snack (~${Math.round(profile.dailyBudget * 0.10)} kcal).
-- DOMINGO = CHEAT DAY: el presupuesto del domingo es ${profile.dailyBudget + 1000} kcal (budget normal + 1000). Ese día podés incluir comidas más indulgentes, porciones más grandes, postres, etc.
-  Distribución domingo: ~25% desayuno (~${Math.round((profile.dailyBudget + 1000) * 0.25)} kcal), ~35% almuerzo (~${Math.round((profile.dailyBudget + 1000) * 0.35)} kcal), ~30% cena (~${Math.round((profile.dailyBudget + 1000) * 0.30)} kcal), ~10% snack (~${Math.round((profile.dailyBudget + 1000) * 0.10)} kcal).
-NUNCA mencionés calorías al usuario.
-
-REGLAS DE PLANIFICACIÓN PARA ${name.toUpperCase()}:
-- Priorizá comidas típicas de ${nationality}.
-- Balanceá las comidas: proteína repartida, no todos carbos juntos.
-- Variá: no repitas el mismo plato más de 2 veces en la semana.
-- Respetá las restricciones de ${name} absolutamente.
-- Excluí ingredientes que no le gustan.
-- El plan debe incluir los 4 slots (desayuno, almuerzo, cena, snack) para cada día.`;
+  history: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const reqId = randomUUID();
+
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Auth
+    chatApiLog(reqId, 'request_in', {});
+
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
+      chatApiLog(reqId, 'auth_fail', { reason: 'missing_bearer' });
       return res.status(401).json({ error: 'Missing authorization' });
     }
 
@@ -134,12 +31,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const payload = verifyToken(authHeader.slice(7));
       userId = payload.sub;
     } catch {
+      chatApiLog(reqId, 'auth_fail', { reason: 'invalid_token' });
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    // Rate limit
-    const rateResult = await checkRateLimit(userId);
-    if (!rateResult.allowed) {
+    chatApiLog(reqId, 'auth_ok', { user: redactUserId(userId) });
+
+    const rateAssertion = await assertUnderDailyAiLimit(userId);
+    if (!rateAssertion.allowed) {
+      chatApiLog(reqId, 'rate_limit_block', { user: redactUserId(userId), remaining: 0 });
       return res.status(429).json({
         error: 'rate_limit',
         text: '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana para seguir charlando.',
@@ -148,88 +48,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const body = req.body as ChatRequestBody;
-    if (!body.message || !body.context) {
-      return res.status(400).json({ error: 'Missing message or context' });
+    if (!body.message) {
+      chatApiLog(reqId, 'bad_request', { reason: 'missing_message' });
+      return res.status(400).json({ error: 'Missing message' });
     }
 
-    // Build personalized system prompt
-    const personalizedPrompt = buildPersonalizedPrompt(body.context.profile);
-
-    // Build situational context
-    const contextParts: string[] = [];
-
-    contextParts.push(`FECHA DE HOY: ${body.context.todayDate}`);
-
-    if (body.context.weekDates) {
-      const dates = body.context.weekDates;
-      const daysOfWeek = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-      const datesWithDay = dates.map((d) => {
-        const dayName = daysOfWeek[new Date(d + 'T12:00:00').getDay()];
-        const isCheat = dayName === 'domingo';
-        return `${d} (${dayName}${isCheat ? ' — CHEAT DAY' : ''})`;
-      });
-      contextParts.push(`FECHAS DE LA SEMANA A PLANIFICAR (${dates.length} días):
-${datesWithDay.join('\n')}
-OBLIGATORIO: el array "days" DEBE tener exactamente ${dates.length} objetos, uno por cada fecha. NO generes solo 1 día.`);
-    }
-
-    if (body.context.todayPlan) {
-      contextParts.push(`PLAN DE HOY:\n${JSON.stringify(body.context.todayPlan)}`);
-    }
-
-    if (body.context.weekSummary) {
-      contextParts.push(`RESUMEN DE LA SEMANA:\n${body.context.weekSummary}`);
-    }
-
-    if (body.context.preferences) {
-      const p = body.context.preferences;
-      contextParts.push(`PREFERENCIAS PARA EL PLAN:
-- Variedad: ${p.variety}
-- Tiempo de cocina: ${p.cookingTime}
-- Presupuesto: ${p.budget}`);
-    }
-
-    const fullSystemPrompt = personalizedPrompt + '\n\n' + SYSTEM_RULES + '\n\n' + contextParts.join('\n\n');
-
-    // Build conversation history for Gemini
-    const history = (body.context.conversationHistory || []).map((msg) => ({
-      role: msg.role === 'user' ? 'user' as const : 'model' as const,
-      parts: [{ text: msg.text }],
-    }));
-
-    // Call Gemini
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-3.1-flash-lite-preview',
-      systemInstruction: fullSystemPrompt,
+    chatApiLog(reqId, 'body_ok', {
+      user: redactUserId(userId),
+      messageLen: body.message.length,
+      historyLen: body.history?.length ?? 0,
     });
 
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(body.message);
-    const responseText = result.response.text();
-
-    // Parse JSON response from Gemini
-    let parsed: { text: string; actions: unknown[]; quickReplies?: string[] };
-    try {
-      // Strip markdown code fences if present
-      const cleaned = responseText
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      // If Gemini didn't respond with valid JSON, wrap the text
-      parsed = { text: responseText, actions: [] };
+    if (!process.env.DEEPSEEK_API_KEY) {
+      chatApiLog(reqId, 'deepseek_config_missing', {});
+      return res.status(503).json({
+        error: 'config',
+        text: 'DeepSeek no está configurado. Agregá DEEPSEEK_API_KEY en .env.local o usá el modo Gemini.',
+      });
     }
+
+    const client = getDeepSeekClient();
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+
+    for (const msg of body.history ?? []) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      });
+    }
+    messages.push({ role: 'user', content: body.message });
+
+    const tDeepSeek = Date.now();
+    const result = await client.chat.completions.create({
+      model: 'deepseek-v4-pro',
+      messages,
+    });
+    const deepseekMs = Date.now() - tDeepSeek;
+
+    const responseText = result.choices?.[0]?.message?.content ?? '';
+
+    if (!responseText.trim()) {
+      chatApiLog(reqId, 'deepseek_empty_body', { deepseekMs });
+      return res.status(502).json({
+        error: 'model_response',
+        text: 'No pude generar una respuesta ahora. Probá de nuevo en un momento.',
+      });
+    }
+
+    chatApiLog(reqId, 'deepseek_done', {
+      deepseekMs,
+      chars: responseText.length,
+    });
+
+    let remainingOut: number;
+    try {
+      remainingOut = (await recordSuccessfulAiChat(userId)).remaining;
+    } catch (recErr) {
+      chatApiLogError(reqId, 'record_usage_fail', recErr);
+      remainingOut = Math.max(0, rateAssertion.remaining - 1);
+    }
+
+    chatApiLog(reqId, 'response_200', {
+      user: redactUserId(userId),
+      remaining: remainingOut,
+    });
 
     return res.status(200).json({
-      text: parsed.text,
-      actions: parsed.actions || [],
-      quickReplies: parsed.quickReplies || [],
-      remaining: rateResult.remaining,
+      text: responseText,
+      remaining: remainingOut,
     });
   } catch (err) {
-    console.error('AI chat error:', err);
+    chatApiLogError(reqId, 'handler_uncaught', err);
     return res.status(500).json({
       error: 'internal',
       text: 'Algo salió mal. Intentá de nuevo en unos segundos.',

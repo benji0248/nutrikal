@@ -3,21 +3,30 @@ import { RefreshCw, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { PlannedMeal, MealType } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
 
+
 interface PlanMealCellProps {
   meal: PlannedMeal | undefined;
   mealType: MealType;
   date: string;
   showCalories: boolean;
   onSwap: (date: string, mealType: MealType) => void;
+  swapDisabled?: boolean;
 }
 
-export const PlanMealCell = ({ meal, mealType, date, showCalories, onSwap }: PlanMealCellProps) => {
+export const PlanMealCell = ({
+  meal,
+  mealType,
+  date,
+  showCalories,
+  onSwap,
+  swapDisabled = false,
+}: PlanMealCellProps) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!meal) {
     return (
-      <div className="bg-surface2/30 rounded-xl p-3 min-h-[56px] flex items-center">
-        <span className="text-xs font-body text-muted">
+      <div className="mt-1 flex min-h-[56px] items-center rounded-2xl p-3 bg-[#f8faf1]">
+        <span className="font-body text-xs text-[#707a6c]">
           {MEAL_TYPE_LABELS[mealType]} — sin plato
         </span>
       </div>
@@ -25,45 +34,48 @@ export const PlanMealCell = ({ meal, mealType, date, showCalories, onSwap }: Pla
   }
 
   return (
-    <div className="bg-surface2/40 rounded-xl overflow-hidden">
+    <div className="mt-1 overflow-hidden rounded-2xl bg-[#f8faf1]">
       <div className="p-3">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="min-w-0 flex-1 text-left flex items-center gap-2"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
           >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-body font-medium text-text-primary">
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-sm font-medium text-[#191c17]">
                 {meal.name}
               </p>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="mt-0.5 flex items-center gap-2">
                 {meal.humanPortion && (
-                  <span className="text-xs font-body text-muted">
+                  <span className="font-body text-xs text-[#707a6c]">
                     {meal.humanPortion}
                   </span>
                 )}
                 {meal.prepMinutes != null && meal.prepMinutes > 0 && (
-                  <span className="flex items-center gap-0.5 text-xs font-body text-muted">
+                  <span className="flex items-center gap-0.5 font-body text-xs text-[#707a6c]">
                     <Clock size={11} />
                     {meal.prepMinutes}′
                   </span>
                 )}
                 {showCalories && (
-                  <span className="text-xs font-mono text-accent">{meal.totalKcal} kcal</span>
+                  <span className="font-mono text-xs text-[#226046]">
+                    {meal.totalKcal} kcal
+                  </span>
                 )}
               </div>
             </div>
             {expanded ? (
-              <ChevronUp size={14} className="text-muted shrink-0" />
+              <ChevronUp size={14} className="shrink-0 text-[#707a6c]" />
             ) : (
-              <ChevronDown size={14} className="text-muted shrink-0" />
+              <ChevronDown size={14} className="shrink-0 text-[#707a6c]" />
             )}
           </button>
           <button
             type="button"
+            disabled={swapDisabled}
             onClick={() => onSwap(date, mealType)}
-            className="w-10 h-10 rounded-xl bg-surface2 flex items-center justify-center text-muted hover:text-accent hover:bg-accent/10 transition-colors shrink-0"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors bg-[#226046]/10 text-[#226046] hover:bg-[#226046]/20 disabled:opacity-40 disabled:pointer-events-none"
             aria-label={`Cambiar ${MEAL_TYPE_LABELS[mealType]}`}
           >
             <RefreshCw size={16} />
@@ -72,14 +84,16 @@ export const PlanMealCell = ({ meal, mealType, date, showCalories, onSwap }: Pla
       </div>
 
       {expanded && meal.ingredients.length > 0 && (
-        <div className="px-3 pb-3 pt-1 border-t border-border/20">
+        <div className="border-t border-black/[0.06] px-3 pb-3 pt-2">
           <ul className="space-y-1">
             {meal.ingredients.map((ing, idx) => (
-              <li key={idx} className="flex items-baseline justify-between gap-2 text-xs font-body">
-                <span className="text-text-primary">{ing.name}</span>
-                <span className="text-muted flex-shrink-0">
+              <li key={idx} className="flex items-baseline justify-between gap-2 font-body text-xs">
+                <span className="text-[#191c17]">{ing.name}</span>
+                <span className="flex-shrink-0 text-[#707a6c]">
                   {ing.grams}g
-                  {showCalories && <span className="font-mono ml-1.5 text-muted/70">{ing.kcal}</span>}
+                  {showCalories && (
+                    <span className="ml-1.5 font-mono opacity-80">{ing.kcal}</span>
+                  )}
                 </span>
               </li>
             ))}

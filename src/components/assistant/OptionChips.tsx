@@ -10,15 +10,19 @@ import {
   Home,
   Check,
   UserCircle,
+  AlertCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ChatOption } from '../../types';
+
 
 interface OptionChipsProps {
   options: ChatOption[];
   onSelect: (option: ChatOption) => void;
+  disabled?: boolean;
 }
 
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
+const ICON_MAP: Record<string, LucideIcon> = {
   Coffee,
   UtensilsCrossed,
   Moon,
@@ -30,9 +34,10 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
   Home,
   Check,
   UserCircle,
+  AlertCircle,
 };
 
-export const OptionChips = ({ options, onSelect }: OptionChipsProps) => {
+export const OptionChips = ({ options, onSelect, disabled = false }: OptionChipsProps) => {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
@@ -42,10 +47,11 @@ export const OptionChips = ({ options, onSelect }: OptionChipsProps) => {
           <button
             key={option.id}
             type="button"
+            disabled={disabled}
             onClick={() => onSelect(option)}
-            className="flex items-center gap-2 rounded-full border border-border/40 bg-surface2/30 px-4 py-2.5 min-h-[48px] text-sm font-body font-medium text-text-primary hover:bg-accent/10 hover:border-accent/40 hover:text-accent transition-all active:scale-95"
+            className="min-h-[48px] bg-[#edefe6] text-[#226046] border border-[#bfcaba]/30 px-4 py-2 rounded-full text-xs font-medium hover:bg-[#e7e9e0] transition-colors flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
           >
-            {Icon && <Icon size={16} />}
+            {Icon && <Icon size={14} strokeWidth={1.75} />}
             {option.label}
           </button>
         );

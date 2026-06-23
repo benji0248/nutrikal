@@ -1,30 +1,40 @@
 import { useState, useEffect } from 'react';
-import { Sun, CalendarDays, LayoutGrid, Download, Printer, UserCircle, RotateCcw } from 'lucide-react';
+import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone } from 'lucide-react';
+import { WeekPlanningSetup } from './components/profile/WeekPlanningSetup';
+import { MEAL_PATTERN_LABELS } from './types';
+import { normalizeWeekPlanningProfile } from './utils/flexDayHelpers';
+import { WEEKDAY_FLEX_MODE_LABELS } from './utils/flexDayHelpers';
 import { clsx } from 'clsx';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
-import { useGistSyncStore } from './store/useGistSyncStore';
 import { useCalendarStore } from './store/useCalendarStore';
 import { useProfileStore } from './store/useProfileStore';
 import { useSettingsStore } from './store/useSettingsStore';
+import { useCalculatorStore } from './store/useCalculatorStore';
+import { useIngredientsStore } from './store/useIngredientsStore';
+import { useRecipesStore } from './store/useRecipesStore';
+import { useShoppingStore } from './store/useShoppingStore';
+import { useHistorialStore } from './store/useHistorialStore';
+import { useIngredientSignalStore } from './store/useIngredientSignalStore';
+import { useWeekPlanningStore } from './store/useWeekPlanningStore';
+import { usePlanRotationStore } from './store/usePlanRotationStore';
+import { batchLoadAllData, loadProfile, migrateUser } from './services/apiService';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
 import { MonthView } from './components/calendar/MonthView';
 import { DayView } from './components/calendar/DayView';
-import { RecipeBank } from './components/meals/RecipeBank';
+import { HistorialView } from './components/historial/HistorialView';
 import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
-import { ThemeToggle } from './components/ui/ThemeToggle';
-import { SyncIndicator } from './components/ui/SyncIndicator';
-import { Button } from './components/ui/Button';
+
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
 import { UserMenu } from './components/auth/UserMenu';
-import { getWeekRange, getMonthLabel } from './utils/dateHelpers';
+
 import type { AppTab } from './types';
 
 function App() {
@@ -58,34 +68,81 @@ function AuthenticatedApp() {
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
-  const currentDate = useCalendarStore((s) => s.currentDate);
-  const initialLoad = useGistSyncStore((s) => s.initialLoad);
 
   const [showRecalibrate, setShowRecalibrate] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
-  // Sync data from server on mount, then decide initial tab
+  // New init flow: migrate → batch-load → hydrate stores
   useEffect(() => {
-    initialLoad().then(() => {
+    async function initializeData() {
+      try {
+        // Step 1: Migrate blob data to new tables (idempotent)
+        try {
+          await migrateUser();
+        } catch (e) {
+          console.error('Migration error (non-blocking):', e);
+        }
+
+        // Step 2: Load all data from new tables
+        const data = await batchLoadAllData();
+
+        // Step 3: Hydrate all stores
+        useCalendarStore.getState().hydrateMeals(data.meals, data.dayNotes);
+        useCalendarStore.getState().hydrateNotifications(data.notifications);
+        useProfileStore.getState().hydrateProfile(data.profile);
+        if (!data.profile) {
+          try {
+            const fallbackProfile = await loadProfile();
+            if (fallbackProfile) {
+              useProfileStore.getState().hydrateProfile(fallbackProfile);
+            }
+          } catch (profileErr) {
+            console.error('Profile fallback load error:', profileErr);
+          }
+        }
+        useCalculatorStore.getState().hydrateRecipes(data.calculatorRecipes);
+        useIngredientsStore.getState().hydrateIngredients(data.customIngredients);
+        useRecipesStore.getState().hydrateDishes(data.customDishes);
+        useShoppingStore.getState().hydrateLists(data.shoppingLists);
+        useSettingsStore.getState().hydrateSettings(data.settings);
+        useWeekPlanningStore.getState().hydrateWeekPlanning(data.weekPlanning ?? null);
+        useHistorialStore.getState().hydrateFavorites(data.favorites);
+        useIngredientSignalStore.getState().hydrateSignals(data.ingredientSignals);
+        usePlanRotationStore.getState().hydrate(data.planMemory ?? undefined);
+      } catch (e) {
+        console.error('Init data load error:', e);
+        try {
+          const fallbackProfile = await loadProfile();
+          if (fallbackProfile) {
+            useProfileStore.getState().hydrateProfile(fallbackProfile);
+          }
+        } catch (profileErr) {
+          console.error('Profile fallback load error:', profileErr);
+        }
+      }
+
+      // Decide initial state
       setTimeout(() => {
         const p = useProfileStore.getState().profile;
-        if (!p) setActiveTab('assistant');
+        if (!p) {
+          setShowProfileEdit(true);
+        }
         setReady(true);
       }, 100);
-    }).catch(() => {
-      setReady(true);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }
+
+    initializeData();
   }, []);
 
   // Check recalibration on mount
   useEffect(() => {
     if (profile && needsRecalibration()) {
-      setShowRecalibrate(true);
+      const timeout = setTimeout(() => {
+        setShowRecalibrate(true);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [profile, needsRecalibration]);
-
-  const headerLabel = view === 'day' ? '' : view === 'week' ? getWeekRange(currentDate) : getMonthLabel(currentDate);
 
   if (!ready) {
     return <LoadingScreen />;
@@ -95,28 +152,23 @@ function AuthenticatedApp() {
     <div className="min-h-dvh bg-bg text-text-primary">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="md:ml-60 relative z-10">
-        <header className="sticky top-0 z-30 bg-bg/80 backdrop-blur-xl border-b border-border/40 no-print">
-          <div className="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto">
+      <main className="md:ml-72 relative z-10 min-h-screen">
+        <header className="fixed md:sticky top-0 w-full md:w-auto z-30 bg-[#f8faf1]/80 backdrop-blur-xl md:border-b md:border-border/30 no-print">
+          <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto md:px-12 md:py-3">
             <div className="flex items-center gap-3 md:hidden">
-              <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center">
-                <span className="text-accent font-heading font-bold text-sm">N</span>
+              <div className="w-10 h-10 rounded-full bg-[#e1e3da] flex items-center justify-center overflow-hidden">
+                <span className="text-[#226046] font-heading font-extrabold text-sm">NK</span>
               </div>
-              <h1 className="font-heading font-bold text-text-primary text-sm">NutriKal</h1>
+              <span className="font-heading font-bold text-xl tracking-tight text-[#226046]">NutriKal</span>
             </div>
-
-            {activeTab === 'calendar' && (
-              <div className="hidden md:block">
-                <span className="text-sm font-heading font-bold text-text-primary capitalize">
-                  {headerLabel}
-                </span>
-              </div>
-            )}
-
+            <div className="hidden md:flex items-center gap-3" />
             <div className="flex items-center gap-2">
+              <button className="md:hidden w-10 h-10 flex items-center justify-center rounded-full bg-[#f3f5eb] text-[#226046] active:scale-95 transition-transform" aria-label="Sync">
+                <RotateCcw size={18} />
+              </button>
               {activeTab === 'calendar' && (
                 <>
-                  <div className="flex items-center gap-0.5 bg-surface2 rounded-xl p-0.5">
+                  <div className="hidden md:flex items-center gap-0.5 bg-surface2 rounded-xl p-0.5">
                     <button
                       onClick={() => setView('day')}
                       className={clsx(
@@ -160,21 +212,17 @@ function AuthenticatedApp() {
                   </button>
                 </>
               )}
-              <SyncIndicator />
-              <div className="md:hidden">
-                <ThemeToggle />
-              </div>
               <UserMenu />
             </div>
           </div>
         </header>
 
-        <div className="px-4 py-6 pb-24 md:pb-6 max-w-4xl mx-auto">
-          {activeTab === 'calendar' && view === 'day' && <DayView />}
-          {activeTab === 'calendar' && view === 'week' && <WeekView />}
+        <div className="px-4 md:px-12 py-6 pb-24 md:pb-12 max-w-7xl mx-auto">
+          {activeTab === 'calendar' && view === 'day' && <DayView onNavigateToAssistant={() => setActiveTab('assistant')} />}
+          {activeTab === 'calendar' && view === 'week' && <WeekView onNavigateToAssistant={() => setActiveTab('assistant')} />}
           {activeTab === 'calendar' && view === 'month' && <MonthView />}
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
-          {activeTab === 'recipes' && <RecipeBank />}
+          {activeTab === 'historial' && <HistorialView />}
           {activeTab === 'shopping' && <ShoppingListView />}
           {activeTab === 'settings' && <SettingsView onEditProfile={() => setShowProfileEdit(true)} />}
         </div>
@@ -189,184 +237,233 @@ function AuthenticatedApp() {
       />
       <ProfileSetup
         isOpen={showProfileEdit}
-        onClose={() => setShowProfileEdit(false)}
+        onClose={() => {
+          setShowProfileEdit(false);
+          // After closing profile setup, if profile now exists, go to assistant
+          const p = useProfileStore.getState().profile;
+          if (p) setActiveTab('assistant');
+        }}
         existingProfile={profile}
       />
     </div>
   );
 }
 
-function CaloriesToggle() {
-  const showCalories = useSettingsStore((s) => s.showCalories);
-  const setShowCalories = useSettingsStore((s) => s.setShowCalories);
+function WeekPlanningSettingsRow() {
+  const weekPlanning = useWeekPlanningStore((s) => s.weekPlanning);
+  const [showSetup, setShowSetup] = useState(false);
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex-1 min-w-0 mr-3">
-        <span className="text-sm font-body text-muted block">Mostrar calorías</span>
-        <span className="text-[11px] font-body text-muted/60">
-          Ver las calorías de cada comida y el total del día
-        </span>
-      </div>
-      <button
-        role="switch"
-        aria-checked={showCalories}
-        onClick={() => setShowCalories(!showCalories)}
-        className="relative shrink-0 min-w-[48px] min-h-[48px] flex items-center justify-center"
-      >
-        <span
-          className={clsx(
-            'block h-7 w-12 rounded-full transition-colors',
-            showCalories ? 'bg-accent' : 'bg-border',
-          )}
-        />
-        <span
-          className={clsx(
-            'absolute block h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
-            showCalories ? 'translate-x-[10px]' : '-translate-x-[10px]',
-          )}
-        />
-      </button>
-    </div>
+    <>
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">
+          Mi rutina semanal
+        </h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2">
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-full bg-[#226046]/10 flex items-center justify-center text-[#226046] shrink-0">
+                <CalendarDays size={24} />
+              </div>
+              {weekPlanning?.completedAt ? (
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#191c17] text-sm truncate">
+                    {MEAL_PATTERN_LABELS[weekPlanning.mealPattern]}
+                  </p>
+                  <p className="text-xs text-[#40493d] truncate">
+                    {(() => {
+                      const wp = normalizeWeekPlanningProfile(weekPlanning);
+                      if (wp.weekdayFlexRules.length === 0) return 'Todos los días normales';
+                      return wp.weekdayFlexRules
+                        .map((r) => {
+                          const d = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][r.weekday];
+                          return `${d}: ${r.nickname ?? WEEKDAY_FLEX_MODE_LABELS[r.mode]}`;
+                        })
+                        .join(' · ');
+                    })()}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="font-semibold text-[#191c17]">Sin configurar</p>
+                  <p className="text-sm text-[#40493d]">Para planificar tu semana</p>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSetup(true)}
+              className="bg-[#226046] text-[#ffffff] px-4 py-2 rounded-full text-sm font-medium hover:scale-95 transition-transform shrink-0"
+            >
+              {weekPlanning?.completedAt ? 'Editar' : 'Configurar'}
+            </button>
+          </div>
+        </div>
+      </section>
+      <WeekPlanningSetup
+        isOpen={showSetup}
+        onClose={() => setShowSetup(false)}
+        existing={weekPlanning}
+      />
+    </>
   );
 }
 
 function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
-  const clearProfile = useProfileStore((s) => s.clearProfile);
   const logout = useAuthStore((s) => s.logout);
-  const buildPayload = useGistSyncStore((s) => s.buildPayload);
-  const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
-  const schedulePush = useGistSyncStore((s) => s.schedulePush);
-
-  const handleExportJSON = () => {
-    const payload = buildPayload();
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `nutrikal-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const raw = JSON.parse(reader.result as string);
-        const { migratePayload } = await import('./services/gistService');
-        const payload = migratePayload(raw);
-        if (confirm('¿Reemplazar todos tus datos actuales?')) {
-          hydrateAllStores(payload);
-        }
-      } catch {
-        alert('Archivo JSON inválido');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
+  const showCalories = useSettingsStore((s) => s.showCalories);
+  const setShowCalories = useSettingsStore((s) => s.setShowCalories);
+  const useGrams = useSettingsStore((s) => s.useGrams);
+  const setUseGrams = useSettingsStore((s) => s.setUseGrams);
 
   return (
-    <div className="space-y-6 max-w-lg">
-      <h2 className="text-xl font-heading font-bold text-text-primary">Ajustes</h2>
+    <div className="space-y-8 animate-fade-in">
+      <section className="space-y-1">
+        <h1 className="text-3xl font-heading font-bold text-[#226046] tracking-tight">Ajustes</h1>
+        <p className="text-[#40493d] font-body">Personaliza tu experiencia de bienestar y nutrición.</p>
+      </section>
 
-      {/* Account section */}
       {user && (
-        <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
-          <h3 className="text-sm font-heading font-bold text-text-primary">Cuenta</h3>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
-              <span className="text-white font-heading font-bold text-sm">
-                {(user.displayName || user.username).charAt(0).toUpperCase()}
+        <section className="space-y-4">
+          <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Cuenta</h2>
+          <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-1">
+            <div
+              onClick={() => { if (confirm('¿Cerrar sesión?')) logout(); }}
+              className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl hover:bg-[#edefe6] transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#3d795d]/10 flex items-center justify-center text-[#226046]">
+                  <UserCircle size={24} />
+                </div>
+                <div>
+                  <p className="font-semibold text-[#191c17]">{user.displayName || user.username}</p>
+                  <p className="text-sm text-[#40493d]">{user.email}</p>
+                </div>
+              </div>
+              <span className="text-[#707a6c] font-bold text-xs group-hover:translate-x-1 transition-transform uppercase tracking-widest">
+                Salir
               </span>
             </div>
-            <div>
-              <p className="text-sm font-body font-medium text-text-primary">@{user.username}</p>
-              <p className="text-[10px] font-body text-muted">{user.email}</p>
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Perfil Nutricional</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2">
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#fd9d1a]/10 flex items-center justify-center text-[#895100]">
+                <UserCircle size={24} />
+              </div>
+              {settingsProfile ? (
+                <div>
+                  <p className="font-semibold text-[#191c17] text-sm">Objetivo de Salud</p>
+                  <p className="text-xs text-[#40493d]">
+                    {settingsProfile.heightCm} cm • {settingsProfile.weightKg} kg
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="font-semibold text-[#191c17]">Sin Perfil</p>
+                  <p className="text-sm text-[#40493d]">Crea tu perfil</p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={onEditProfile}
+              className="bg-[#226046] text-[#ffffff] px-4 py-2 rounded-full text-sm font-medium hover:scale-95 transition-transform"
+            >
+              {settingsProfile ? 'Editar' : 'Crear'}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <WeekPlanningSettingsRow />
+
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Preferencias</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-2">
+          {/* Measurement Toggle */}
+          <div
+            onClick={() => setUseGrams(!useGrams)}
+            className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-pointer"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#a05d22]/10 flex items-center justify-center text-[#824509]">
+                <Scale size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Sistema de Medición</p>
+                <p className="text-sm text-[#40493d]">{useGrams ? 'Gramos exactos' : 'Medidas caseras'}</p>
+              </div>
+            </div>
+            <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', useGrams ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
+              <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', useGrams ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
             </div>
           </div>
 
-          <p className="text-[10px] font-body text-muted/60">
-            Datos sincronizados en la nube
-          </p>
-
-          <div className="flex flex-col gap-2">
-            <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
-              Exportar backup JSON
-            </Button>
-            <label className="w-full">
-              <Button variant="secondary" icon={<Printer size={16} />} onClick={() => document.getElementById('import-input')?.click()} fullWidth>
-                Importar backup JSON
-              </Button>
-              <input
-                id="import-input"
-                type="file"
-                accept=".json"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </label>
-            <Button variant="danger" onClick={() => { if (confirm('Tus datos están guardados en este dispositivo. ¿Cerrar sesión?')) logout(); }} fullWidth>
-              Cerrar sesión
-            </Button>
+          {/* Calories Toggle */}
+          <div
+            onClick={() => setShowCalories(!showCalories)}
+            className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-pointer"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#3d795d]/10 flex items-center justify-center text-[#226046]">
+                <LayoutGrid size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Mostrar Calorías</p>
+                <p className="text-sm text-[#40493d]">Visibles en el feed personal</p>
+              </div>
+            </div>
+            <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', showCalories ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
+              <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', showCalories ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
+            </div>
           </div>
         </div>
-      )}
+      </section>
 
-      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
-        <h3 className="text-sm font-heading font-bold text-text-primary">Perfil nutricional</h3>
-        {settingsProfile ? (
-          <div className="space-y-2">
-            <p className="text-sm font-body text-text-primary">{settingsProfile.name}</p>
-            <p className="text-xs font-body text-muted">
-              {settingsProfile.heightCm} cm · {settingsProfile.weightKg} kg
-            </p>
-            <Button variant="secondary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
-              Editar perfil
-            </Button>
-            <Button variant="danger" icon={<RotateCcw size={16} />} onClick={() => { if (confirm('¿Resetear tu perfil? Vas a tener que crearlo de nuevo.')) { clearProfile(); schedulePush(); } }} fullWidth>
-              Resetear perfil
-            </Button>
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Próximamente</h2>
+        <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-2 opacity-70">
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-not-allowed">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#4a5568]/10 flex items-center justify-center text-[#2d3748]">
+                <Bell size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Notificaciones de Hábitos</p>
+                <p className="text-sm text-[#40493d]">Recordatorios de agua y comidas</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-[#707a6c] uppercase tracking-widest">Pronto</span>
           </div>
-        ) : (
-          <Button variant="primary" icon={<UserCircle size={16} />} onClick={onEditProfile} fullWidth>
-            Crear perfil
-          </Button>
-        )}
-      </div>
 
-      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
-        <h3 className="text-sm font-heading font-bold text-text-primary">Apariencia</h3>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-body text-muted">Tema</span>
-          <ThemeToggle />
+          <div className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-not-allowed">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#2b6cb0]/10 flex items-center justify-center text-[#2b6cb0]">
+                <Smartphone size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Sincronización Fit</p>
+                <p className="text-sm text-[#40493d]">Apple Health & Google Fit</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-[#707a6c] uppercase tracking-widest">Pronto</span>
+          </div>
         </div>
-        <CaloriesToggle />
-      </div>
+      </section>
 
-      <div className="bg-surface2/40 rounded-3xl border border-border/40 p-5 space-y-4">
-        <h3 className="text-sm font-heading font-bold text-text-primary">Datos</h3>
-        <div className="flex flex-col gap-2">
-          <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportJSON} fullWidth>
-            Exportar datos (JSON)
-          </Button>
-          <Button variant="secondary" icon={<Printer size={16} />} onClick={() => window.print()} fullWidth>
-            Imprimir semana actual
-          </Button>
+      <div className="pt-4 pb-8 text-center space-y-2">
+        <div className="inline-flex items-center justify-center w-12 h-12 bg-[#e7e9e0] rounded-2xl mb-2">
+          <LayoutGrid size={20} className="text-[#40493d]" />
         </div>
-      </div>
-
-      <div className="text-center pt-4">
-        <p className="text-xs text-muted font-body">NutriKal v5.0</p>
-        <p className="text-[10px] text-muted/60 font-body mt-1">
-          Datos sincronizados en la nube
-        </p>
+        <p className="text-[#40493d] font-medium text-sm">NutriKal v5.0</p>
+        <p className="text-xs text-[#707a6c] italic">Hecho con conciencia nutricional</p>
       </div>
     </div>
   );

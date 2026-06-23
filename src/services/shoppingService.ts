@@ -130,40 +130,26 @@ export function generateShoppingList(
 }
 
 /**
- * Create shopping items from a dish at given servings.
+ * Match an AI ingredient name against the DB to find the real ingredient.
+ * Tries exact match first (case-insensitive), then substring match.
  */
-export function createShoppingItemsFromDish(
-  dish: Dish,
-  servings: number,
-  allIngredients: Ingredient[],
-): ShoppingItem[] {
-  const items: ShoppingItem[] = [];
-
-  for (const di of dish.ingredients) {
-    const ingredient = allIngredients.find((i) => i.id === di.ingredientId);
-    if (!ingredient) continue;
-
-    const totalGrams = Math.round(di.grams * servings);
-    const section = CATEGORY_TO_SECTION[ingredient.category] || 'otros';
-
-    items.push({
-      id: generateId(),
-      ingredientId: di.ingredientId,
-      name: ingredient.name,
-      quantity: humanizeQuantity(totalGrams),
-      section,
-      checked: false,
-    });
-  }
-
-  return items;
+function matchIngredient(name: string, allIngredients: Ingredient[]): Ingredient | undefined {
+  const lower = name.toLowerCase().trim();
+  // Exact match
+  const exact = allIngredients.find((i) => i.name.toLowerCase() === lower);
+  if (exact) return exact;
+  // Substring match: AI name contains DB name or vice versa
+  return allIngredients.find(
+    (i) => lower.includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(lower),
+  );
 }
 
 /**
  * Create shopping items from AI-generated meals.
  * Groups ingredients by name (case-insensitive), sums grams.
+ * Matches against DB ingredients to assign correct supermarket sections.
  */
-export function createShoppingItemsFromAiMeals(meals: AiMeal[]): ShoppingItem[] {
+export function createShoppingItemsFromAiMeals(meals: AiMeal[], allIngredients: Ingredient[]): ShoppingItem[] {
   const aggregated = new Map<string, number>();
 
   for (const meal of meals) {
@@ -175,12 +161,15 @@ export function createShoppingItemsFromAiMeals(meals: AiMeal[]): ShoppingItem[] 
 
   const items: ShoppingItem[] = [];
   for (const [name, totalGrams] of aggregated) {
+    const matched = matchIngredient(name, allIngredients);
+    const section = matched ? (CATEGORY_TO_SECTION[matched.category] || 'otros') : 'otros';
+
     items.push({
       id: generateId(),
-      ingredientId: name,
-      name: name.charAt(0).toUpperCase() + name.slice(1),
+      ingredientId: matched?.id ?? name,
+      name: matched?.name ?? (name.charAt(0).toUpperCase() + name.slice(1)),
       quantity: humanizeQuantity(totalGrams),
-      section: 'otros',
+      section,
       checked: false,
     });
   }

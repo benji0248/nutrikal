@@ -1,10 +1,18 @@
 import { useState, useRef } from 'react';
 import { Download, Upload, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useGistSyncStore } from '../../store/useGistSyncStore';
-import { migratePayload } from '../../services/gistService';
+import { useCalendarStore } from '../../store/useCalendarStore';
+import { useCalculatorStore } from '../../store/useCalculatorStore';
+import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { useProfileStore } from '../../store/useProfileStore';
+import { useShoppingStore } from '../../store/useShoppingStore';
+import { useRecipesStore } from '../../store/useRecipesStore';
+import { useHistorialStore } from '../../store/useHistorialStore';
+import { useSettingsStore } from '../../store/useSettingsStore';
+import { useIngredientSignalStore } from '../../store/useIngredientSignalStore';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
+import type { AppPayload } from '../../types';
 
 function getInitials(name: string): string {
   return name
@@ -26,16 +34,78 @@ function getAvatarColor(username: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
+function buildExportPayload(): AppPayload {
+  const calendar = useCalendarStore.getState();
+  const calculator = useCalculatorStore.getState();
+  const ingredients = useIngredientsStore.getState();
+  const profile = useProfileStore.getState().profile;
+  const shopping = useShoppingStore.getState();
+  const recipes = useRecipesStore.getState();
+  const historial = useHistorialStore.getState();
+  const settings = useSettingsStore.getState();
+  const signals = useIngredientSignalStore.getState();
+
+  return {
+    version: 1,
+    lastModified: new Date().toISOString(),
+    dayPlans: calendar.dayPlans,
+    savedRecipes: calculator.savedRecipes,
+    customIngredients: ingredients.customIngredients,
+    notifications: calendar.notifications,
+    settings: {
+      theme: settings.theme,
+      showCalories: settings.showCalories,
+      useGrams: settings.useGrams,
+    },
+    profile: profile ?? undefined,
+    shoppingLists: shopping.lists,
+    customDishes: recipes.customDishes,
+    favoriteDishes: historial.favorites,
+    ingredientSignalLog: signals.entries,
+  };
+}
+
+function hydrateFromImport(payload: AppPayload) {
+  useCalendarStore.setState({
+    dayPlans: payload.dayPlans ?? {},
+    notifications: payload.notifications ?? [],
+  });
+  useCalculatorStore.setState({
+    savedRecipes: payload.savedRecipes ?? [],
+  });
+  useIngredientsStore.setState({
+    customIngredients: payload.customIngredients ?? [],
+  });
+  useProfileStore.setState({
+    profile: payload.profile ?? null,
+  });
+  useShoppingStore.setState({
+    lists: payload.shoppingLists ?? [],
+  });
+  useRecipesStore.setState({
+    customDishes: payload.customDishes ?? [],
+  });
+  useHistorialStore.setState({
+    favorites: payload.favoriteDishes ?? [],
+  });
+  useSettingsStore.getState().hydrateSettings({
+    theme: payload.settings?.theme ?? 'dark',
+    showCalories: payload.settings?.showCalories ?? false,
+    useGrams: payload.settings?.useGrams ?? false,
+  });
+  useIngredientSignalStore.setState({
+    entries: payload.ingredientSignalLog ?? [],
+  });
+}
+
 export const UserMenu = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const buildPayload = useGistSyncStore((s) => s.buildPayload);
-  const hydrateAllStores = useGistSyncStore((s) => s.hydrateAllStores);
 
   const [open, setOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmImport, setConfirmImport] = useState(false);
-  const [importPayload, setImportPayload] = useState<ReturnType<typeof buildPayload> | null>(null);
+  const [importPayload, setImportPayload] = useState<AppPayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!user) return null;
@@ -44,7 +114,7 @@ export const UserMenu = () => {
   const avatarColor = getAvatarColor(user.username);
 
   const handleExport = () => {
-    const payload = buildPayload();
+    const payload = buildExportPayload();
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -65,9 +135,8 @@ export const UserMenu = () => {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const raw = JSON.parse(reader.result as string);
-        const payload = migratePayload(raw);
-        setImportPayload(payload);
+        const raw = JSON.parse(reader.result as string) as AppPayload;
+        setImportPayload(raw);
         setConfirmImport(true);
       } catch {
         alert('Archivo JSON inválido');
@@ -79,7 +148,7 @@ export const UserMenu = () => {
 
   const handleConfirmImport = () => {
     if (importPayload) {
-      hydrateAllStores(importPayload);
+      hydrateFromImport(importPayload);
     }
     setConfirmImport(false);
     setImportPayload(null);
@@ -177,7 +246,7 @@ export const UserMenu = () => {
         title="Cerrar sesión"
       >
         <ConfirmDialog
-          message="Tus datos están guardados en este dispositivo. ¿Cerrar sesión?"
+          message="Tu información está guardada en la nube. Podés volver a entrar cuando quieras."
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
         />
@@ -188,7 +257,7 @@ export const UserMenu = () => {
         title="Cerrar sesión"
       >
         <ConfirmDialog
-          message="Tus datos están guardados en este dispositivo. ¿Cerrar sesión?"
+          message="Tu información está guardada en la nube. Podés volver a entrar cuando quieras."
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
         />
