@@ -197,11 +197,13 @@ export function formatWeeklyPoolForPrompt(
   tasteAware = false,
 ): string {
   const map = new Map(allIngredients.map((i) => [i.id, i] as const));
-  const idLines = (ids: string[]): string =>
+  const idLines = (ids: string[], showKcal = true): string =>
     ids
       .map((id) => {
         const ing = map.get(id);
-        return ing ? `${ing.id}: ${ing.name}` : '';
+        if (!ing) return '';
+        const kcalInfo = showKcal ? ` (${Math.round(ing.calories)} kcal/100g)` : '';
+        return `${ing.id}: ${ing.name}${kcalInfo}`;
       })
       .filter(Boolean)
       .join('\n');

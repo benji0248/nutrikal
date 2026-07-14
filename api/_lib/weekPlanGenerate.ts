@@ -1,6 +1,11 @@
 import { SchemaType, type ResponseSchema } from '@google/generative-ai';
 import { getGeminiClient, type GemProfile } from './gemini.js';
-import { isMealType } from './metabolic.js';
+import {
+  isMealType,
+  computeDailyBudget,
+  computeMaintenanceBudget,
+  type MetabolicProfile,
+} from './metabolic.js';
 import {
   buildWeekPlanOneShotPrompt,
   getWeekTemplateBudget,
@@ -8,7 +13,6 @@ import {
 } from './weekPlanPrompts.js';
 import { parseGeminiJson } from './parseGeminiJson.js';
 import { withGeminiRetry } from './geminiRetry.js';
-import type { MetabolicProfile } from './metabolic.js';
 
 export interface AiDishIngredient {
   nombre: string;
@@ -139,13 +143,18 @@ function parseLink(link?: string): WeekPlanSkeletonSlot['link'] {
   return undefined;
 }
 
+function normalizeMealType(raw: string): string {
+  if (raw === 'merienda') return 'snack';
+  return raw;
+}
+
 function toSkeleton(raw: OneShotResponse): WeekPlanSkeleton {
   return {
     days: raw.days.map((day) => ({
       date: day.date,
       dayMode: day.dayMode ?? 'normal',
       slots: (day.slots ?? []).map((slot) => ({
-        mealType: slot.mealType,
+        mealType: normalizeMealType(slot.mealType),
         templateId: slot.templateId,
         link: parseLink(slot.link),
         isFlexMeal: slot.isFlexMeal,
@@ -225,6 +234,51 @@ function enforceTemplateBudget(
   return { days };
 }
 
+function enforceActiveSlots(
+  skeleton: WeekPlanSkeleton,
+  activeSlots: string[],
+): WeekPlanSkeleton {
+  const ownedByMealType = new Map<string, string[]>();
+  for (const day of skeleton.days) {
+    for (const slot of day.slots) {
+      if (slot.link) continue;
+      if (!ownedByMealType.has(slot.mealType)) {
+        ownedByMealType.set(slot.mealType, []);
+      }
+      const ids = ownedByMealType.get(slot.mealType)!;
+      if (!ids.includes(slot.templateId)) {
+        ids.push(slot.templateId);
+      }
+    }
+  }
+
+  const days = skeleton.days.map((day) => {
+    if (day.dayMode === 'full_free') return day;
+
+    const existingSlots = [...day.slots];
+    const existingMealTypes = new Set(existingSlots.map((s) => s.mealType));
+
+    for (const mealType of activeSlots) {
+      if (existingMealTypes.has(mealType)) continue;
+
+      const ownedIds = ownedByMealType.get(mealType);
+      const sameAsTemplateId = ownedIds?.[0];
+
+      if (sameAsTemplateId) {
+        existingSlots.push({
+          mealType,
+          templateId: sameAsTemplateId,
+          link: { sameAsTemplateId },
+        });
+      }
+    }
+
+    return { ...day, slots: existingSlots };
+  });
+
+  return { days };
+}
+
 export function collectTemplatesToGenerate(skeleton: WeekPlanSkeleton): WeekPlanSkeletonSlot[] {
   const byId = new Map<string, WeekPlanSkeletonSlot>();
 
@@ -250,15 +304,23 @@ export async function generateWeekPlanOneShot(params: {
   weekDates: string[];
   variationSeed?: string;
 }): Promise<{ skeleton: WeekPlanSkeleton; rawDishes: Record<string, AiDishResponse> }> {
+  const metabolic = params.profile.metabolic;
+  const dailyBudgetKcal = metabolic ? computeDailyBudget(metabolic) : undefined;
+  const maintenanceBudgetKcal = metabolic && metabolic.goal !== 'maintain'
+    ? computeMaintenanceBudget(metabolic)
+    : undefined;
+
   const system = buildWeekPlanOneShotPrompt({
     profileName: params.profile.name,
     nationality: params.profile.nationality,
     restrictions: params.profile.restrictions,
-    goal: params.profile.metabolic?.goal,
+    goal: metabolic?.goal,
     weekPlanning: params.weekPlanning,
     weeklyPoolPrompt: params.weeklyPoolPrompt,
     forbiddenDishNames: params.forbiddenDishNames,
     weekDates: params.weekDates,
+    dailyBudgetKcal,
+    maintenanceBudgetKcal,
   });
 
   const model = getGeminiClient().getGenerativeModel({
@@ -288,7 +350,8 @@ export async function generateWeekPlanOneShot(params: {
         throw new Error('Planner returned empty week plan');
       }
 
-      const skeleton = enforceTemplateBudget(toSkeleton(parsed), params.weekPlanning);
+      let skeleton = enforceTemplateBudget(toSkeleton(parsed), params.weekPlanning);
+      skeleton = enforceActiveSlots(skeleton, params.weekPlanning.activeSlots);
       const rawDishes = toRawDishes(parsed.dishes);
 
       const needed = collectTemplatesToGenerate(skeleton);

@@ -53,10 +53,15 @@ function authHeaders(): Record<string, string> {
 async function handleResponse<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (res.status === 401) {
-    // Auto-logout on auth failure
+    const hadToken = !!localStorage.getItem(JWT_KEY);
     localStorage.removeItem(JWT_KEY);
-    const { useAuthStore } = await import('../store/useAuthStore');
-    useAuthStore.getState().logout();
+    if (hadToken) {
+      const { useAuthStore } = await import('../store/useAuthStore');
+      const { authState } = useAuthStore.getState();
+      if (authState === 'authenticated' || authState === 'authenticating') {
+        useAuthStore.getState().logout();
+      }
+    }
     throw new ApiAuthError('Sesión expirada', 401);
   }
   if (!res.ok) {

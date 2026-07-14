@@ -90,7 +90,7 @@ export const useAuthStore = create<AuthStoreState>()(
           useIngredientSignalStore.setState({ entries: [] }),
         );
         import('./usePlanRotationStore').then(({ usePlanRotationStore }) =>
-          usePlanRotationStore.getState().clear(),
+          usePlanRotationStore.getState().clear({ sync: false }),
         );
         import('./useSettingsStore').then(({ useSettingsStore }) => {
           useSettingsStore.setState({ showCalories: false, useGrams: false, theme: 'dark' });

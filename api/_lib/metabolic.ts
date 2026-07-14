@@ -96,7 +96,7 @@ export function getMealSlotBudget(
 }
 
 export function isMealType(value: string): value is MealType {
-  return value === 'desayuno' || value === 'almuerzo' || value === 'cena' || value === 'snack';
+  return value === 'desayuno' || value === 'almuerzo' || value === 'cena' || value === 'snack' || value === 'merienda';
 }
 
 const MEAL_TYPE_LABELS: Record<MealType, string> = {

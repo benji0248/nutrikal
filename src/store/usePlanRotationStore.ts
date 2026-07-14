@@ -21,7 +21,7 @@ interface PlanRotationState extends PlanMemory {
   rememberRejected: (dishName: string) => void;
   getAvoidDishNames: () => string[];
   getRecentPoolHistory: () => string[][];
-  clear: () => void;
+  clear: (options?: { sync?: boolean }) => void;
 }
 
 function toPayload(state: PlanMemory): PlanMemory {
@@ -34,6 +34,8 @@ function toPayload(state: PlanMemory): PlanMemory {
 }
 
 function syncToServer(snapshot: PlanMemory): void {
+  // Skip when logged out — avoids 401 → logout → clear → PUT loop.
+  if (!localStorage.getItem('nutrikal-jwt')) return;
   void api.savePlanMemory(snapshot).catch((e) => {
     console.error('Plan memory save error:', e);
   });
@@ -91,8 +93,10 @@ export const usePlanRotationStore = create<PlanRotationState>()((set, get) => ({
 
   getRecentPoolHistory: () => get().recentPoolHistory,
 
-  clear: () => {
+  clear: (options) => {
     set({ ...DEFAULT_PLAN_MEMORY });
-    syncToServer(DEFAULT_PLAN_MEMORY);
+    if (options?.sync !== false) {
+      syncToServer(DEFAULT_PLAN_MEMORY);
+    }
   },
 }));

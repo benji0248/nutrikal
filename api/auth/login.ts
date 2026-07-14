@@ -26,12 +26,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .single();
 
   if (!user) {
-    return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    console.log('[login] usuario no encontrado para:', lower);
+    return res.status(400).json({ error: 'Usuario o contraseña incorrectos' });
   }
 
   const valid = await bcrypt.compare(password as string, user.password_hash);
   if (!valid) {
-    return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    console.log('[login] contraseña incorrecta para:', lower);
+    return res.status(400).json({ error: 'Usuario o contraseña incorrectos' });
   }
 
   const token = signToken({
