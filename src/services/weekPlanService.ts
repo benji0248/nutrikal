@@ -300,3 +300,18 @@ export function weekPlanningForApi(
     weekdayRulesPrompt: formatWeekdayRulesForPrompt(wp.weekdayFlexRules),
   };
 }
+
+/** Presupuesto kcal de un slot según día del plan (mantenimiento / flex). */
+export function getMealBudgetForPlanDay(
+  date: string,
+  mealType: MealType,
+  profile: UserProfile,
+  weekPlanning: WeekPlanningProfile,
+): number | undefined {
+  const wp = normalizeWeekPlanningProfile(weekPlanning);
+  const dayMode = getFlexModeForDate(date, wp.weekdayFlexRules);
+  if (dayMode === 'full_free') return undefined;
+  const meta = computeMetabolism(profile);
+  const dailyBudget = dayMode === 'maintenance' ? meta.tdee : meta.budget;
+  return getMealSlotBudgetForPattern(dailyBudget, mealType, wp.mealPattern);
+}

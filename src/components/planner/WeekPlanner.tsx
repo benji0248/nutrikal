@@ -13,6 +13,20 @@ interface WeekPlannerProps {
 }
 
 export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal, planAiBusy = false }: WeekPlannerProps) => {
+  if (plan.applied) {
+    return (
+      <div className="w-full bg-[#ffffff] rounded-lg overflow-hidden shadow-[0px_20px_40px_rgba(25,28,23,0.06)] animate-fade-in">
+        <div className="p-6 bg-[#226046]/5">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-heading font-bold text-xl text-[#226046]">Plan Semanal</h3>
+            <span className="bg-[#226046]/15 text-[#226046] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Aplicado</span>
+          </div>
+          <PlanReviewGrid plan={plan} onSwapMeal={onSwapMeal} swapDisabled />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full bg-[#ffffff] rounded-lg overflow-hidden shadow-[0px_20px_40px_rgba(25,28,23,0.06)] animate-fade-in">
       <div className="p-6 bg-[#226046]/5">

@@ -13,10 +13,10 @@ export const PlanAppliedView = () => {
       <CheckCircle size={24} className="shrink-0" style={{ color: JOURNAL.primary }} />
       <div>
         <p className="font-body text-sm font-medium" style={{ color: JOURNAL.onSurface }}>
-          Plan aplicado al calendario
+          Tu semana está lista
         </p>
         <p className="mt-0.5 font-body text-xs" style={{ color: JOURNAL.muted }}>
-          Los ingredientes se agregaron a tu lista de compras.
+          Ya está en tu calendario y tu lista de compras.
         </p>
       </div>
     </div>

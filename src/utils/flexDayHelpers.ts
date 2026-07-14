@@ -1,5 +1,6 @@
 import { getDay, parseISO } from 'date-fns';
 import type { Goal, WeekPlanningProfile, WeekdayFlexMode, WeekdayFlexRule } from '../types';
+import { DEFAULT_WEEK_PLANNING } from '../types';
 
 export const WEEKDAY_LABELS_SHORT = [
   { weekday: 1, label: 'Lun' },
@@ -21,6 +22,17 @@ export const PRESET_WEEKEND_FLEXIBLE: WeekdayFlexRule[] = [
   { weekday: 6, mode: 'maintenance', nickname: 'Edgy' },
   { weekday: 0, mode: 'full_free' },
 ];
+
+/** Defaults sugeridos según objetivo (SP-5: delegación con mínima config). */
+export function getSmartWeekPlanningDefaults(goal?: Goal): Omit<WeekPlanningProfile, 'completedAt'> {
+  if (goal === 'lose' || goal === 'maintain') {
+    return {
+      ...DEFAULT_WEEK_PLANNING,
+      weekdayFlexRules: [...PRESET_WEEKEND_FLEXIBLE],
+    };
+  }
+  return { ...DEFAULT_WEEK_PLANNING };
+}
 
 export function getWeekdayFromDateKey(dateKey: string): number {
   return getDay(parseISO(dateKey));

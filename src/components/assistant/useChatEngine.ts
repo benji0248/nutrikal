@@ -5,6 +5,7 @@ import type {
   EnergyLevel,
   HydratedAiDish,
   MealType,
+  AiMeal,
   WeekPlan,
 } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
@@ -17,6 +18,7 @@ import {
   buildFullWeekPlanFromApiResponse,
   buildWeekPlanningContext,
   getIsoWeekId,
+  getMealBudgetForPlanDay,
   weekPlanningForApi,
 } from '../../services/weekPlanService';
 import {
@@ -33,6 +35,9 @@ import { useIngredientSignalStore } from '../../store/useIngredientSignalStore';
 import { computeMetabolism } from '../../services/metabolicService';
 import { getMealSlotBudget } from '../../services/portionEngine';
 import { useCalendarStore } from '../../store/useCalendarStore';
+import { useShoppingStore } from '../../store/useShoppingStore';
+import { createShoppingItemsFromAiMeals } from '../../services/shoppingService';
+import { INGREDIENTS_DB } from '../../data/ingredients';
 import { MEAL_TYPE_ORDER } from '../../types';
 import { todayKey, formatDayFull, parseDate } from '../../utils/dateHelpers';
 import {
@@ -67,7 +72,7 @@ function buildWelcomeOptions(): ChatOption[] {
     },
     {
       id: 'week_plan',
-      label: 'Quiero planificar mi semana',
+      label: 'Planificá mi semana',
       action: 'week_plan',
       icon: 'CalendarDays',
     },
@@ -136,7 +141,7 @@ function buildFreshProfileWelcomeOptions(): ChatOption[] {
       },
       {
         id: 'week_plan',
-        label: 'Quiero planificar mi semana',
+        label: 'Planificá mi semana',
         action: 'week_plan',
         icon: 'CalendarDays',
       },
@@ -178,6 +183,29 @@ function buildWelcomeMessagesForProfile(
       type: 'assistant-options',
       options: buildWelcomeOptions(),
       timestamp: new Date().toISOString(),
+    },
+  ];
+}
+
+function buildPostApplyPlanOptions(): ChatOption[] {
+  return [
+    {
+      id: 'go_shopping',
+      label: 'Ver lista de compras',
+      action: 'go_shopping',
+      icon: 'ShoppingCart',
+    },
+    {
+      id: 'go_calendar',
+      label: 'Ver en calendario',
+      action: 'go_calendar',
+      icon: 'CalendarDays',
+    },
+    {
+      id: 'cook_again',
+      label: 'Cocinar otra cosa',
+      action: 'start_cook_now',
+      icon: 'UtensilsCrossed',
     },
   ];
 }
@@ -324,7 +352,7 @@ export function useChatEngine(): ChatEngineResult {
     addMessages({
       id: makeId(),
       type: 'user-choice',
-      text: 'Quiero planificar mi semana',
+      text: 'Planificá mi semana',
       timestamp: new Date().toISOString(),
     });
 
@@ -389,7 +417,7 @@ export function useChatEngine(): ChatEngineResult {
         type: 'assistant-text',
         text:
           apiResult.text?.trim()
-          || 'Armé tu semana según tu rutina. Revisala y aplicá al calendario cuando quieras.',
+          || 'Tu semana está lista para revisar.',
         timestamp: new Date().toISOString(),
       });
       addMessages({
@@ -436,7 +464,7 @@ export function useChatEngine(): ChatEngineResult {
 
   async function sendToAi(
     text: string,
-    options?: { variation?: boolean; mealType?: MealType },
+    options?: { variation?: boolean; mealType?: MealType; mealBudgetKcal?: number },
   ) {
     if (!profile) return;
     if (sendingLockRef.current) return;
@@ -454,9 +482,8 @@ export function useChatEngine(): ChatEngineResult {
     }
 
     const activeMealType = options?.mealType ?? lastMealTypeRef.current ?? undefined;
-    const mealBudgetKcal = activeMealType && profile
-      ? resolveMealBudget(profile, activeMealType)
-      : undefined;
+    const mealBudgetKcal = options?.mealBudgetKcal
+      ?? (activeMealType && profile ? resolveMealBudget(profile, activeMealType) : undefined);
 
     setIsLoading(true);
     const loadingId = makeId();
@@ -736,28 +763,60 @@ export function useChatEngine(): ChatEngineResult {
   const handleApplyPlan = useCallback(
     (plan: WeekPlan) => {
       const rows: Array<{ date: string; mealType: MealType; meal: ReturnType<typeof plannedMealToMeal> }> = [];
+      const aiMeals: AiMeal[] = [];
       for (const day of plan.days) {
         for (const mt of MEAL_TYPE_ORDER) {
           const planned = day.meals[mt];
           if (!planned) continue;
           rows.push({ date: day.date, mealType: mt, meal: plannedMealToMeal(planned) });
+          aiMeals.push(planned);
         }
       }
       if (rows.length > 0) {
         bulkUpsertMeals(rows);
       }
+
+      if (aiMeals.length > 0) {
+        const allIngredients = [...INGREDIENTS_DB, ...customIngredients];
+        const shoppingItems = createShoppingItemsFromAiMeals(aiMeals, allIngredients);
+        if (shoppingItems.length > 0) {
+          useShoppingStore.getState().addItemsToActiveList(shoppingItems);
+        }
+      }
+
       recordWeekPlanApplied(plan);
       const applied: WeekPlan = { ...plan, applied: true };
       lastWeekPlanRef.current = applied;
-      addMessages({
-        id: makeId(),
-        type: 'assistant-text',
-        text: 'Listo, tu semana quedó en el calendario. Podés ver cada comida ahí con su receta.',
-        timestamp: new Date().toISOString(),
-      });
-      appendWelcomeOptions();
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.type === 'assistant-plan' && m.weekPlan && !m.weekPlan.applied
+            ? { ...m, weekPlan: applied }
+            : m,
+        ),
+      );
+
+      addMessages(
+        {
+          id: makeId(),
+          type: 'assistant-text',
+          text: 'Tu semana está lista. Ya quedó en tu calendario y actualicé tu lista de compras.',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: makeId(),
+          type: 'assistant-applied',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: makeId(),
+          type: 'assistant-options',
+          options: buildPostApplyPlanOptions(),
+          timestamp: new Date().toISOString(),
+        },
+      );
     },
-    [bulkUpsertMeals],
+    [bulkUpsertMeals, customIngredients],
   );
 
   const handleRegeneratePlan = useCallback(() => {
@@ -810,13 +869,17 @@ export function useChatEngine(): ChatEngineResult {
           : '';
       const prompt = `Generá otro plato para mi ${mealTypeToPromptLabel(mealType)} del ${date}.${avoidLine}`;
       lastMealTypeRef.current = mealType;
+      const weekPlanning = useWeekPlanningStore.getState().weekPlanning;
+      const slotBudget = weekPlanning
+        ? getMealBudgetForPlanDay(date, mealType, profile, weekPlanning)
+        : resolveMealBudget(profile, mealType);
       addMessages({
         id: makeId(),
         type: 'assistant-text',
         text: `Cambiemos tu ${label} del ${formatDayFull(parseDate(date))}.`,
         timestamp: new Date().toISOString(),
       });
-      void sendToAi(prompt, { variation: true, mealType });
+      void sendToAi(prompt, { variation: true, mealType, mealBudgetKcal: slotBudget });
     },
     [isLoading, profile],
   );

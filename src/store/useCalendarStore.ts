@@ -93,6 +93,23 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
       }
       return { dayPlans: newDayPlans };
     });
+    if (meals.length > 0) {
+      api.createMealsBatch(
+        meals.map(({ date, mealType, meal }) => ({
+          date,
+          mealType,
+          id: meal.id,
+          name: meal.name,
+          calories: meal.calories,
+          aiIngredients: meal.aiIngredients,
+          entries: meal.entries,
+          prepMinutes: meal.prepMinutes,
+          humanPortion: meal.humanPortion,
+          preparation: meal.preparation,
+          tip: meal.tip,
+        })),
+      ).catch(console.error);
+    }
   },
 
   deleteMeal: (date, mealType, mealId) => {

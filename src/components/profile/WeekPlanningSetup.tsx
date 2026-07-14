@@ -11,7 +11,6 @@ import type {
 import {
   MEAL_PATTERN_LABELS,
   MEAL_RHYTHM_LABELS,
-  DEFAULT_WEEK_PLANNING,
 } from '../../types';
 import { Button } from '../ui/Button';
 import { BottomSheet } from '../ui/BottomSheet';
@@ -23,6 +22,7 @@ import {
   WEEKDAY_LABELS_SHORT,
   WEEKDAY_FLEX_MODE_LABELS,
   PRESET_WEEKEND_FLEXIBLE,
+  getSmartWeekPlanningDefaults,
   buildFlexGuidanceMessages,
   normalizeWeekPlanningProfile,
 } from '../../utils/flexDayHelpers';
@@ -96,9 +96,9 @@ export function WeekPlanningSetup({
   const clearSaveError = useWeekPlanningStore((s) => s.clearSaveError);
   const profile = useProfileStore((s) => s.profile);
 
-  const base = existing
+  const base = existing?.completedAt
     ? normalizeWeekPlanningProfile(existing)
-    : { ...DEFAULT_WEEK_PLANNING, completedAt: '' };
+    : { ...getSmartWeekPlanningDefaults(profile?.goal), completedAt: '' };
 
   const [step, setStep] = useState<Step>(0);
   const [mealPattern, setMealPattern] = useState<MealPattern>(base.mealPattern);

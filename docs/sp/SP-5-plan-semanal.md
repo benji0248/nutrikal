@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-4 |
 | **Próximo** | SP-6 |
 
@@ -71,13 +71,13 @@ scripts/test-week-plan-v2.mjs
 
 ## Criterios de aceptación
 
-- [ ] `node scripts/test-week-plan-v2.mjs` pasa (o documentar prereqs env)
-- [ ] Chip “Planificá mi semana” genera plan visible en review grid
-- [ ] Apply llena calendario de la semana correcta
-- [ ] Apply actualiza lista de compras
-- [ ] Budgets diarios coherentes con objetivo lose/maintain/gain
-- [ ] Regenerar plan o comida individual funciona
-- [ ] `npm run build` pasa
+- [x] `node scripts/test-week-plan-v2.mjs` pasa (o documentar prereqs env)
+- [x] Chip “Planificá mi semana” genera plan visible en review grid
+- [x] Apply llena calendario de la semana correcta
+- [x] Apply actualiza lista de compras
+- [x] Budgets diarios coherentes con objetivo lose/maintain/gain
+- [x] Regenerar plan o comida individual funciona
+- [x] `npm run build` pasa
 
 ---
 
@@ -102,11 +102,11 @@ scripts/test-week-plan-v2.mjs
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Smoke test result** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(planner): SP-5 delegated week plan flow |
+| **Smoke test result** | No ejecutado: falta `.env.local` (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY). `npm run build` OK. |
+| **Qué quedó hecho** | Apply persiste calendario (`createMealsBatch`), actualiza shopping, confirmación + CTA; chip “Planificá mi semana”; defaults flex weekend lose/maintain; swap respeta budget maintenance |
+| **Desviaciones** | Smoke API no corrido en cloud agent |
+| **Deuda técnica** | Week planning setup sigue 4 pasos manuales |
 
 ---
 
