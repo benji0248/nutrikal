@@ -465,6 +465,8 @@ export interface ChatMessage {
   options?: ChatOption[];
   mealSuggestions?: Array<AiMeal & { reason: string }>;
   dishSuggestion?: HydratedAiDish;
+  /** Copy de memoria visible (SP-7): por qué este plato / semana. */
+  personalizationNote?: string;
   daySummary?: {
     meals: Array<{ mealType: MealType; name: string }>;
     energyLevel: EnergyLevel;

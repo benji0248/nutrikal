@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-3, SP-5 |
 | **Próximo** | SP-8 o SP-9 |
 
@@ -60,10 +60,10 @@ src/components/assistant/DishCard.tsx
 
 ## Criterios de aceptación
 
-- [ ] Al sugerir plato o semana, ≥1 línea de copy personalizada (memoria explícita)
-- [ ] Regenerar plato evita nombre reciente Y lo comunica al usuario
-- [ ] Dislikes del perfil se reflejan en copy cuando se evita un ingrediente
-- [ ] `npm run build` pasa
+- [x] Al sugerir plato o semana, ≥1 línea de copy personalizada (memoria explícita)
+- [x] Regenerar plato evita nombre reciente Y lo comunica al usuario
+- [x] Dislikes del perfil se reflejan en copy cuando se evita un ingrediente
+- [x] `npm run build` pasa
 
 ---
 
@@ -86,10 +86,10 @@ src/components/assistant/DishCard.tsx
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(personalization): SP-7 visible memory in copy |
+| **Qué quedó hecho** | `personalizationCopy.ts` + notes en DishCard/semana; regenerate explica variedad; prompts week/cook con avoid+dislikes |
+| **Desviaciones** | Ninguna |
+| **Deuda técnica** | Hint de gusto reciente vía ingredient signal, no nombre de plato histórico |
 
 ---
 

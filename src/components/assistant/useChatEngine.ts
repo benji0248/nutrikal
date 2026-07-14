@@ -34,6 +34,13 @@ import {
   getRemainingMealTypes,
   rebalanceRemainingMeals,
 } from '../../services/rescueService';
+import {
+  buildPersonalizationNote,
+  buildWeekPlanMemoryIntro,
+  getRecentAcceptedIngredientHint,
+  resolveDislikedCategoryLabels,
+  resolveDislikedIngredientNames,
+} from '../../services/personalizationCopy';
 import { usePlanRotationStore } from '../../store/usePlanRotationStore';
 import { useIngredientSignalStore } from '../../store/useIngredientSignalStore';
 import { computeMetabolism } from '../../services/metabolicService';
@@ -316,6 +323,10 @@ export function useChatEngine(): ChatEngineResult {
   const lastWeekPlanRef = useRef<WeekPlan | null>(null);
   const swapTargetRef = useRef<{ date: string; mealType: MealType } | null>(null);
   const regenerateDishMessageIdRef = useRef<string | null>(null);
+  const dishPersonalizationRef = useRef<{
+    mode: 'dish' | 'regenerate' | 'swap';
+    previousDishName?: string;
+  } | null>(null);
   const prevProfileRef = useRef(profile);
   const sendingLockRef = useRef(false);
 
@@ -415,10 +426,14 @@ export function useChatEngine(): ChatEngineResult {
           recentPoolHistory: rotation.getRecentPoolHistory(),
         },
       );
+      const dislikedNames = resolveDislikedIngredientNames(activeProfile, customIngredients);
+      const dislikeLine = dislikedNames.length
+        ? `\nEVITÁ estos ingredientes (el usuario no los quiere): ${dislikedNames.slice(0, 8).join(', ')}.`
+        : '';
       const apiResult = await generateWeekPlan({
         weekDates: ctx.weekDates,
         weekPlanning: weekPlanningForApi(activeWeekPlanning),
-        weeklyPoolPrompt: ctx.weeklyPoolPrompt,
+        weeklyPoolPrompt: `${ctx.weeklyPoolPrompt}${dislikeLine}`,
         forbiddenDishNames: ctx.forbiddenDishNames,
         variationSeed: `${ctx.weekId}-${Date.now()}`,
       });
@@ -438,19 +453,30 @@ export function useChatEngine(): ChatEngineResult {
       rot.rememberPlan(plan);
       rot.rememberWeeklyPool(ctx.pool);
 
+      const memoryNote = buildPersonalizationNote({
+        mode: 'week_plan',
+        avoidDishNames: ctx.forbiddenDishNames,
+        dislikedNames,
+        dislikedCategoryLabels: resolveDislikedCategoryLabels(activeProfile),
+        poolGeneration,
+        recentAcceptedIngredient: getRecentAcceptedIngredientHint(
+          useIngredientSignalStore.getState().entries,
+        ),
+      });
+
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       addMessages({
         id: makeId(),
         type: 'assistant-text',
-        text:
-          apiResult.text?.trim()
-          || 'Tu semana está lista para revisar.',
+        text: buildWeekPlanMemoryIntro(memoryNote),
+        personalizationNote: memoryNote ?? undefined,
         timestamp: new Date().toISOString(),
       });
       addMessages({
         id: makeId(),
         type: 'assistant-plan',
         weekPlan: plan,
+        personalizationNote: memoryNote ?? undefined,
         timestamp: new Date().toISOString(),
       });
     } catch (err) {
@@ -480,15 +506,35 @@ export function useChatEngine(): ChatEngineResult {
     if (sendingLockRef.current) return;
     sendingLockRef.current = true;
 
+    const dislikedNames = resolveDislikedIngredientNames(profile, customIngredients);
+    const avoidNames = usePlanRotationStore.getState().getAvoidDishNames();
+    const memoryPromptBits: string[] = [];
+    if (dislikedNames.length > 0) {
+      memoryPromptBits.push(
+        `No uses estos ingredientes (no le gustan): ${dislikedNames.slice(0, 8).join(', ')}.`,
+      );
+    }
+    if (options?.variation && avoidNames.length > 0) {
+      memoryPromptBits.push(
+        `No repitas estos platos recientes: ${avoidNames.slice(-12).join(' · ')}.`,
+      );
+    }
+    const memorySuffix = memoryPromptBits.length
+      ? `\n\n[${memoryPromptBits.join(' ')}]`
+      : '';
+
     const promptForApi = options?.variation
-      ? `${text.trim()}\n\n[Generá otro plato completamente distinto: distinto nombre, técnica y presentación. No repitas platos de esta conversación.]`
-      : text.trim();
+      ? `${text.trim()}\n\n[Generá otro plato completamente distinto: distinto nombre, técnica y presentación. No repitas platos de esta conversación.]${memorySuffix}`
+      : `${text.trim()}${memorySuffix}`;
 
     if (!options?.variation) {
       lastUserPromptRef.current = text.trim();
     }
     if (options?.mealType) {
       lastMealTypeRef.current = options.mealType;
+    }
+    if (!dishPersonalizationRef.current) {
+      dishPersonalizationRef.current = { mode: options?.variation ? 'regenerate' : 'dish' };
     }
 
     const activeMealType = options?.mealType ?? lastMealTypeRef.current ?? undefined;
@@ -533,6 +579,20 @@ export function useChatEngine(): ChatEngineResult {
           hydrated = normalizeHydratedAiDishToBudget(hydrated, mealBudgetKcal, { useGrams });
         }
 
+        const persCtx = dishPersonalizationRef.current;
+        dishPersonalizationRef.current = null;
+        const dishNote = buildPersonalizationNote({
+          mode: persCtx?.mode ?? (options?.variation ? 'regenerate' : 'dish'),
+          previousDishName: persCtx?.previousDishName,
+          avoidDishNames: usePlanRotationStore.getState().getAvoidDishNames(),
+          dislikedNames: resolveDislikedIngredientNames(profile, customIngredients),
+          dislikedCategoryLabels: resolveDislikedCategoryLabels(profile),
+          dishIngredientNames: hydrated.humanIngredients.map((h) => h.name),
+          recentAcceptedIngredient: getRecentAcceptedIngredientHint(
+            useIngredientSignalStore.getState().entries,
+          ),
+        });
+
         const swapTarget = swapTargetRef.current;
         if (swapTarget && mealType) {
           swapTargetRef.current = null;
@@ -558,7 +618,10 @@ export function useChatEngine(): ChatEngineResult {
           addMessages({
             id: makeId(),
             type: 'assistant-text',
-            text: `Actualicé ${newMeal.name} en tu plan.`,
+            text: dishNote
+              ? `Actualicé ${newMeal.name} en tu plan. ${dishNote}`
+              : `Actualicé ${newMeal.name} en tu plan.`,
+            personalizationNote: dishNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
         } else if (regenerateDishMessageIdRef.current) {
@@ -572,6 +635,7 @@ export function useChatEngine(): ChatEngineResult {
                     text: hydrated.name,
                     dishSuggestion: hydrated,
                     mealType: mealType ?? m.mealType,
+                    personalizationNote: dishNote ?? undefined,
                   }
                 : m,
             ),
@@ -583,6 +647,7 @@ export function useChatEngine(): ChatEngineResult {
             text: hydrated.name,
             dishSuggestion: hydrated,
             mealType: mealType ?? undefined,
+            personalizationNote: dishNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
         }
@@ -616,6 +681,7 @@ export function useChatEngine(): ChatEngineResult {
         text: fallback,
         timestamp: new Date().toISOString(),
       });
+      dishPersonalizationRef.current = null;
       if (activeMealType) {
         appendWelcomeOptions();
       }
@@ -1003,10 +1069,19 @@ export function useChatEngine(): ChatEngineResult {
       recordMealRejected(todayKey(), mt, hydratedDishToAiMeal(dish));
       regenerateDishMessageIdRef.current = messageId;
       lastMealTypeRef.current = mt;
+      dishPersonalizationRef.current = { mode: 'regenerate', previousDishName: dish.name };
+      const preview = buildPersonalizationNote({
+        mode: 'regenerate',
+        previousDishName: dish.name,
+        avoidDishNames: usePlanRotationStore.getState().getAvoidDishNames(),
+        dislikedNames: resolveDislikedIngredientNames(profile, customIngredients),
+      });
       addMessages({
         id: makeId(),
         type: 'assistant-text',
-        text: `Busquemos otra opción para tu ${mealTypeChipLabel(mt)}.`,
+        text: preview
+          ? `${preview} Busquemos otra opción para tu ${mealTypeChipLabel(mt)}.`
+          : `Busquemos otra opción para tu ${mealTypeChipLabel(mt)} — distinta a «${dish.name}».`,
         timestamp: new Date().toISOString(),
       });
       void sendToAi(
@@ -1014,7 +1089,7 @@ export function useChatEngine(): ChatEngineResult {
         { variation: true, mealType: mt },
       );
     },
-    [isLoading, profile],
+    [isLoading, profile, customIngredients],
   );
 
   const handleSwapMeal = useCallback(
@@ -1028,6 +1103,10 @@ export function useChatEngine(): ChatEngineResult {
       }
 
       swapTargetRef.current = { date, mealType };
+      dishPersonalizationRef.current = {
+        mode: 'swap',
+        previousDishName: oldMeal?.name,
+      };
       const label = mealTypeChipLabel(mealType);
       const weekNames = collectDishNamesFromWeekPlan(plan);
       const avoid = usePlanRotationStore.getState().getAvoidDishNames();
@@ -1044,15 +1123,23 @@ export function useChatEngine(): ChatEngineResult {
       const slotBudget = weekPlanning
         ? getMealBudgetForPlanDay(date, mealType, profile, weekPlanning)
         : resolveMealBudget(profile, mealType);
+      const swapPreview = buildPersonalizationNote({
+        mode: 'swap',
+        previousDishName: oldMeal?.name,
+        avoidDishNames: avoid,
+        dislikedNames: resolveDislikedIngredientNames(profile, customIngredients),
+      });
       addMessages({
         id: makeId(),
         type: 'assistant-text',
-        text: `Cambiemos tu ${label} del ${formatDayFull(parseDate(date))}.`,
+        text: swapPreview
+          ? `Cambiemos tu ${label} del ${formatDayFull(parseDate(date))}. ${swapPreview}`
+          : `Cambiemos tu ${label} del ${formatDayFull(parseDate(date))}.`,
         timestamp: new Date().toISOString(),
       });
       void sendToAi(prompt, { variation: true, mealType, mealBudgetKcal: slotBudget });
     },
-    [isLoading, profile],
+    [isLoading, profile, customIngredients],
   );
 
   return {

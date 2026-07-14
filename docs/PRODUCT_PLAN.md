@@ -57,7 +57,7 @@ El usuario delega qué comer. El motor local controla déficit/superávit y macr
 | SP-4 | Onboarding mínimo | [sp/SP-4-onboarding-minimo.md](sp/SP-4-onboarding-minimo.md) | [x] hecho |
 | SP-5 | Plan semanal | [sp/SP-5-plan-semanal.md](sp/SP-5-plan-semanal.md) | [x] hecho |
 | SP-6 | Desvíos + rescue | [sp/SP-6-desvios-rescue.md](sp/SP-6-desvios-rescue.md) | [x] hecho |
-| SP-7 | Personalización visible | [sp/SP-7-personalizacion-visible.md](sp/SP-7-personalizacion-visible.md) | [ ] |
+| SP-7 | Personalización visible | [sp/SP-7-personalizacion-visible.md](sp/SP-7-personalizacion-visible.md) | [x] hecho |
 | SP-8 | Modo Pro | [sp/SP-8-modo-pro.md](sp/SP-8-modo-pro.md) | [ ] |
 | SP-9 | Confiabilidad motor | [sp/SP-9-confiabilidad-motor.md](sp/SP-9-confiabilidad-motor.md) | [ ] |
 
@@ -71,13 +71,13 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 
 | Campo | Valor |
 |-------|-------|
-| **Último SP completado** | SP-6 |
-| **Commit** | feat(assistant): SP-6 rescue and flex day flow |
-| **Qué quedó hecho** | Flujo rescue real (ajustá / flex / seguí), labels flex en planner+calendario, rebalance heurístico local, signalLog |
-| **Desviaciones del plan** | Ninguna relevante |
-| **Deuda técnica** | dayMode one-off overvive vía nota parseada en hydrate; no hay endpoint dedicado |
+| **Último SP completado** | SP-7 |
+| **Commit** | feat(personalization): SP-7 visible memory in copy |
+| **Qué quedó hecho** | Copy de memoria en plato/semana/regenerate; dislikes visibles; prompts con avoid/dislike |
+| **Desviaciones del plan** | Ninguna |
+| **Deuda técnica** | Nota de “semana pasada te gustó” usa proxies (señales/ingredientes), no nombre de plato histórico dedicado |
 | **Smoke / build** | `npm run build` OK |
-| **Siguiente SP recomendado** | SP-7 |
+| **Siguiente SP recomendado** | SP-8 o SP-9 |
 
 ---
 
@@ -101,4 +101,4 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | 2026-07-14 | SP-1 mergeado a `master` |
 | 2026-07-14 | SP-2 completado e integrado sobre `master` |
 | 2026-07-14 | SP-3 completado: flujo E2E cocinar ahora (inferencia horaria, apply directo, go_calendar) |
-| 2026-07-14 | SP-6 completado: rescue flow + flex days visibles en planner/calendario |
+| 2026-07-14 | SP-7 completado: memoria visible en copy (plato, semana, regenerate, dislikes) |

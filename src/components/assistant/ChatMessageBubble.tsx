@@ -133,6 +133,7 @@ export const ChatMessageBubble = ({
             showCalories={showCalories}
             mealSlotBudgetKcal={mealSlotBudgetKcal}
             defaultMealType={message.mealType}
+            personalizationNote={message.personalizationNote}
             onApply={
               message.mealType && !chatBusy
                 ? (dish, date, mealType) => onApplyDish(dish, date, mealType)

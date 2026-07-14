@@ -12,6 +12,7 @@ interface DishCardProps {
   showCalories?: boolean;
   mealSlotBudgetKcal?: number;
   defaultMealType?: MealType;
+  personalizationNote?: string;
   onApply?: (dish: HydratedAiDish, date: string, mealType: MealType) => void;
   onRegenerate?: () => void;
   chatBusy?: boolean;
@@ -22,6 +23,7 @@ export const DishCard = ({
   showCalories = false,
   mealSlotBudgetKcal,
   defaultMealType,
+  personalizationNote,
   onApply,
   onRegenerate,
   chatBusy = false,
@@ -74,6 +76,12 @@ export const DishCard = ({
                 )}
               </div>
             </div>
+
+            {personalizationNote && (
+              <p className="font-body text-xs italic leading-relaxed text-[var(--text-muted)]">
+                {personalizationNote}
+              </p>
+            )}
 
             <div className="space-y-1">
               <p className="font-sans text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">

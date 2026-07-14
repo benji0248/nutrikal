@@ -118,7 +118,7 @@ export function buildWeekPlanOneShotPrompt(params: {
   };
 
   const forbidden = params.forbiddenDishNames.length
-    ? `No repitas: ${params.forbiddenDishNames.slice(0, 15).join(' · ')}.`
+    ? `No repitas estos platos recientes (variedad visible al usuario): ${params.forbiddenDishNames.slice(0, 15).join(' · ')}.`
     : '';
 
   const calorieBlock = params.dailyBudgetKcal != null && params.dailyBudgetKcal > 0
@@ -143,6 +143,7 @@ export function buildWeekPlanOneShotPrompt(params: {
     wp.weekdayRulesPrompt ?? 'Todos los días normales.',
     rhythmRules[wp.mealRhythmMode],
     forbidden,
+    'Si evitás ingredientes o platos por gusto del usuario, priorizá variedad de proteínas y técnicas.',
     params.weeklyPoolPrompt,
     `Máx ${templateBudget} templateId únicos. Solamente 1-2 recetas distintas para desayuno y para snack en toda la semana (repetilas con link "same:tX").`,
     'Cada fecha tiene TODOS los slots listados arriba (salvo días full_free con slots []).',

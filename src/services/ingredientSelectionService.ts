@@ -209,7 +209,7 @@ export function formatWeeklyPoolForPrompt(
       .join('\n');
 
   const tasteNote = tasteAware
-    ? ' (priorizá ingredientes que el usuario suele aceptar; evitá los que rechazó o repitió mucho en canastas recientes).'
+    ? ' (priorizá ingredientes que el usuario suele aceptar; evitá los que rechazó o repitió mucho en canastas recientes; variá la proteína principal cuando puedas).'
     : '';
 
   return [
