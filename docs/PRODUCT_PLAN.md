@@ -54,7 +54,7 @@ El usuario delega qué comer. El motor local controla déficit/superávit y macr
 | SP-1 | Modo Simple | [sp/SP-1-modo-simple.md](sp/SP-1-modo-simple.md) | [x] hecho |
 | SP-2 | Chat como home | [sp/SP-2-chat-home.md](sp/SP-2-chat-home.md) | [x] hecho |
 | SP-3 | Cocinar ahora E2E | [sp/SP-3-cocinar-ahora.md](sp/SP-3-cocinar-ahora.md) | [x] hecho |
-| SP-4 | Onboarding mínimo | [sp/SP-4-onboarding-minimo.md](sp/SP-4-onboarding-minimo.md) | [ ] |
+| SP-4 | Onboarding mínimo | [sp/SP-4-onboarding-minimo.md](sp/SP-4-onboarding-minimo.md) | [x] hecho |
 | SP-5 | Plan semanal | [sp/SP-5-plan-semanal.md](sp/SP-5-plan-semanal.md) | [ ] |
 | SP-6 | Desvíos + rescue | [sp/SP-6-desvios-rescue.md](sp/SP-6-desvios-rescue.md) | [ ] |
 | SP-7 | Personalización visible | [sp/SP-7-personalizacion-visible.md](sp/SP-7-personalizacion-visible.md) | [ ] |
@@ -71,13 +71,13 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 
 | Campo | Valor |
 |-------|-------|
-| **Último SP completado** | SP-3 |
-| **Commit** | feat(assistant): SP-3 cook-now E2E flow |
-| **Qué quedó hecho** | Flujo E2E cocinar ahora: inferencia horaria, apply directo, chip calendario post-apply |
-| **Desviaciones del plan** | Tolerancia budget ±8% (no ±10% del ejemplo) |
-| **Deuda técnica** | Energy ratio stub en `useChatEngine`; apply inferido siempre a hoy |
+| **Último SP completado** | SP-4 |
+| **Commit** | feat(onboarding): SP-4 minimal profile path to first dish |
+| **Qué quedó hecho** | Onboarding mínimo: perfil 3 pasos, welcome contextual, week planning diferido |
+| **Desviaciones del plan** | Ninguna |
+| **Deuda técnica** | Dislikes diferidos sin pantalla en ajustes aún |
 | **Smoke / build** | `npm run build` OK |
-| **Siguiente SP recomendado** | SP-4 |
+| **Siguiente SP recomendado** | SP-5 |
 
 ---
 
@@ -101,3 +101,4 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | 2026-07-14 | SP-1 mergeado a `master` |
 | 2026-07-14 | SP-2 completado e integrado sobre `master` |
 | 2026-07-14 | SP-3 completado: flujo E2E cocinar ahora (inferencia horaria, apply directo, go_calendar) |
+| 2026-07-14 | SP-4 completado: onboarding mínimo (perfil 3 pasos, welcome contextual, week planning diferido) |

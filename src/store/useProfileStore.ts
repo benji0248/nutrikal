@@ -6,6 +6,8 @@ import * as api from '../services/apiService';
 interface ProfileState {
   profile: UserProfile | null;
   saveError: string | null;
+  /** True just after first profile save — drives contextual chat welcome (SP-4). */
+  justOnboarded: boolean;
 
   setProfile: (profile: UserProfile) => void;
   persistProfile: (profile: UserProfile) => Promise<boolean>;
@@ -15,6 +17,7 @@ interface ProfileState {
   markRecalibrated: () => void;
   hydrateProfile: (profile: UserProfile | null) => void;
   clearSaveError: () => void;
+  clearJustOnboarded: () => void;
 }
 
 async function saveInBackground(
@@ -34,6 +37,7 @@ async function saveInBackground(
 export const useProfileStore = create<ProfileState>()((set, get) => ({
   profile: null,
   saveError: null,
+  justOnboarded: false,
 
   setProfile: (profile: UserProfile) => {
     set({ profile });
@@ -41,7 +45,8 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
   },
 
   persistProfile: async (profile: UserProfile) => {
-    set({ profile, saveError: null });
+    const isNew = !get().profile;
+    set({ profile, justOnboarded: isNew, saveError: null });
     try {
       await api.saveProfile(profile);
       return true;
@@ -94,5 +99,9 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
 
   clearSaveError: () => {
     set({ saveError: null });
+  },
+
+  clearJustOnboarded: () => {
+    set({ justOnboarded: false });
   },
 }));

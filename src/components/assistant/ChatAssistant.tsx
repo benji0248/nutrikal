@@ -98,7 +98,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
             </p>
           </div>
           <p className="font-body text-sm leading-relaxed opacity-90 text-[#707a6c]">
-            Son 4 preguntas rápidas. Después te armo el plan de la semana.
+            Tres pasos rápidos y te armo tu primera comida.
           </p>
           <button
             type="button"

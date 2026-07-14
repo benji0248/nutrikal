@@ -16,6 +16,8 @@ interface DietaryPrefsProps {
   allIngredients: Ingredient[];
   /** Living Journal (DESIGN.md): chips y superficies sin bordes duros */
   tone?: 'default' | 'journal';
+  /** Oculta dislikes detallados (onboarding mínimo). Default: true */
+  showDislikes?: boolean;
 }
 
 const RESTRICTION_OPTIONS: { value: DietaryRestriction; label: string }[] = [
@@ -188,6 +190,7 @@ export function DietaryPrefs({
   onAllowedExceptionsChange,
   allIngredients,
   tone = 'default',
+  showDislikes = true,
 }: DietaryPrefsProps) {
   const j = tone === 'journal';
   const [search, setSearch] = useState('');
@@ -316,6 +319,8 @@ export function DietaryPrefs({
         </div>
       </div>
 
+      {showDislikes && (
+      <>
       {/* General category dislikes */}
       <div>
         <p className={clsx('text-sm font-body font-medium mb-2', j ? 'text-[#191c17]' : 'text-text-primary')}>
@@ -588,6 +593,8 @@ export function DietaryPrefs({
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

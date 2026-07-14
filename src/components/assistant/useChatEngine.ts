@@ -115,6 +115,73 @@ function buildCookNowInferPrompt(mealType: MealType): string {
   return `Te armo tu ${mealTypeToPromptLabel(mealType)} de hoy.`;
 }
 
+function buildFreshProfileWelcomeText(name?: string): string {
+  const greeting = name ? `¡Listo, ${name}!` : '¡Listo!';
+  const current = getCurrentMealType();
+  if (current) {
+    return `${greeting} ¿Armamos tu ${mealTypeToPromptLabel(current)}?`;
+  }
+  return `${greeting} ¿Qué comemos primero?`;
+}
+
+function buildFreshProfileWelcomeOptions(): ChatOption[] {
+  const current = getCurrentMealType();
+  if (current) {
+    return [
+      {
+        id: 'cook_now_meal',
+        label: `Armá mi ${mealTypeChipLabel(current)}`,
+        action: 'start_cook_now',
+        icon: 'UtensilsCrossed',
+      },
+      {
+        id: 'week_plan',
+        label: 'Quiero planificar mi semana',
+        action: 'week_plan',
+        icon: 'CalendarDays',
+      },
+    ];
+  }
+  return buildWelcomeOptions();
+}
+
+function buildWelcomeMessagesForProfile(
+  profile: NonNullable<ReturnType<typeof useProfileStore.getState>['profile']>,
+  justOnboarded: boolean,
+): ChatMessage[] {
+  if (justOnboarded) {
+    return [
+      {
+        id: makeId(),
+        type: 'assistant-text',
+        text: buildFreshProfileWelcomeText(profile.name),
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: makeId(),
+        type: 'assistant-options',
+        options: buildFreshProfileWelcomeOptions(),
+        timestamp: new Date().toISOString(),
+      },
+    ];
+  }
+
+  return [
+    {
+      id: makeId(),
+      type: 'assistant-text',
+      text: buildWelcomeText(profile.name),
+      timestamp: new Date().toISOString(),
+    },
+    {
+      id: makeId(),
+      type: 'assistant-options',
+      options: buildWelcomeOptions(),
+      timestamp: new Date().toISOString(),
+    },
+  ];
+}
+
 function buildPostApplyOptions(): ChatOption[] {
   return [
     {
@@ -153,6 +220,8 @@ interface ChatEngineResult {
 
 export function useChatEngine(): ChatEngineResult {
   const profile = useProfileStore((s) => s.profile);
+  const justOnboarded = useProfileStore((s) => s.justOnboarded);
+  const clearJustOnboarded = useProfileStore((s) => s.clearJustOnboarded);
   const hasWeekPlanningProfile = useWeekPlanningStore((s) => !!s.weekPlanning?.completedAt);
   const dayPlans = useCalendarStore((s) => s.dayPlans);
   const bulkUpsertMeals = useCalendarStore((s) => s.bulkUpsertMeals);
@@ -161,7 +230,28 @@ export function useChatEngine(): ChatEngineResult {
   const showCalories = useSettingsStore((s) => s.showCalories);
   const useGrams = useSettingsStore((s) => s.useGrams);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => buildWelcomeMessages());
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const p = useProfileStore.getState().profile;
+    if (!p) {
+      return [
+        {
+          id: makeId(),
+          type: 'assistant-text',
+          text: '¡Bienvenido a NutriKal! Creá tu perfil para empezar.',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: makeId(),
+          type: 'assistant-options',
+          options: [
+            { id: 'create_profile', label: 'Crear perfil', action: 'create_profile', icon: 'UserCircle' },
+          ],
+          timestamp: new Date().toISOString(),
+        },
+      ];
+    }
+    return buildWelcomeMessagesForProfile(p, useProfileStore.getState().justOnboarded);
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [remainingMessages, setRemainingMessages] = useState<number | null>(null);
 
@@ -194,29 +284,22 @@ export function useChatEngine(): ChatEngineResult {
       ];
     }
 
-    return [
-      {
-        id: makeId(),
-        type: 'assistant-text',
-        text: buildWelcomeText(profile.name),
-        timestamp: new Date().toISOString(),
-      },
-      {
-        id: makeId(),
-        type: 'assistant-options',
-        options: buildWelcomeOptions(),
-        timestamp: new Date().toISOString(),
-      },
-    ];
+    return buildWelcomeMessagesForProfile(profile, justOnboarded);
   }
 
   useEffect(() => {
     if (!prevProfileRef.current && profile) {
       setMessages(buildWelcomeMessages());
       conversationRef.current = [];
+      if (justOnboarded) {
+        clearJustOnboarded();
+      }
+    } else if (profile && justOnboarded) {
+      setMessages(buildWelcomeMessagesForProfile(profile, true));
+      clearJustOnboarded();
     }
     prevProfileRef.current = profile;
-  }, [profile]);
+  }, [profile, justOnboarded, clearJustOnboarded]);
 
   function addMessages(...msgs: ChatMessage[]) {
     setMessages((prev) => [...prev, ...msgs]);

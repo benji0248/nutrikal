@@ -72,7 +72,7 @@ export const useAuthStore = create<AuthStoreState>()(
           useIngredientsStore.setState({ customIngredients: [] }),
         );
         import('./useProfileStore').then(({ useProfileStore }) =>
-          useProfileStore.setState({ profile: null }),
+          useProfileStore.setState({ profile: null, justOnboarded: false }),
         );
         import('./useWeekPlanningStore').then(({ useWeekPlanningStore }) =>
           useWeekPlanningStore.setState({ weekPlanning: null, saveError: null }),

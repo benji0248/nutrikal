@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-3 |
 | **Próximo** | SP-5 |
 
@@ -61,11 +61,11 @@ src/store/useProfileStore.ts
 
 ## Criterios de aceptación
 
-- [ ] Usuario nuevo completa perfil en **menos pasos/pantallas** que antes (documentar antes/después)
-- [ ] Tras perfil → llega al chat con sugerencia contextual (no calendario vacío sin guía)
-- [ ] Puede pedir **1 plato** sin completar week planning profile
-- [ ] Elegir “Planificá mi semana” sin week planning → abre `WeekPlanningSetup` (no falla silenciosamente)
-- [ ] `npm run build` pasa
+- [x] Usuario nuevo completa perfil en **menos pasos/pantallas** que antes (documentar antes/después)
+- [x] Tras perfil → llega al chat con sugerencia contextual (no calendario vacío sin guía)
+- [x] Puede pedir **1 plato** sin completar week planning profile
+- [x] Elegir “Planificá mi semana” sin week planning → abre `WeekPlanningSetup` (no falla silenciosamente)
+- [x] `npm run build` pasa
 
 ---
 
@@ -95,11 +95,11 @@ Onboarding 100% conversacional: perfil extraído del chat. Ventana aparte.
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Pasos antes / después** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(onboarding): SP-4 minimal profile path to first dish |
+| **Pasos antes / después** | ProfileSetup: **4 pasos → 3** (actividad+meta fusionados; dislikes diferidos) |
+| **Qué quedó hecho** | Onboarding mínimo: 3 pasos de perfil, dislikes solo al editar, welcome contextual post-perfil (`justOnboarded`), week planning sigue diferido hasta elegir plan semanal |
+| **Desviaciones** | Ninguna |
+| **Deuda técnica** | Dislikes en edición de perfil siguen en ProfileSetup; falta entrada dedicada en ajustes |
 
 ---
 

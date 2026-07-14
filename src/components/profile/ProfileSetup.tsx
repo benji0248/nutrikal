@@ -36,7 +36,7 @@ interface ProfileSetupProps {
   existingProfile?: UserProfile | null;
 }
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2;
 
 export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupProps) {
   const persistProfile = useProfileStore((s) => s.persistProfile);
@@ -114,7 +114,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
     if (ok) onClose();
   };
 
-  const stepLabels = ['Datos', 'Actividad', 'Objetivo', 'Preferencias'];
+  const stepLabels = ['Datos', 'Actividad y meta', 'Restricciones'];
 
   const content = (
     <div className="space-y-5">
@@ -161,7 +161,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
       </div>
 
       <p className="text-center font-body text-xs" style={{ color: JOURNAL.muted }}>
-        Paso {step + 1} de 4 — {stepLabels[step]}
+        Paso {step + 1} de 3 — {stepLabels[step]}
       </p>
 
       {/* Step 0: Basic data */}
@@ -265,51 +265,62 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
         </div>
       )}
 
-      {/* Step 1: Activity */}
-      {step === 1 && <ActivityLevelSelector tone="journal" value={activityLevel} onChange={setActivityLevel} />}
-
-      {/* Step 2: Goal */}
-      {step === 2 && (
-        <div className="space-y-3">
-          <p className="text-center font-heading text-base font-bold text-[#191c17]">¿Cuál es tu meta principal?</p>
-          {(['lose', 'maintain', 'gain'] as Goal[]).map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setGoal(g)}
-              className={clsx(
-                'w-full p-4 rounded-[2rem] transition-all text-left shadow-[0px_8px_24px_rgba(25,28,23,0.06)]',
-                goal === g ? 'bg-[#226046] text-[#f8faf6]' : 'bg-white text-[#191c17] hover:shadow-[0px_12px_28px_rgba(25,28,23,0.08)]',
-              )}
-            >
-              <p className={clsx('text-sm font-body font-semibold', goal === g ? 'text-[#f8faf6]' : 'text-[#191c17]')}>
-                {GOAL_LABELS[g]}
-              </p>
-              <p className={clsx('text-xs font-body mt-1', goal === g ? 'text-[#f8faf6]/80' : 'text-[#5a6258]')}>
-                {GOAL_DESCRIPTIONS[g]}
-              </p>
-            </button>
-          ))}
+      {/* Step 1: Activity + goal */}
+      {step === 1 && (
+        <div className="space-y-5">
+          <ActivityLevelSelector tone="journal" value={activityLevel} onChange={setActivityLevel} />
+          <div className="space-y-3">
+            <p className="text-center font-heading text-base font-bold text-[#191c17]">¿Cuál es tu meta principal?</p>
+            {(['lose', 'maintain', 'gain'] as Goal[]).map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setGoal(g)}
+                className={clsx(
+                  'w-full p-4 rounded-[2rem] transition-all text-left shadow-[0px_8px_24px_rgba(25,28,23,0.06)]',
+                  goal === g ? 'bg-[#226046] text-[#f8faf6]' : 'bg-white text-[#191c17] hover:shadow-[0px_12px_28px_rgba(25,28,23,0.08)]',
+                )}
+              >
+                <p className={clsx('text-sm font-body font-semibold', goal === g ? 'text-[#f8faf6]' : 'text-[#191c17]')}>
+                  {GOAL_LABELS[g]}
+                </p>
+                <p className={clsx('text-xs font-body mt-1', goal === g ? 'text-[#f8faf6]/80' : 'text-[#5a6258]')}>
+                  {GOAL_DESCRIPTIONS[g]}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Step 3: Dietary */}
-      {step === 3 && (
-        <DietaryPrefs
-          tone="journal"
-          restrictions={restrictions}
-          onRestrictionsChange={setRestrictions}
-          dislikedIds={dislikedIds}
-          onDislikedChange={setDislikedIds}
-          dislikedCategories={dislikedCategories}
-          onDislikedCategoriesChange={setDislikedCategories}
-          allowedExceptions={allowedExceptions}
-          onAllowedExceptionsChange={setAllowedExceptions}
-          allIngredients={allIngredients}
-        />
+      {/* Step 2: Dietary restrictions only (dislikes deferred) */}
+      {step === 2 && (
+        <div className="space-y-3">
+          <p className="text-center font-body text-sm text-[#5a6258] px-2">
+            Si no tenés restricciones, podés continuar sin marcar nada.
+          </p>
+          <DietaryPrefs
+            tone="journal"
+            showDislikes={!!existingProfile}
+            restrictions={restrictions}
+            onRestrictionsChange={setRestrictions}
+            dislikedIds={dislikedIds}
+            onDislikedChange={setDislikedIds}
+            dislikedCategories={dislikedCategories}
+            onDislikedCategoriesChange={setDislikedCategories}
+            allowedExceptions={allowedExceptions}
+            onAllowedExceptionsChange={setAllowedExceptions}
+            allIngredients={allIngredients}
+          />
+          {!existingProfile && (
+            <p className="text-center text-[11px] font-body" style={{ color: JOURNAL.muted }}>
+              Los ingredientes que no te gustan los podés configurar después en ajustes.
+            </p>
+          )}
+        </div>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <>
           <div
             className="rounded-[2rem] p-4 text-center shadow-[0px_12px_32px_rgba(25,28,23,0.06)]"
@@ -343,7 +354,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
             Anterior
           </Button>
         )}
-        {step < 3 ? (
+        {step < 2 ? (
           <Button
             tone="journal"
             variant="primary"
@@ -356,7 +367,7 @@ export function ProfileSetup({ isOpen, onClose, existingProfile }: ProfileSetupP
         ) : (
           <Button tone="journal" variant="primary" onClick={handleSave} disabled={saving} fullWidth>
             <span className="inline-flex items-center justify-center gap-2">
-              {saving ? 'Guardando…' : existingProfile ? 'Guardar cambios' : 'Calcular mi plan'}
+              {saving ? 'Guardando…' : existingProfile ? 'Guardar cambios' : 'Listo, empezar'}
               {!existingProfile && <ArrowRight size={18} strokeWidth={2.25} aria-hidden />}
             </span>
           </Button>
