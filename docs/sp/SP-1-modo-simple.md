@@ -105,7 +105,7 @@ Máx. ampliar solo si hace falta para ocultar números en otro componente visibl
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | 61054f2 |
+| **Commit** | 45196f7 |
 | **Qué quedó hecho** | Modo Simple en UI: kcal ocultas por default; badges liviano/balanceado/contundente en DishCard y PlanMealCell; `DayEnergyBar` y `DaySummaryCard` cualitativos (verde/ámbar/naranja); porciones humanas en planner expandido y MealSlot AI; tokens `ENERGY_BAR` / `MEAL_WEIGHT_BADGE`; helpers `getMealWeightLabel`, `formatNamedIngredientPortion`; defaults reforzados en `useSettingsStore`. |
 | **Desviaciones** | Se tocó `MealSlot.tsx` (porciones AI) fuera de la lista explícita del SP — necesario para criterio de porciones humanas en calendario. |
 | **Deuda técnica** | `useChatEngine` sigue devolviendo `energyLevel`/`energyRatio` stub para el chat general; el resumen diario en burbuja usa `daySummary.energyLevel` del mensaje. |

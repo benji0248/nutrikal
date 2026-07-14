@@ -72,7 +72,7 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | Campo | Valor |
 |-------|-------|
 | **Último SP completado** | SP-1 |
-| **Commit** | `61054f2` feat(ux): SP-1 modo simple — hide calories by default |
+| **Commit** | `45196f7` feat(ux): SP-1 modo simple — hide calories by default |
 | **Qué quedó hecho** | Modo Simple: UI sin kcal por default, feedback cualitativo de energía y peso del plato, porciones humanas prioritarias. Docs SP-0/SP-1 en repo. |
 | **Desviaciones del plan** | `MealSlot.tsx` incluido para porciones humanas en calendario. |
 | **Deuda técnica** | Energy ratio stub en `useChatEngine` (no bloquea SP-2). |
