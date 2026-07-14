@@ -47,7 +47,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     }
 
     set({
-      showCalories: settings.showCalories,
+      showCalories: settings.showCalories ?? false,
       useGrams,
       theme: settings.theme as Theme,
     });

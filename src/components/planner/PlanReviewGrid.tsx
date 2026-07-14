@@ -5,6 +5,9 @@ import { clsx } from 'clsx';
 import type { WeekPlan, MealType } from '../../types';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useProfileStore } from '../../store/useProfileStore';
+import { computeMetabolism } from '../../services/metabolicService';
+import { getMealSlotBudget } from '../../services/portionEngine';
 import { PlanMealCell } from './PlanMealCell';
 
 
@@ -16,6 +19,8 @@ interface PlanReviewGridProps {
 
 export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanReviewGridProps) => {
   const showCalories = useSettingsStore((s) => s.showCalories);
+  const profile = useProfileStore((s) => s.profile);
+  const dailyBudget = profile ? computeMetabolism(profile).budget : 0;
   const [activeDay, setActiveDay] = useState(0);
 
   const activeDayData = plan.days[activeDay];
@@ -89,11 +94,14 @@ export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanR
           <>
           {activeDayData.dayMode === 'maintenance' && (
             <p className="text-[11px] font-body text-[#707a6c]">
-              Calorías de mantenimiento (sin déficit este día).
+              {showCalories
+                ? 'Calorías de mantenimiento (sin déficit este día).'
+                : 'Día de mantenimiento — sin déficit este día.'}
             </p>
           )}
           {MEAL_TYPE_ORDER.map((mt) => {
             const planned = activeDayData.meals[mt];
+            const mealSlotBudgetKcal = dailyBudget > 0 ? getMealSlotBudget(dailyBudget, mt) : undefined;
             return (
               <div key={mt}>
                 <span className="font-body text-[11px] uppercase tracking-wide text-[#707a6c]">
@@ -104,6 +112,7 @@ export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanR
                   mealType={mt}
                   date={activeDayData.date}
                   showCalories={showCalories}
+                  mealSlotBudgetKcal={mealSlotBudgetKcal}
                   onSwap={onSwapMeal}
                   swapDisabled={swapDisabled}
                 />

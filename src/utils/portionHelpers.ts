@@ -1,5 +1,36 @@
-import type { Dish, Ingredient, IngredientPortion } from '../types';
+import type { Dish, EnergyLevel, Ingredient, IngredientPortion } from '../types';
 import { INGREDIENT_PORTIONS, CATEGORY_DEFAULTS } from '../data/ingredientPortions';
+
+export type MealWeightLabel = 'liviano' | 'balanceado' | 'contundente';
+
+const MEAL_WEIGHT_LABELS: Record<MealWeightLabel, string> = {
+  liviano: 'Liviano',
+  balanceado: 'Balanceado',
+  contundente: 'Contundente',
+};
+
+const ENERGY_LEVEL_LABELS: Record<EnergyLevel, string> = {
+  green: 'Con margen',
+  amber: 'Equilibrado',
+  warm_orange: 'Día contundente',
+};
+
+/** Peso cualitativo del plato vs presupuesto del slot (Modo Simple). */
+export function getMealWeightLabel(mealKcal: number, slotBudgetKcal: number): MealWeightLabel {
+  if (slotBudgetKcal <= 0) return 'balanceado';
+  const ratio = mealKcal / slotBudgetKcal;
+  if (ratio < 0.8) return 'liviano';
+  if (ratio <= 1.05) return 'balanceado';
+  return 'contundente';
+}
+
+export function formatMealWeightLabel(label: MealWeightLabel): string {
+  return MEAL_WEIGHT_LABELS[label];
+}
+
+export function formatEnergyLevelLabel(level: EnergyLevel): string {
+  return ENERGY_LEVEL_LABELS[level];
+}
 
 /**
  * Format a fractional number into human Spanish.
@@ -63,6 +94,21 @@ export function gramsToHumanPortion(
   }
 
   return `${formatted} ${portion.unitPlural}`;
+}
+
+/** Human portion for AI/plan ingredients matched by name when ID is unknown. */
+export function formatNamedIngredientPortion(
+  name: string,
+  grams: number,
+  allIngredients: Ingredient[],
+  useGrams: boolean,
+): string {
+  if (useGrams) return `${Math.round(grams)}g`;
+  const normalized = name.toLowerCase().trim();
+  const ingredient =
+    allIngredients.find((i) => i.name.toLowerCase() === normalized) ??
+    allIngredients.find((i) => normalized.includes(i.name.toLowerCase()));
+  return gramsToHumanPortion(ingredient?.id ?? '', grams, ingredient);
 }
 
 /** Display portion according to user preference (grams vs household measures). */

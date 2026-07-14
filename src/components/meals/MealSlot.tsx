@@ -13,7 +13,7 @@ import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { useRecipesStore } from '../../store/useRecipesStore';
 import { getMealCalories } from '../../utils/macroHelpers';
-import { getDishHumanIngredients, formatPortionDisplay } from '../../utils/portionHelpers';
+import { getDishHumanIngredients, formatPortionDisplay, formatNamedIngredientPortion } from '../../utils/portionHelpers';
 
 interface MealSlotProps {
   date: string;
@@ -112,7 +112,7 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
               {MEAL_TYPE_LABELS[mealType]}
             </span>
             {meals.length === 0 ? (
-              <span className="text-[11px] font-body text-muted">No registrado</span>
+              <span className="text-[11px] font-body text-muted">Sin plato aún</span>
             ) : showCalories && totalCals > 0 && (
               <span className="text-[11px] font-body text-muted">{totalCals} kcal</span>
             )}
@@ -296,7 +296,7 @@ function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients:
     if (meal.aiIngredients?.length) {
       return meal.aiIngredients.map((ai) => ({
         name: ai.name,
-        humanPortion: useGrams ? `${Math.round(ai.grams)}g` : `${ai.grams}g`,
+        humanPortion: formatNamedIngredientPortion(ai.name, ai.grams, allIngredients, useGrams),
       }));
     }
 

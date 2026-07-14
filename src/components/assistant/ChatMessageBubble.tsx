@@ -1,6 +1,9 @@
 import { Clock, Bot } from 'lucide-react';
 import type { ChatMessage, ChatOption, EnergyLevel, HydratedAiDish, MealType, WeekPlan } from '../../types';
 import { MEAL_TYPE_LABELS } from '../../types';
+import { useProfileStore } from '../../store/useProfileStore';
+import { computeMetabolism } from '../../services/metabolicService';
+import { getMealSlotBudget } from '../../services/portionEngine';
 import { OptionChips } from './OptionChips';
 import { DayEnergyBar } from './DayEnergyBar';
 import { WeekPlanner } from '../planner/WeekPlanner';
@@ -36,6 +39,9 @@ export const ChatMessageBubble = ({
   showCalories = false,
   chatBusy = false,
 }: ChatMessageBubbleProps) => {
+  const profile = useProfileStore((s) => s.profile);
+  const metabolic = profile ? computeMetabolism(profile) : null;
+
   switch (message.type) {
     case 'assistant-text':
       return (
@@ -116,24 +122,31 @@ export const ChatMessageBubble = ({
 
     case 'assistant-dish':
       if (!message.dishSuggestion) return null;
-      return (
-        <DishCard
-          dish={message.dishSuggestion}
-          showCalories={showCalories}
-          defaultMealType={message.mealType}
-          onApply={
-            message.mealType && !chatBusy
-              ? (dish, date, mealType) => onApplyDish(dish, date, mealType)
-              : undefined
-          }
-          onRegenerate={
-            chatBusy || !message.dishSuggestion
-              ? undefined
-              : () => onRegenerateDish(message.id, message.dishSuggestion!, message.mealType)
-          }
-          chatBusy={chatBusy}
-        />
-      );
+      {
+        const mealSlotBudgetKcal =
+          message.mealType && metabolic
+            ? getMealSlotBudget(metabolic.budget, message.mealType)
+            : undefined;
+        return (
+          <DishCard
+            dish={message.dishSuggestion}
+            showCalories={showCalories}
+            mealSlotBudgetKcal={mealSlotBudgetKcal}
+            defaultMealType={message.mealType}
+            onApply={
+              message.mealType && !chatBusy
+                ? (dish, date, mealType) => onApplyDish(dish, date, mealType)
+                : undefined
+            }
+            onRegenerate={
+              chatBusy || !message.dishSuggestion
+                ? undefined
+                : () => onRegenerateDish(message.id, message.dishSuggestion!, message.mealType)
+            }
+            chatBusy={chatBusy}
+          />
+        );
+      }
 
     case 'assistant-plan':
       if (!message.weekPlan) return null;
@@ -183,7 +196,11 @@ export const ChatMessageBubble = ({
             )}
 
             {message.daySummary && (
-              <DayEnergyBar level={message.daySummary.energyLevel} ratio={energyRatio} />
+              <DayEnergyBar
+                level={message.daySummary.energyLevel}
+                ratio={energyRatio}
+                showCalories={showCalories}
+              />
             )}
           </div>
         </div>

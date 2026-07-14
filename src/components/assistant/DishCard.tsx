@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Clock, ChefHat, RefreshCw, PlusCircle } from 'lucide-react';
 import type { HydratedAiDish, MealType } from '../../types';
 import { todayKey } from '../../utils/dateHelpers';
+import { getMealWeightLabel, formatMealWeightLabel } from '../../utils/portionHelpers';
+import { MEAL_WEIGHT_BADGE } from './journalTokens';
 import { ScheduleMealPicker } from '../meals/ScheduleMealPicker';
 import { ScheduleMealSheet } from '../meals/ScheduleMealSheet';
 
 interface DishCardProps {
   dish: HydratedAiDish;
   showCalories?: boolean;
+  mealSlotBudgetKcal?: number;
   defaultMealType?: MealType;
   onApply?: (dish: HydratedAiDish, date: string, mealType: MealType) => void;
   onRegenerate?: () => void;
@@ -17,6 +20,7 @@ interface DishCardProps {
 export const DishCard = ({
   dish,
   showCalories = false,
+  mealSlotBudgetKcal,
   defaultMealType = 'almuerzo',
   onApply,
   onRegenerate,
@@ -24,6 +28,10 @@ export const DishCard = ({
 }: DishCardProps) => {
   const [showPicker, setShowPicker] = useState(false);
   const totalKcal = Math.round(dish.macros.calories);
+  const weightKey = mealSlotBudgetKcal
+    ? getMealWeightLabel(totalKcal, mealSlotBudgetKcal)
+    : null;
+  const weightBadge = weightKey ? MEAL_WEIGHT_BADGE[weightKey] : null;
 
   const handleConfirm = (date: string, mealType: MealType) => {
     onApply?.(dish, date, mealType);
@@ -42,16 +50,26 @@ export const DishCard = ({
               <h3 className="font-sans text-base font-bold text-[var(--text-primary)]">
                 {dish.name}
               </h3>
-              {showCalories && totalKcal > 0 && (
-                <span className="font-body text-xs font-semibold text-[var(--text-muted)] shrink-0">
-                  {totalKcal} kcal
-                </span>
-              )}
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {!showCalories && weightBadge && (
+                  <span
+                    className="rounded-full px-2 py-0.5 font-body text-[10px] font-semibold"
+                    style={{ backgroundColor: weightBadge.bg, color: weightBadge.text }}
+                  >
+                    {formatMealWeightLabel(weightKey!)}
+                  </span>
+                )}
+                {showCalories && totalKcal > 0 && (
+                  <span className="font-body text-xs font-semibold text-[var(--text-muted)]">
+                    {totalKcal} kcal
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1">
               <p className="font-sans text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-                Ingredientes
+                Porciones
               </p>
               <ul className="space-y-0.5">
                 {dish.humanIngredients.map((ing, idx) => (
