@@ -10,8 +10,8 @@ interface SidebarProps {
 }
 
 const TABS: { tab: AppTab; label: string; icon: LucideIcon }[] = [
+  { tab: 'assistant', label: 'Inicio', icon: Sparkles },
   { tab: 'calendar', label: 'Calendario', icon: Calendar },
-  { tab: 'assistant', label: 'NutriKal', icon: Sparkles }, // Repurposed para que cuadre
   { tab: 'historial', label: 'Favoritos', icon: Heart },
   { tab: 'settings', label: 'Ajustes', icon: Settings },
 ];

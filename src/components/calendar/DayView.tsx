@@ -152,15 +152,15 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
           <Sparkles size={20} className="text-accent" />
         </div>
         <div>
-          <p className="text-sm font-heading font-bold text-text-primary">No tenés nada planificado</p>
-          <p className="mt-1 text-xs font-body text-muted">Pedile a Nutri que te arme la semana</p>
+          <p className="text-sm font-heading font-bold text-text-primary">¿Qué cocinamos hoy?</p>
+          <p className="mt-1 text-xs font-body text-muted">Contame qué necesitás y NutriKal te lo resuelve</p>
         </div>
         <button
           type="button"
           onClick={onNavigateToAssistant}
           className="min-h-[48px] rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90"
         >
-          Ir a Nutri
+          Hablar con NutriKal
         </button>
       </div>
     ) : null;
@@ -286,6 +286,24 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
 
       {/* ——— Bento Grid Layout ——— */}
       <div className="hidden gap-8 md:grid md:grid-cols-12">
+        {!hasAnyMealsThisWeek && onNavigateToAssistant && (
+          <div className="col-span-12 flex flex-col items-center gap-3 rounded-2xl border border-accent/30 bg-accent/10 px-6 py-6 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
+              <Sparkles size={20} className="text-accent" />
+            </div>
+            <div>
+              <p className="text-sm font-heading font-bold text-text-primary">¿Qué cocinamos hoy?</p>
+              <p className="mt-1 text-xs font-body text-muted">Contame qué necesitás y NutriKal te lo resuelve</p>
+            </div>
+            <button
+              type="button"
+              onClick={onNavigateToAssistant}
+              className="min-h-[48px] rounded-xl bg-accent px-5 py-2.5 text-sm font-body font-medium text-white transition-colors hover:bg-accent/90"
+            >
+              Hablar con NutriKal
+            </button>
+          </div>
+        )}
         {/* Daily Summary */}
         <div className="col-span-12 lg:col-span-4 rounded-3xl overflow-hidden flex flex-col">
           <DaySummaryCard consumedKcal={totalCals} budgetKcal={budgetKcal} showCalories={showCalories} />
@@ -330,7 +348,7 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
             className="pointer-events-auto w-full bg-[#226046] text-[#ffffff] font-heading font-bold py-5 px-8 rounded-xl shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
           >
             <Plus size={24} strokeWidth={2.5} />
-            Agregar Comida
+            ¿Qué cocinamos?
           </button>
         </div>
       )}

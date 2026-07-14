@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { useCalendarStore } from '../../store/useCalendarStore';
@@ -7,7 +7,11 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { getMonthGrid, getMonthLabel, parseDate, isToday, formatDateKey, DAY_LABELS } from '../../utils/dateHelpers';
 import { MEAL_TYPE_ORDER } from '../../types';
 
-export function MonthView() {
+interface MonthViewProps {
+  onNavigateToAssistant?: () => void;
+}
+
+export function MonthView({ onNavigateToAssistant }: MonthViewProps) {
   const currentDate = useCalendarStore((s) => s.currentDate);
   const navMonth = useCalendarStore((s) => s.navigateMonth);
   const setView = useCalendarStore((s) => s.setView);
@@ -15,6 +19,12 @@ export function MonthView() {
   const dayPlans = useCalendarStore((s) => s.dayPlans);
 
   const grid = useMemo(() => getMonthGrid(parseDate(currentDate)), [currentDate]);
+
+  const hasAnyMeals = useMemo(() => {
+    return Object.values(dayPlans).some((plan) =>
+      MEAL_TYPE_ORDER.some((mt) => plan.meals[mt].length > 0),
+    );
+  }, [dayPlans]);
 
   const swipeBindings = useSwipe({
     onSwipeLeft: () => navMonth('next'),
@@ -47,6 +57,25 @@ export function MonthView() {
           <ChevronRight size={20} className="text-muted" />
         </button>
       </div>
+
+      {!hasAnyMeals && onNavigateToAssistant && (
+        <div className="mb-6 flex flex-col items-center gap-3 rounded-2xl border border-accent/30 bg-accent/10 px-4 py-5 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
+            <Sparkles size={20} className="text-accent" />
+          </div>
+          <div>
+            <p className="text-sm font-heading font-bold text-text-primary">¿Armamos la semana?</p>
+            <p className="mt-1 text-xs font-body text-muted">Contame qué necesitás y NutriKal te lo resuelve</p>
+          </div>
+          <button
+            type="button"
+            onClick={onNavigateToAssistant}
+            className="min-h-[48px] rounded-xl bg-accent px-5 py-2.5 text-sm font-body font-medium text-white transition-colors hover:bg-accent/90"
+          >
+            Hablar con NutriKal
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-7 gap-1 mb-2">
         {DAY_LABELS.map((label) => (

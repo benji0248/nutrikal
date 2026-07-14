@@ -52,7 +52,7 @@ El usuario delega qué comer. El motor local controla déficit/superávit y macr
 |----|--------|---------|--------|
 | SP-0 | Handoff doc | [sp/SP-0-handoff.md](sp/SP-0-handoff.md) | [x] hecho |
 | SP-1 | Modo Simple | [sp/SP-1-modo-simple.md](sp/SP-1-modo-simple.md) | [x] hecho |
-| SP-2 | Chat como home | [sp/SP-2-chat-home.md](sp/SP-2-chat-home.md) | [ ] |
+| SP-2 | Chat como home | [sp/SP-2-chat-home.md](sp/SP-2-chat-home.md) | [x] hecho |
 | SP-3 | Cocinar ahora E2E | [sp/SP-3-cocinar-ahora.md](sp/SP-3-cocinar-ahora.md) | [ ] |
 | SP-4 | Onboarding mínimo | [sp/SP-4-onboarding-minimo.md](sp/SP-4-onboarding-minimo.md) | [ ] |
 | SP-5 | Plan semanal | [sp/SP-5-plan-semanal.md](sp/SP-5-plan-semanal.md) | [ ] |
@@ -71,13 +71,13 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 
 | Campo | Valor |
 |-------|-------|
-| **Último SP completado** | SP-1 |
-| **Commit** | `45196f7` feat(ux): SP-1 modo simple — hide calories by default |
-| **Qué quedó hecho** | Modo Simple: UI sin kcal por default, feedback cualitativo de energía y peso del plato, porciones humanas prioritarias. Docs SP-0/SP-1 en repo. |
-| **Desviaciones del plan** | `MealSlot.tsx` incluido para porciones humanas en calendario. |
-| **Deuda técnica** | Energy ratio stub en `useChatEngine` (no bloquea SP-2). |
+| **Último SP completado** | SP-2 |
+| **Commit** | SP-1 `45196f7` en master; SP-2 integrado sobre master |
+| **Qué quedó hecho** | SP-1 Modo Simple + SP-2 chat como home en `master` |
+| **Desviaciones del plan** | SP-1 y SP-2 se mergearon en orden (SP-1 → rebase SP-2) |
+| **Deuda técnica** | Energy ratio stub en `useChatEngine`; tab persistido en localStorage |
 | **Smoke / build** | `npm run build` OK |
-| **Siguiente SP recomendado** | SP-2 |
+| **Siguiente SP recomendado** | SP-3 |
 
 ---
 
@@ -98,3 +98,5 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | 2026-07-14 | Creación inicial (SP-0) |
 | 2026-07-14 | SP-0 completado: archivos individuales en `docs/sp/` |
 | 2026-07-14 | SP-1 completado: Modo Simple (ocultar kcal, labels cualitativos, porciones humanas) |
+| 2026-07-14 | SP-1 mergeado a `master` |
+| 2026-07-14 | SP-2 completado e integrado sobre `master` |

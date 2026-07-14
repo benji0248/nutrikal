@@ -107,17 +107,17 @@ export function WeekView({ onNavigateToAssistant }: WeekViewProps) {
           </div>
           <div>
             <p className="text-sm font-heading font-bold text-text-primary">
-              No tenés nada planificado
+              ¿Armamos la semana?
             </p>
             <p className="text-xs font-body text-muted mt-1">
-              Pedile a Nutri que te arme la semana
+              Contame qué necesitás y NutriKal te lo resuelve
             </p>
           </div>
           <button
             onClick={onNavigateToAssistant}
             className="px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-body font-medium hover:bg-accent/90 transition-colors min-h-[48px]"
           >
-            Ir a Nutri
+            Hablar con NutriKal
           </button>
         </div>
       )}

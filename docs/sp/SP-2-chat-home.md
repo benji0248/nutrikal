@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-1 |
 | **Próximo** | SP-3 |
 
@@ -57,11 +57,11 @@ src/types/index.ts  (solo si hace falta para tab default)
 
 ## Criterios de aceptación
 
-- [ ] Tras login con perfil completo, la app abre en tab **assistant**
-- [ ] Calendario vacío muestra CTA visible que lleva al chat en 1 tap
-- [ ] Welcome del chat invita a delegar (“¿Qué comemos hoy?” / equivalente)
-- [ ] Usuario puede ir al calendario manualmente sin fricción
-- [ ] `npm run build` pasa
+- [x] Tras login con perfil completo, la app abre en tab **assistant**
+- [x] Calendario vacío muestra CTA visible que lleva al chat en 1 tap
+- [x] Welcome del chat invita a delegar (“¿Qué comemos hoy?” / equivalente)
+- [x] Usuario puede ir al calendario manualmente sin fricción
+- [x] `npm run build` pasa
 
 ---
 
@@ -85,10 +85,10 @@ src/types/index.ts  (solo si hace falta para tab default)
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(ux): SP-2 chat as default home tab |
+| **Qué quedó hecho** | Tab default `assistant` con persistencia localStorage; nav reordenada (Inicio primero); empty states en week/day/month; welcome delegador contextual; CTA flotante “¿Qué cocinamos?” |
+| **Desviaciones** | Persistencia de tab añadida (no estaba en plan original, mejora UX) |
+| **Deuda técnica** | Usuarios con tab guardado en `calendar` seguirán ahí hasta cambiar manualmente |
 
 ---
 

@@ -73,12 +73,21 @@ Máx. ampliar solo si hace falta para ocultar números en otro componente visibl
 
 ## Criterios de aceptación
 
+<<<<<<< HEAD
 - [x] Usuario con settings default **no ve kcal** en: chat (DishCard), calendario día, planner review
 - [x] Cada plato muestra porciones humanas como unidad principal (“2 huevos”, “1 filete mediano”)
 - [x] Existe label cualitativo de “peso” del plato (liviano/balanceado/contundente) o equivalente claro
 - [x] Barra de energía del día es cualitativa (sin números salvo Modo Pro)
 - [x] `npm run build` pasa
 - [x] `npx tsc --noEmit` pasa
+=======
+- [ ] Usuario con settings default **no ve kcal** en: chat (DishCard), calendario día, planner review
+- [ ] Cada plato muestra porciones humanas como unidad principal (“2 huevos”, “1 filete mediano”)
+- [ ] Existe label cualitativo de “peso” del plato (liviano/balanceado/contundente) o equivalente claro
+- [ ] Barra de energía del día es cualitativa (sin números salvo Modo Pro)
+- [ ] `npm run build` pasa
+- [ ] `npx tsc --noEmit` pasa
+>>>>>>> 755ed83 (feat(ux): SP-2 chat as default home tab)
 
 ---
 

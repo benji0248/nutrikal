@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone } from 'lucide-react';
 import { WeekPlanningSetup } from './components/profile/WeekPlanningSetup';
 import { MEAL_PATTERN_LABELS } from './types';
@@ -35,7 +35,7 @@ import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
 import { UserMenu } from './components/auth/UserMenu';
 
-import type { AppTab } from './types';
+import { usePersistedAppTab } from './hooks/usePersistedAppTab';
 
 function App() {
   useTheme();
@@ -64,7 +64,8 @@ function AuthenticatedApp() {
   const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
 
   const [ready, setReady] = useState(false);
-  const [activeTab, setActiveTab] = useState<AppTab>('calendar');
+  const { activeTab, setActiveTab } = usePersistedAppTab();
+  const goToAssistant = useCallback(() => setActiveTab('assistant'), [setActiveTab]);
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
@@ -218,9 +219,9 @@ function AuthenticatedApp() {
         </header>
 
         <div className="px-4 md:px-12 py-6 pb-24 md:pb-12 max-w-7xl mx-auto">
-          {activeTab === 'calendar' && view === 'day' && <DayView onNavigateToAssistant={() => setActiveTab('assistant')} />}
-          {activeTab === 'calendar' && view === 'week' && <WeekView onNavigateToAssistant={() => setActiveTab('assistant')} />}
-          {activeTab === 'calendar' && view === 'month' && <MonthView />}
+          {activeTab === 'calendar' && view === 'day' && <DayView onNavigateToAssistant={goToAssistant} />}
+          {activeTab === 'calendar' && view === 'week' && <WeekView onNavigateToAssistant={goToAssistant} />}
+          {activeTab === 'calendar' && view === 'month' && <MonthView onNavigateToAssistant={goToAssistant} />}
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
           {activeTab === 'historial' && <HistorialView />}
           {activeTab === 'shopping' && <ShoppingListView />}

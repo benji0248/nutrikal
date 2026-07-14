@@ -48,6 +48,15 @@ function makeId(): string {
   return crypto.randomUUID();
 }
 
+function buildWelcomeText(name?: string): string {
+  const greeting = name ? `¡Hola, ${name}!` : '¡Hola!';
+  const current = getCurrentMealType();
+  if (current) {
+    return `${greeting} ¿Qué comemos hoy? Puedo armarte el ${mealTypeToPromptLabel(current)} o planificarte la semana entera — contame qué necesitás.`;
+  }
+  return `${greeting} ¿Qué comemos hoy? Contame qué necesitás y me ocupo yo.`;
+}
+
 function buildWelcomeOptions(): ChatOption[] {
   return [
     {
@@ -172,7 +181,7 @@ export function useChatEngine(): ChatEngineResult {
       {
         id: makeId(),
         type: 'assistant-text',
-        text: `¡Hola${profile.name ? `, ${profile.name}` : ''}! ¿Qué necesitás hoy?`,
+        text: buildWelcomeText(profile.name),
         timestamp: new Date().toISOString(),
       },
       {
