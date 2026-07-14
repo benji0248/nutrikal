@@ -56,7 +56,7 @@ El usuario delega qué comer. El motor local controla déficit/superávit y macr
 | SP-3 | Cocinar ahora E2E | [sp/SP-3-cocinar-ahora.md](sp/SP-3-cocinar-ahora.md) | [x] hecho |
 | SP-4 | Onboarding mínimo | [sp/SP-4-onboarding-minimo.md](sp/SP-4-onboarding-minimo.md) | [x] hecho |
 | SP-5 | Plan semanal | [sp/SP-5-plan-semanal.md](sp/SP-5-plan-semanal.md) | [x] hecho |
-| SP-6 | Desvíos + rescue | [sp/SP-6-desvios-rescue.md](sp/SP-6-desvios-rescue.md) | [ ] |
+| SP-6 | Desvíos + rescue | [sp/SP-6-desvios-rescue.md](sp/SP-6-desvios-rescue.md) | [x] hecho |
 | SP-7 | Personalización visible | [sp/SP-7-personalizacion-visible.md](sp/SP-7-personalizacion-visible.md) | [ ] |
 | SP-8 | Modo Pro | [sp/SP-8-modo-pro.md](sp/SP-8-modo-pro.md) | [ ] |
 | SP-9 | Confiabilidad motor | [sp/SP-9-confiabilidad-motor.md](sp/SP-9-confiabilidad-motor.md) | [ ] |
@@ -71,13 +71,13 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 
 | Campo | Valor |
 |-------|-------|
-| **Último SP completado** | SP-5 |
-| **Commit** | feat(planner): SP-5 delegated week plan flow |
-| **Qué quedó hecho** | Flujo delegado: chip → review grid → apply (calendario + shopping) → confirmación + CTA; persistencia batch; defaults inteligentes flex weekend |
-| **Desviaciones del plan** | Smoke test week-plan requiere `.env.local` con Supabase + GEMINI (no ejecutado en CI cloud) |
-| **Deuda técnica** | Wizard week planning sigue en 4 pasos (no auto-skip) |
-| **Smoke / build** | `npm run build` OK; `node scripts/test-week-plan-v2.mjs` requiere credenciales locales |
-| **Siguiente SP recomendado** | SP-6 |
+| **Último SP completado** | SP-6 |
+| **Commit** | feat(assistant): SP-6 rescue and flex day flow |
+| **Qué quedó hecho** | Flujo rescue real (ajustá / flex / seguí), labels flex en planner+calendario, rebalance heurístico local, signalLog |
+| **Desviaciones del plan** | Ninguna relevante |
+| **Deuda técnica** | dayMode one-off overvive vía nota parseada en hydrate; no hay endpoint dedicado |
+| **Smoke / build** | `npm run build` OK |
+| **Siguiente SP recomendado** | SP-7 |
 
 ---
 
@@ -101,4 +101,4 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | 2026-07-14 | SP-1 mergeado a `master` |
 | 2026-07-14 | SP-2 completado e integrado sobre `master` |
 | 2026-07-14 | SP-3 completado: flujo E2E cocinar ahora (inferencia horaria, apply directo, go_calendar) |
-| 2026-07-14 | SP-5 completado: flujo delegado plan semanal (apply → calendario + shopping + CTA) |
+| 2026-07-14 | SP-6 completado: rescue flow + flex days visibles en planner/calendario |

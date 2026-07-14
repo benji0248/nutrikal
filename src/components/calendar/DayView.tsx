@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import { clsx } from 'clsx';
 import { useCalendarStore, createEmptyDayPlan } from '../../store/useCalendarStore';
 import { useProfileStore } from '../../store/useProfileStore';
+import { useWeekPlanningStore } from '../../store/useWeekPlanningStore';
 import {
   parseDate,
   isToday,
@@ -12,6 +13,7 @@ import {
   getWeekDays,
   formatDateKey,
 } from '../../utils/dateHelpers';
+import { resolveDayFlex } from '../../utils/flexDayHelpers';
 import { getCurrentMealType } from '../../utils/mealTimeHelpers';
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER, MEAL_TYPE_LABELS } from '../../types';
@@ -84,10 +86,22 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
   const dayPlan = useMemo(() => storedPlan ?? createEmptyDayPlan(currentDate), [storedPlan, currentDate]);
   const setNotes = useCalendarStore((s) => s.setNotes);
   const getMetabolicResult = useProfileStore((s) => s.getMetabolicResult);
+  const weekPlanning = useWeekPlanningStore((s) => s.weekPlanning);
 
   const date = useMemo(() => parseDate(currentDate), [currentDate]);
   const today = isToday(date);
   const weekDays = useMemo(() => getWeekDays(date), [date]);
+
+  const flexInfo = useMemo(
+    () =>
+      resolveDayFlex(
+        currentDate,
+        weekPlanning?.weekdayFlexRules ?? [],
+        { dayMode: dayPlan.dayMode, dayLabel: dayPlan.dayLabel },
+      ),
+    [currentDate, weekPlanning?.weekdayFlexRules, dayPlan.dayMode, dayPlan.dayLabel],
+  );
+  const isFullFree = flexInfo.mode === 'full_free';
 
   const showCalories = useSettingsStore((s) => s.showCalories);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
@@ -217,6 +231,11 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
           <div className="space-y-1">
             <p className="text-[#895100] font-medium text-sm uppercase tracking-widest">Hoy</p>
             <h1 className="font-heading font-extrabold text-4xl text-[#191c17]">{mobileDateTitle}</h1>
+            {flexInfo.label && (
+              <span className="mt-1 inline-block rounded-full bg-[#fd9d1a]/20 px-2.5 py-0.5 text-[11px] font-body font-semibold text-[#663b00]">
+                {flexInfo.label}
+              </span>
+            )}
           </div>
           <div className="flex bg-[#f3f5eb] p-1 rounded-full">
             <button className="px-4 py-2 rounded-full text-xs font-bold bg-[#226046] text-[#ffffff] shadow-sm">Día</button>
@@ -235,7 +254,7 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
                 type="button"
                 onClick={() => setCurrentDate(key)}
                 className={clsx(
-                  "flex flex-col items-center gap-2 py-4 rounded-2xl transition-all border-none outline-none",
+                  "relative flex flex-col items-center gap-2 py-4 rounded-2xl transition-all border-none outline-none",
                   isSelected
                     ? "px-5 bg-[#226046] text-[#ffffff] shadow-lg scale-110 ring-4 ring-[#f8faf1]"
                     : "px-3 text-[#40493d]"
@@ -243,6 +262,24 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
               >
                 <span className="text-[10px] font-bold uppercase tracking-tighter">{format(d, 'EEE', { locale: es }).slice(0, 3)}</span>
                 <span className={clsx("font-bold", isSelected ? "text-xl font-black" : "text-lg")}>{format(d, 'dd')}</span>
+                {(() => {
+                  const stripPlan = dayPlans[key];
+                  const stripFlex = resolveDayFlex(
+                    key,
+                    weekPlanning?.weekdayFlexRules ?? [],
+                    { dayMode: stripPlan?.dayMode, dayLabel: stripPlan?.dayLabel },
+                  );
+                  if (stripFlex.mode === 'normal') return null;
+                  return (
+                    <span
+                      className={clsx(
+                        'absolute bottom-1.5 h-1.5 w-1.5 rounded-full',
+                        isSelected ? 'bg-[#c1ffdd]' : stripFlex.mode === 'full_free' ? 'bg-[#895100]' : 'bg-[#226046]',
+                      )}
+                      aria-hidden
+                    />
+                  );
+                })()}
               </button>
             );
           })}
@@ -255,8 +292,13 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
           <h2 className="mb-2 font-heading text-4xl font-extrabold tracking-tighter text-[#226046] capitalize">
             {formatDayFull(date)}
           </h2>
-          <div className="flex items-center gap-2 text-[#5a6258]">
+          <div className="flex flex-wrap items-center gap-2 text-[#5a6258]">
             <span className="text-sm font-medium">Semana {weekNum} · Plan Nutricional</span>
+            {flexInfo.label && (
+              <span className="rounded-full bg-[#fd9d1a]/20 px-2.5 py-0.5 text-[11px] font-body font-semibold text-[#663b00]">
+                {flexInfo.label}
+              </span>
+            )}
           </div>
         </div>
         
@@ -311,18 +353,31 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
 
         {/* Breakfast */}
         <div className="col-span-12 lg:col-span-8">
-          <MealColumn mt="desayuno" {...mealStackProps} />
+          {isFullFree ? (
+            <div className="rounded-2xl bg-[#f8faf1] p-6 text-center">
+              <p className="font-body text-sm font-medium text-[#191c17]">Día libre</p>
+              <p className="mt-1 text-xs font-body text-[#707a6c]">
+                Sin menú planificado. Comé a tu ritmo; el resto de la semana sigue armado.
+              </p>
+            </div>
+          ) : (
+            <MealColumn mt="desayuno" {...mealStackProps} />
+          )}
         </div>
 
         {/* Lunch */}
         <div className="col-span-12 lg:col-span-6">
-          <MealColumn mt="almuerzo" {...mealStackProps} />
+          {!isFullFree && <MealColumn mt="almuerzo" {...mealStackProps} />}
         </div>
 
         {/* Snack & Dinner Column */}
         <div className="col-span-12 lg:col-span-6 space-y-8">
-          <MealColumn mt="snack" {...mealStackProps} />
-          <MealColumn mt="cena" {...mealStackProps} />
+          {!isFullFree && (
+            <>
+              <MealColumn mt="snack" {...mealStackProps} />
+              <MealColumn mt="cena" {...mealStackProps} />
+            </>
+          )}
           <HydrationCard />
         </div>
       </div>
@@ -332,9 +387,18 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
         {emptyNutriBanner}
         {activeMealBanner}
         <DaySummaryCard consumedKcal={totalCals} budgetKcal={budgetKcal} showCalories={showCalories} />
-        {MEAL_TYPE_ORDER.map((mt) => (
-          <MealColumn key={mt} mt={mt} {...mealStackProps} />
-        ))}
+        {isFullFree ? (
+          <div className="rounded-2xl bg-[#f8faf1] p-6 text-center">
+            <p className="font-body text-sm font-medium text-[#191c17]">Día libre</p>
+            <p className="mt-1 text-xs font-body text-[#707a6c]">
+              Sin menú planificado. Comé a tu ritmo; el resto de la semana sigue armado.
+            </p>
+          </div>
+        ) : (
+          MEAL_TYPE_ORDER.map((mt) => (
+            <MealColumn key={mt} mt={mt} {...mealStackProps} />
+          ))
+        )}
         <HydrationCard />
         {notesSection}
       </div>

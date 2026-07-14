@@ -267,6 +267,9 @@ export interface DayPlan {
   date: string;
   meals: Record<MealType, Meal[]>;
   notes: string;
+  /** Override puntual (p.ej. rescue “hoy flexible”); no es la regla semanal. */
+  dayMode?: WeekdayFlexMode;
+  dayLabel?: string;
 }
 
 export interface Notification {

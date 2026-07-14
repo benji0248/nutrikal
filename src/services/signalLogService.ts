@@ -51,3 +51,28 @@ export function recordMealRejected(fecha: string, comida: MealType, meal: AiMeal
     },
   ]);
 }
+
+export type RescueChoice = 'rebalance' | 'mark_flex' | 'continue';
+
+/**
+ * Registra la elección del flujo rescue (sin form largo ni culpa).
+ * Usa `modificado` / `ignorado` sobre la franja actual como proxy de señal.
+ */
+export function recordRescueChoice(
+  fecha: string,
+  choice: RescueChoice,
+  mealType: MealType = 'almuerzo',
+): void {
+  const accion = choice === 'continue' ? 'ignorado' : 'modificado';
+  useIngredientSignalStore.getState().appendMany([
+    {
+      fecha,
+      comida: mealType,
+      ingredientes_sugeridos: [],
+      ingredientes_finales: [],
+      ingredientes_removidos: [],
+      ingredientes_agregados: [],
+      accion,
+    },
+  ]);
+}

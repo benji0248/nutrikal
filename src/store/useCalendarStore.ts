@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DayPlan, Meal, MealType, Notification, ViewMode } from '../types';
+import type { DayPlan, Meal, MealType, Notification, ViewMode, WeekdayFlexMode } from '../types';
 import { todayKey, navigateDay, navigateWeek, navigateMonth } from '../utils/dateHelpers';
 import * as api from '../services/apiService';
 
@@ -25,6 +25,9 @@ interface CalendarState {
   bulkUpsertMeals: (meals: Array<{ date: string; mealType: MealType; meal: Meal }>) => void;
   deleteMeal: (date: string, mealType: MealType, mealId: string) => void;
   setNotes: (date: string, notes: string) => void;
+  setDayFlex: (date: string, mode: WeekdayFlexMode, label?: string) => void;
+  replaceSlotMeals: (date: string, mealType: MealType, meals: Meal[]) => void;
+  clearRemainingMeals: (date: string, mealTypes: MealType[]) => void;
   hydrateMeals: (meals: Array<{
     id: string; date: string; mealType: MealType; name: string;
     calories: number | null; notes: string | null; linkedRecipeId: string | null;
@@ -142,6 +145,72 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
     api.setDayNotes(date, notes).catch(console.error);
   },
 
+  setDayFlex: (date, mode, label) => {
+    set((s) => {
+      const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
+      const dayLabel =
+        mode === 'normal'
+          ? undefined
+          : (label?.trim() || (mode === 'full_free' ? 'Hoy flexible' : 'Mantenimiento'));
+      const noteLine = mode === 'full_free'
+        ? 'Hoy flexible — sin plan estricto.'
+        : mode === 'maintenance'
+          ? 'Día de mantenimiento.'
+          : '';
+      const notes = noteLine
+        ? (existing.notes?.includes(noteLine) ? existing.notes : [existing.notes, noteLine].filter(Boolean).join('\n'))
+        : existing.notes;
+      if (noteLine && notes !== existing.notes) {
+        api.setDayNotes(date, notes).catch(console.error);
+      }
+      return {
+        dayPlans: {
+          ...s.dayPlans,
+          [date]: {
+            ...existing,
+            dayMode: mode === 'normal' ? undefined : mode,
+            dayLabel,
+            notes,
+          },
+        },
+      };
+    });
+  },
+
+  replaceSlotMeals: (date, mealType, meals) => {
+    set((s) => {
+      const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
+      return {
+        dayPlans: {
+          ...s.dayPlans,
+          [date]: {
+            ...existing,
+            meals: { ...existing.meals, [mealType]: meals },
+          },
+        },
+      };
+    });
+    for (const meal of meals) {
+      api.createMeal(date, mealType, meal).catch(console.error);
+    }
+  },
+
+  clearRemainingMeals: (date, mealTypes) => {
+    set((s) => {
+      const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
+      const meals = { ...existing.meals };
+      for (const mt of mealTypes) {
+        meals[mt] = [];
+      }
+      return {
+        dayPlans: {
+          ...s.dayPlans,
+          [date]: { ...existing, meals },
+        },
+      };
+    });
+  },
+
   hydrateMeals: (meals, dayNotes) => {
     const dayPlans: Record<string, DayPlan> = {};
 
@@ -171,6 +240,13 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
         dayPlans[n.date] = createEmptyDayPlan(n.date);
       }
       dayPlans[n.date].notes = n.notes;
+      if (n.notes.includes('Hoy flexible')) {
+        dayPlans[n.date].dayMode = 'full_free';
+        dayPlans[n.date].dayLabel = 'Hoy flexible';
+      } else if (n.notes.includes('Día de mantenimiento')) {
+        dayPlans[n.date].dayMode = 'maintenance';
+        dayPlans[n.date].dayLabel = 'Mantenimiento';
+      }
     }
 
     set({ dayPlans });

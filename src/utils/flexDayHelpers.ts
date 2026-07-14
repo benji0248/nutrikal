@@ -63,6 +63,25 @@ export function getDayDisplayLabel(
   return WEEKDAY_FLEX_MODE_LABELS[rule.mode];
 }
 
+/** Resuelve modo/label visible: override del día (rescue) tiene prioridad sobre la rutina semanal. */
+export function resolveDayFlex(
+  dateKey: string,
+  rules: WeekdayFlexRule[],
+  dayOverride?: { dayMode?: WeekdayFlexMode; dayLabel?: string },
+): { mode: WeekdayFlexMode; label?: string } {
+  if (dayOverride?.dayMode && dayOverride.dayMode !== 'normal') {
+    return {
+      mode: dayOverride.dayMode,
+      label:
+        dayOverride.dayLabel?.trim()
+        || WEEKDAY_FLEX_MODE_LABELS[dayOverride.dayMode],
+    };
+  }
+  const mode = getFlexModeForDate(dateKey, rules);
+  if (mode === 'normal') return { mode: 'normal' };
+  return { mode, label: getDayDisplayLabel(dateKey, rules) };
+}
+
 /** Migra perfiles guardados antes de weekdayFlexRules. */
 export function normalizeWeekPlanningProfile(
   raw: WeekPlanningProfile,

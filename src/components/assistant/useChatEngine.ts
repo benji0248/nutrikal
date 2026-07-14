@@ -29,7 +29,11 @@ import {
   normalizeHydratedAiDishToBudget,
 } from '../../services/dishMatchService';
 import { collectDishNamesFromWeekPlan } from '../../services/planRotationMemory';
-import { recordMealRejected, recordWeekPlanApplied } from '../../services/signalLogService';
+import { recordMealRejected, recordWeekPlanApplied, recordRescueChoice } from '../../services/signalLogService';
+import {
+  getRemainingMealTypes,
+  rebalanceRemainingMeals,
+} from '../../services/rescueService';
 import { usePlanRotationStore } from '../../store/usePlanRotationStore';
 import { useIngredientSignalStore } from '../../store/useIngredientSignalStore';
 import { computeMetabolism } from '../../services/metabolicService';
@@ -79,7 +83,7 @@ function buildWelcomeOptions(): ChatOption[] {
     {
       id: 'rescue',
       label: 'Comí algo que no debía',
-      action: 'rescue_stub',
+      action: 'rescue',
       icon: 'AlertCircle',
     },
   ];
@@ -183,6 +187,29 @@ function buildWelcomeMessagesForProfile(
       type: 'assistant-options',
       options: buildWelcomeOptions(),
       timestamp: new Date().toISOString(),
+    },
+  ];
+}
+
+function buildRescueOptions(): ChatOption[] {
+  return [
+    {
+      id: 'rescue_rebalance',
+      label: 'Ajustá el resto del día',
+      action: 'rescue_rebalance',
+      icon: 'UtensilsCrossed',
+    },
+    {
+      id: 'rescue_mark_flex',
+      label: 'Marcá hoy como flex',
+      action: 'rescue_mark_flex',
+      icon: 'CalendarDays',
+    },
+    {
+      id: 'rescue_continue',
+      label: 'Seguí normal',
+      action: 'rescue_continue',
+      icon: 'Check',
     },
   ];
 }
@@ -445,23 +472,6 @@ export function useChatEngine(): ChatEngineResult {
     }
   }
 
-  function showComingSoonStub() {
-    addMessages(
-      {
-        id: makeId(),
-        type: 'assistant-text',
-        text: 'Eso todavía no está disponible, pero viene pronto. Por ahora probá armar una comida.',
-        timestamp: new Date().toISOString(),
-      },
-      {
-        id: makeId(),
-        type: 'assistant-options',
-        options: buildWelcomeOptions(),
-        timestamp: new Date().toISOString(),
-      },
-    );
-  }
-
   async function sendToAi(
     text: string,
     options?: { variation?: boolean; mealType?: MealType; mealBudgetKcal?: number },
@@ -690,14 +700,175 @@ export function useChatEngine(): ChatEngineResult {
         return;
       }
 
-      if (option.action === 'rescue_stub') {
+      if (option.action === 'rescue') {
+        addMessages(
+          {
+            id: makeId(),
+            type: 'user-choice',
+            text: option.label,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: makeId(),
+            type: 'assistant-text',
+            text: 'Tranqui, pasa. El plan está para acompañarte, no para juzgarte. ¿Cómo seguimos hoy?',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: makeId(),
+            type: 'assistant-options',
+            options: buildRescueOptions(),
+            timestamp: new Date().toISOString(),
+          },
+        );
+        return;
+      }
+
+      if (option.action === 'rescue_continue') {
         addMessages({
           id: makeId(),
           type: 'user-choice',
           text: option.label,
           timestamp: new Date().toISOString(),
         });
-        showComingSoonStub();
+        recordRescueChoice(todayKey(), 'continue', getCurrentMealType() ?? 'almuerzo');
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: 'Perfecto. Seguimos como veníamos — cuando quieras, seguimos con el plan.',
+          timestamp: new Date().toISOString(),
+        });
+        appendWelcomeOptions();
+        return;
+      }
+
+      if (option.action === 'rescue_mark_flex') {
+        addMessages({
+          id: makeId(),
+          type: 'user-choice',
+          text: option.label,
+          timestamp: new Date().toISOString(),
+        });
+        const date = todayKey();
+        const remaining = getRemainingMealTypes();
+        useCalendarStore.getState().setDayFlex(date, 'full_free', 'Hoy flexible');
+        if (remaining.length > 0) {
+          useCalendarStore.getState().clearRemainingMeals(date, remaining);
+        }
+        recordRescueChoice(date, 'mark_flex', getCurrentMealType() ?? 'almuerzo');
+        addMessages(
+          {
+            id: makeId(),
+            type: 'assistant-text',
+            text: 'Listo: marcamos hoy como flexible. Sin menú estricto por el resto del día; mañana retomamos el ritmo.',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: makeId(),
+            type: 'assistant-options',
+            options: [
+              {
+                id: 'go_calendar',
+                label: 'Ver en calendario',
+                action: 'go_calendar',
+                icon: 'CalendarDays',
+              },
+              {
+                id: 'cook_again',
+                label: 'Cocinar otra cosa',
+                action: 'start_cook_now',
+                icon: 'UtensilsCrossed',
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          },
+        );
+        return;
+      }
+
+      if (option.action === 'rescue_rebalance') {
+        addMessages({
+          id: makeId(),
+          type: 'user-choice',
+          text: option.label,
+          timestamp: new Date().toISOString(),
+        });
+        const date = todayKey();
+        const remaining = getRemainingMealTypes();
+        const dayPlan = useCalendarStore.getState().dayPlans[date];
+        recordRescueChoice(date, 'rebalance', getCurrentMealType() ?? 'almuerzo');
+
+        if (remaining.length === 0) {
+          addMessages({
+            id: makeId(),
+            type: 'assistant-text',
+            text: 'Ya casi terminó el día, no hay comidas por ajustar. Mañana arrancamos de nuevo sin drama.',
+            timestamp: new Date().toISOString(),
+          });
+          appendWelcomeOptions();
+          return;
+        }
+
+        if (!dayPlan) {
+          addMessages({
+            id: makeId(),
+            type: 'assistant-text',
+            text: 'Todavía no hay comidas planificadas para más tarde. Cuando armes el resto, pedime opciones más livianas y listo.',
+            timestamp: new Date().toISOString(),
+          });
+          appendWelcomeOptions();
+          return;
+        }
+
+        const { nextMeals, result } = rebalanceRemainingMeals(dayPlan.meals, remaining);
+        for (const [mt, meals] of Object.entries(nextMeals) as Array<[MealType, typeof dayPlan.meals[MealType]]>) {
+          if (meals) {
+            useCalendarStore.getState().replaceSlotMeals(date, mt, meals);
+          }
+        }
+
+        if (result.adjusted.length === 0) {
+          const labels = remaining.map(mealTypeChipLabel).join(', ');
+          addMessages({
+            id: makeId(),
+            type: 'assistant-text',
+            text: `Las próximas comidas (${labels}) todavía están vacías. Cuando las armes, pedime algo más liviano y absorbemos el día.`,
+            timestamp: new Date().toISOString(),
+          });
+          appendWelcomeOptions();
+          return;
+        }
+
+        const adjustedList = result.adjusted
+          .map((a) => `${mealTypeChipLabel(a.mealType)}: ${a.name}`)
+          .join(' · ');
+        addMessages(
+          {
+            id: makeId(),
+            type: 'assistant-text',
+            text: `Ajusté el resto del día con porciones más livianas: ${adjustedList}. Así el día queda cómodo sin tirar el plan.`,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: makeId(),
+            type: 'assistant-options',
+            options: [
+              {
+                id: 'go_calendar',
+                label: 'Ver en calendario',
+                action: 'go_calendar',
+                icon: 'CalendarDays',
+              },
+              {
+                id: 'cook_again',
+                label: 'Cocinar otra cosa',
+                action: 'start_cook_now',
+                icon: 'UtensilsCrossed',
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          },
+        );
         return;
       }
 

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-5 |
 | **Próximo** | SP-7 |
 
@@ -59,11 +59,11 @@ src/types/index.ts  (si hace falta tipos rescue)
 
 ## Criterios de aceptación
 
-- [ ] Chip “Comí algo que no debía” ejecuta flujo real (no stub / no dead-end)
-- [ ] Flex days visibles en UI de planner o calendario
-- [ ] Tono de copy no punitivo en todo el flujo rescue
-- [ ] Al menos 1 acción concreta post-rescue (ajuste sugerido o marcar flex)
-- [ ] `npm run build` pasa
+- [x] Chip “Comí algo que no debía” ejecuta flujo real (no stub / no dead-end)
+- [x] Flex days visibles en UI de planner o calendario
+- [x] Tono de copy no punitivo en todo el flujo rescue
+- [x] Al menos 1 acción concreta post-rescue (ajuste sugerido o marcar flex)
+- [x] `npm run build` pasa
 
 ---
 
@@ -86,10 +86,10 @@ src/types/index.ts  (si hace falta tipos rescue)
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(assistant): SP-6 rescue and flex day flow |
+| **Qué quedó hecho** | Rescue: opciones rebalance / mark flex / continue; flex labels en PlanReviewGrid+DayView+DayCard; `rescueService` heurística local; `recordRescueChoice` |
+| **Desviaciones** | Ninguna |
+| **Deuda técnica** | Persistencia one-off flex vía nota parseada (no columna dedicada en API) |
 
 ---
 

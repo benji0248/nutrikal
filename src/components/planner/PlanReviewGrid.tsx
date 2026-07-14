@@ -20,7 +20,7 @@ interface PlanReviewGridProps {
 export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanReviewGridProps) => {
   const showCalories = useSettingsStore((s) => s.showCalories);
   const profile = useProfileStore((s) => s.profile);
-  const dailyBudget = profile ? computeMetabolism(profile).budget : 0;
+  const metabolic = profile ? computeMetabolism(profile) : null;
   const [activeDay, setActiveDay] = useState(0);
 
   const activeDayData = plan.days[activeDay];
@@ -36,28 +36,44 @@ export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanR
     return total;
   }, [activeDayData]);
 
+  const activeDailyBudget = useMemo(() => {
+    if (!metabolic || !activeDayData) return 0;
+    return activeDayData.dayMode === 'maintenance' ? metabolic.tdee : metabolic.budget;
+  }, [metabolic, activeDayData]);
+
   return (
     <div>
       <div className="flex gap-1 overflow-x-auto pb-2">
         {plan.days.map((day, idx) => {
           const date = parseISO(day.date);
-          const dayLabel = format(date, 'EEE', { locale: es });
+          const weekdayLabel = format(date, 'EEE', { locale: es });
           const dateLabel = format(date, 'd/M');
           const active = idx === activeDay;
+          const isFlex = day.dayMode === 'maintenance' || day.dayMode === 'full_free';
           return (
             <button
               key={day.date}
               type="button"
               onClick={() => setActiveDay(idx)}
               className={clsx(
-                'w-12 h-12 flex flex-col items-center justify-center whitespace-nowrap rounded-full transition-all flex-shrink-0',
+                'relative w-12 h-12 flex flex-col items-center justify-center whitespace-nowrap rounded-full transition-all flex-shrink-0',
                 active
                   ? 'bg-[#b1f0ce] text-[#002114]'
-                  : 'bg-[#e1e3da] text-[#40493d]'
+                  : 'bg-[#e1e3da] text-[#40493d]',
               )}
+              title={day.dayLabel ?? weekdayLabel}
             >
-              <span className="capitalize">{dayLabel}</span>
+              <span className="capitalize text-xs leading-tight">{weekdayLabel}</span>
               <span className="text-[10px] opacity-80">{dateLabel}</span>
+              {isFlex && (
+                <span
+                  className={clsx(
+                    'absolute -bottom-0.5 h-1.5 w-1.5 rounded-full',
+                    day.dayMode === 'full_free' ? 'bg-[#895100]' : 'bg-[#226046]',
+                  )}
+                  aria-hidden
+                />
+              )}
             </button>
           );
         })}
@@ -101,7 +117,7 @@ export const PlanReviewGrid = ({ plan, onSwapMeal, swapDisabled = false }: PlanR
           )}
           {MEAL_TYPE_ORDER.map((mt) => {
             const planned = activeDayData.meals[mt];
-            const mealSlotBudgetKcal = dailyBudget > 0 ? getMealSlotBudget(dailyBudget, mt) : undefined;
+            const mealSlotBudgetKcal = activeDailyBudget > 0 ? getMealSlotBudget(activeDailyBudget, mt) : undefined;
             return (
               <div key={mt}>
                 <span className="font-body text-[11px] uppercase tracking-wide text-[#707a6c]">
