@@ -21,7 +21,7 @@ export const DishCard = ({
   dish,
   showCalories = false,
   mealSlotBudgetKcal,
-  defaultMealType = 'almuerzo',
+  defaultMealType,
   onApply,
   onRegenerate,
   chatBusy = false,
@@ -32,6 +32,14 @@ export const DishCard = ({
     ? getMealWeightLabel(totalKcal, mealSlotBudgetKcal)
     : null;
   const weightBadge = weightKey ? MEAL_WEIGHT_BADGE[weightKey] : null;
+
+  const handleApplyClick = () => {
+    if (defaultMealType && onApply) {
+      onApply(dish, todayKey(), defaultMealType);
+      return;
+    }
+    setShowPicker(true);
+  };
 
   const handleConfirm = (date: string, mealType: MealType) => {
     onApply?.(dish, date, mealType);
@@ -115,7 +123,7 @@ export const DishCard = ({
             {onApply && (
               <button
                 type="button"
-                onClick={() => setShowPicker(true)}
+                onClick={handleApplyClick}
                 disabled={chatBusy}
                 className="flex-1 flex items-center justify-center gap-2 min-h-[48px] font-body text-sm font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/5 active:scale-[0.98] transition-all disabled:opacity-40"
               >
@@ -138,7 +146,7 @@ export const DishCard = ({
         </div>
       </div>
 
-      {onApply && (
+      {onApply && !defaultMealType && (
         <ScheduleMealSheet
           isOpen={showPicker}
           onClose={() => setShowPicker(false)}
@@ -146,7 +154,7 @@ export const DishCard = ({
         >
           <ScheduleMealPicker
             defaultDate={todayKey()}
-            defaultMealType={defaultMealType}
+            defaultMealType={defaultMealType ?? 'almuerzo'}
             dishName={dish.name}
             calories={showCalories ? totalKcal : undefined}
             onConfirm={handleConfirm}

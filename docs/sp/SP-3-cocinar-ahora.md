@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-1, SP-2 |
 | **Próximo** | SP-4 |
 
@@ -70,12 +70,12 @@ Budget: `getMealSlotBudget(computeMetabolism(profile).budget, mealType)`
 
 ## Criterios de aceptación
 
-- [ ] Desde chip “No sé qué cocinar ahora” hasta DishCard: **≤3 taps/interacciones** (ideal: 1 si inferencia horaria funciona)
-- [ ] Apply agrega comida al **día correcto** y **meal type** correcto
-- [ ] Plato respeta budget del slot (documentar tolerancia, ej. ±10% kcal)
-- [ ] Regenerar produce plato distinto (rotación básica) sin romper slot
-- [ ] Post-apply: feedback + opción ir al calendario
-- [ ] `npm run build` pasa
+- [x] Desde chip “No sé qué cocinar ahora” hasta DishCard: **≤3 taps/interacciones** (ideal: 1 si inferencia horaria funciona)
+- [x] Apply agrega comida al **día correcto** y **meal type** correcto
+- [x] Plato respeta budget del slot (documentar tolerancia, ej. ±10% kcal)
+- [x] Regenerar produce plato distinto (rotación básica) sin romper slot
+- [x] Post-apply: feedback + opción ir al calendario
+- [x] `npm run build` pasa
 
 ---
 
@@ -100,11 +100,11 @@ Budget: `getMealSlotBudget(computeMetabolism(profile).budget, mealType)`
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Qué quedó hecho** | — |
-| **Tolerancia budget documentada** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(assistant): SP-3 cook-now E2E flow |
+| **Qué quedó hecho** | Inferencia horaria en `start_cook_now` (salta picker si hay meal type); apply directo a hoy+slot en `DishCard`; post-apply con chip `go_calendar`; errores de generación con opciones de retorno; normalización budget ya existente |
+| **Tolerancia budget documentada** | ±8% kcal (`CALORIE_TOLERANCE` en `dishMatchService.ts`) |
+| **Desviaciones** | Tolerancia real es ±8%, no ±10% del ejemplo en criterios |
+| **Deuda técnica** | Sin picker de fecha cuando meal type está inferido (apply siempre a hoy) |
 
 ---
 

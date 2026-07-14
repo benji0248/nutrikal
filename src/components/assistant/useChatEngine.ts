@@ -108,11 +108,28 @@ function resolveMealBudget(profile: NonNullable<ReturnType<typeof useProfileStor
 }
 
 function buildMealPickPrompt(): string {
-  const current = getCurrentMealType();
-  if (current) {
-    return `¿Armamos el ${mealTypeToPromptLabel(current)}? Elegí la comida:`;
-  }
   return '¿Qué comida querés armar?';
+}
+
+function buildCookNowInferPrompt(mealType: MealType): string {
+  return `Te armo tu ${mealTypeToPromptLabel(mealType)} de hoy.`;
+}
+
+function buildPostApplyOptions(): ChatOption[] {
+  return [
+    {
+      id: 'go_calendar',
+      label: 'Ver en calendario',
+      action: 'go_calendar',
+      icon: 'CalendarDays',
+    },
+    {
+      id: 'cook_again',
+      label: 'Cocinar otra cosa',
+      action: 'start_cook_now',
+      icon: 'UtensilsCrossed',
+    },
+  ];
 }
 
 interface ChatEngineResult {
@@ -459,6 +476,9 @@ export function useChatEngine(): ChatEngineResult {
           text: displayText,
           timestamp: new Date().toISOString(),
         });
+        if (mealType) {
+          appendWelcomeOptions();
+        }
       }
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
@@ -476,6 +496,9 @@ export function useChatEngine(): ChatEngineResult {
         text: fallback,
         timestamp: new Date().toISOString(),
       });
+      if (activeMealType) {
+        appendWelcomeOptions();
+      }
     } finally {
       sendingLockRef.current = false;
       setIsLoading(false);
@@ -507,6 +530,21 @@ export function useChatEngine(): ChatEngineResult {
           text: option.label,
           timestamp: new Date().toISOString(),
         });
+
+        const inferred = getCurrentMealType();
+        if (inferred && profile) {
+          lastMealTypeRef.current = inferred;
+          addMessages({
+            id: makeId(),
+            type: 'assistant-text',
+            text: buildCookNowInferPrompt(inferred),
+            timestamp: new Date().toISOString(),
+          });
+          const prompt = buildCookNowPrompt(inferred, computeMetabolism(profile).budget);
+          void sendToAi(prompt, { mealType: inferred });
+          return;
+        }
+
         addMessages(
           {
             id: makeId(),
@@ -594,13 +632,20 @@ export function useChatEngine(): ChatEngineResult {
           ? 'hoy'
           : formatDayFull(parseDate(date));
 
-      addMessages({
-        id: makeId(),
-        type: 'assistant-text',
-        text: `Listo, agregué ${dish.name} a tu ${mealTypeToPromptLabel(mealType)} de ${when}.`,
-        timestamp: new Date().toISOString(),
-      });
-      appendWelcomeOptions();
+      addMessages(
+        {
+          id: makeId(),
+          type: 'assistant-text',
+          text: `Listo, agregué ${dish.name} a tu ${mealTypeToPromptLabel(mealType)} de ${when}.`,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: makeId(),
+          type: 'assistant-options',
+          options: buildPostApplyOptions(),
+          timestamp: new Date().toISOString(),
+        },
+      );
     },
     [upsertMeal],
   );
