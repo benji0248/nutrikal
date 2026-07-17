@@ -26,7 +26,8 @@ import {
   hydratedDishToMeal,
   hydratedDishToAiMeal,
   plannedMealToMeal,
-  normalizeHydratedAiDishToBudget,
+  normalizeHydratedAiDishToBudgetDetailed,
+  PORTION_ADJUST_COPY,
 } from '../../services/dishMatchService';
 import { collectDishNamesFromWeekPlan } from '../../services/planRotationMemory';
 import { recordMealRejected, recordWeekPlanApplied, recordRescueChoice } from '../../services/signalLogService';
@@ -575,8 +576,21 @@ export function useChatEngine(): ChatEngineResult {
 
       if (result.dish) {
         let hydrated = hydrateAiDish(result.dish, { useGrams });
+        let portionScaled = false;
         if (mealType && mealBudgetKcal) {
-          hydrated = normalizeHydratedAiDishToBudget(hydrated, mealBudgetKcal, { useGrams });
+          const norm = normalizeHydratedAiDishToBudgetDetailed(hydrated, mealBudgetKcal, { useGrams });
+          hydrated = norm.dish;
+          portionScaled = norm.scaled;
+          if (norm.emptyOrZero) {
+            addMessages({
+              id: makeId(),
+              type: 'assistant-text',
+              text: 'No pude armar bien las porciones de ese plato. Regeneralo y lo intento de nuevo.',
+              timestamp: new Date().toISOString(),
+            });
+            dishPersonalizationRef.current = null;
+            return;
+          }
         }
 
         const persCtx = dishPersonalizationRef.current;
@@ -592,13 +606,23 @@ export function useChatEngine(): ChatEngineResult {
             useIngredientSignalStore.getState().entries,
           ),
         });
+        const combinedNote = [portionScaled ? PORTION_ADJUST_COPY : null, dishNote]
+          .filter(Boolean)
+          .join(' ') || null;
 
         const swapTarget = swapTargetRef.current;
         if (swapTarget && mealType) {
           swapTargetRef.current = null;
-          const newMeal = hydratedDishToAiMeal(
-            normalizeHydratedAiDishToBudget(hydrated, mealBudgetKcal ?? hydrated.macros.calories, { useGrams }),
+          const swapNorm = normalizeHydratedAiDishToBudgetDetailed(
+            hydrated,
+            mealBudgetKcal ?? hydrated.macros.calories,
+            { useGrams },
           );
+          const newMeal = hydratedDishToAiMeal(swapNorm.dish);
+          const swapNote = [
+            swapNorm.scaled ? PORTION_ADJUST_COPY : null,
+            dishNote,
+          ].filter(Boolean).join(' ') || null;
           setMessages((prev) =>
             prev.map((m) => {
               if (m.type !== 'assistant-plan' || !m.weekPlan) return m;
@@ -618,10 +642,10 @@ export function useChatEngine(): ChatEngineResult {
           addMessages({
             id: makeId(),
             type: 'assistant-text',
-            text: dishNote
-              ? `Actualicé ${newMeal.name} en tu plan. ${dishNote}`
+            text: swapNote
+              ? `Actualicé ${newMeal.name} en tu plan. ${swapNote}`
               : `Actualicé ${newMeal.name} en tu plan.`,
-            personalizationNote: dishNote ?? undefined,
+            personalizationNote: swapNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
         } else if (regenerateDishMessageIdRef.current) {
@@ -635,7 +659,7 @@ export function useChatEngine(): ChatEngineResult {
                     text: hydrated.name,
                     dishSuggestion: hydrated,
                     mealType: mealType ?? m.mealType,
-                    personalizationNote: dishNote ?? undefined,
+                    personalizationNote: combinedNote ?? undefined,
                   }
                 : m,
             ),
@@ -647,7 +671,7 @@ export function useChatEngine(): ChatEngineResult {
             text: hydrated.name,
             dishSuggestion: hydrated,
             mealType: mealType ?? undefined,
-            personalizationNote: dishNote ?? undefined,
+            personalizationNote: combinedNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
         }

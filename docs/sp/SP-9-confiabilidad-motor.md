@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-3, SP-5 |
 | **Próximo** | — |
 
@@ -57,11 +57,11 @@ scripts/test-week-plan-v2.mjs   (budget assertions si aplica)
 
 ## Criterios de aceptación
 
-- [ ] Umbral de acierto definido (ej. ≥90% platos de prueba dentro de ±10% del slot budget) — documentado en handoff
-- [ ] Ingredientes desconocidos: fallback graceful, no crash, no 0 kcal total silencioso
-- [ ] Smoke script pasa o deja instrucciones claras de env
-- [ ] Copy de ajuste visible cuando el motor escala porciones
-- [ ] `npm run build` pasa
+- [x] Umbral de acierto definido (ej. ≥90% platos de prueba dentro de ±10% del slot budget) — documentado en handoff
+- [x] Ingredientes desconocidos: fallback graceful, no crash, no 0 kcal total silencioso
+- [x] Smoke script pasa o deja instrucciones claras de env
+- [x] Copy de ajuste visible cuando el motor escala porciones
+- [x] `npm run build` pasa
 
 ---
 
@@ -87,11 +87,11 @@ scripts/test-week-plan-v2.mjs   (budget assertions si aplica)
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Umbral acierto medido** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | fix(engine): SP-9 portion trust layer and smoke tests |
+| **Umbral acierto medido** | `npm run smoke:portion` → **6/6 (100%)** dentro de ±10% del slot donde aplica (`TRUST_BUDGET_TOLERANCE=0.1`) |
+| **Qué quedó hecho** | Match por score; hydrate seguro; `normalizeHydratedAiDishToBudgetDetailed`; copy “Ajusté las cantidades…”; smoke local sin Gemini |
+| **Desviaciones** | Smoke nuevo (`smoke:portion`) en vez de ampliar smoke-ai (env-only) |
+| **Deuda técnica** | Unificar trim con `portionRounding.trimHydratedUnderCalorieBudget` |
 
 ---
 

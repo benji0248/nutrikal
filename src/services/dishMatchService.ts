@@ -15,6 +15,7 @@ import { INGREDIENTS_DB } from '../data/ingredients';
 import { computeTotalMacros } from '../utils/macroHelpers';
 import { gramsToHumanPortion } from '../utils/portionHelpers';
 import { generateId } from '../utils/dateHelpers';
+import { chatClientLog } from '../utils/chatFlowLog';
 
 /** Gemini a veces usa nombres distintos a la DB local. */
 const INGREDIENT_ALIASES: Record<string, string> = {
@@ -24,9 +25,11 @@ const INGREDIENT_ALIASES: Record<string, string> = {
   calabacin: 'Zapallito',
   'pechuga de pollo': 'Pechuga de pollo',
   pollo: 'Pechuga de pollo',
+  'pollo pechuga': 'Pechuga de pollo',
   quinoa: 'Quinoa cocida',
   'quinoa cocida': 'Quinoa cocida',
   'aceite oliva': 'Aceite de oliva',
+  'aceite de oliva extra virgen': 'Aceite de oliva',
   'perejil fresco': 'Perejil fresco',
   oregano: 'Orégano',
   'ají molido': 'Ají molido',
@@ -34,10 +37,47 @@ const INGREDIENT_ALIASES: Record<string, string> = {
   'vino tinto': 'Vino tinto',
   'morron rojo': 'Morrón rojo',
   'morrón rojo': 'Morrón rojo',
+  'morron': 'Morrón rojo',
+  'papa blanca': 'Papa',
+  patata: 'Papa',
+  'arroz': 'Arroz blanco cocido',
+  'arroz blanco': 'Arroz blanco cocido',
+  'fideos': 'Fideos secos',
+  pasta: 'Fideos secos',
+  'huevos': 'Huevo',
+  'clara de huevo': 'Huevo',
+  'yogur': 'Yogur natural',
+  yogurt: 'Yogur natural',
+  'yoghurt': 'Yogur natural',
+  'queso crema': 'Queso cremoso',
+  'carne molida': 'Carne picada común',
+  'carne picada': 'Carne picada común',
+  'bife': 'Bife de chorizo',
+  ajo: 'Ajo',
+  cebolla: 'Cebolla',
+  tomate: 'Tomate',
+  limon: 'Limón',
+  'limón': 'Limón',
 };
 
 const GRAM_STEP = 5;
-const CALORIE_TOLERANCE = 0.08;
+/** ±8% del presupuesto del slot = “dentro de tolerancia”. */
+export const CALORIE_TOLERANCE = 0.08;
+/** Umbral SP-9: platos de prueba dentro de ±10% del slot. */
+export const TRUST_BUDGET_TOLERANCE = 0.1;
+const MIN_MATCH_SCORE = 0.55;
+const MAX_NORMALIZE_PASSES = 3;
+
+export interface NormalizeBudgetResult {
+  dish: HydratedAiDish;
+  scaled: boolean;
+  beforeKcal: number;
+  afterKcal: number;
+  budgetKcal: number;
+  unmatchedCount: number;
+  emptyOrZero: boolean;
+  withinTolerance: boolean;
+}
 
 /**
  * Compute macros for a dish using ingredient DB.
@@ -76,62 +116,97 @@ function resolveAlias(name: string): string {
   return INGREDIENT_ALIASES[lower] ?? name;
 }
 
+function normalizeToken(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function scoreNameMatch(query: string, candidate: string): number {
+  const q = normalizeToken(query);
+  const c = normalizeToken(candidate);
+  if (!q || !c) return 0;
+  if (q === c) return 1;
+  if (c.startsWith(q) || q.startsWith(c)) return 0.9;
+  if (c.includes(q) || q.includes(c)) {
+    const shorter = Math.min(q.length, c.length);
+    const longer = Math.max(q.length, c.length);
+    // Evitar matches frágiles tipo "sal" ⊂ "salmón"
+    if (shorter < 4 && longer > shorter + 2) return 0.2;
+    return shorter / longer;
+  }
+  const qWords = q.split(/\s+/).filter(Boolean);
+  const cWords = c.split(/\s+/).filter(Boolean);
+  if (qWords.length === 0) return 0;
+  let hits = 0;
+  for (const w of qWords) {
+    if (w.length < 3) continue;
+    if (cWords.some((cw) => cw === w || cw.startsWith(w) || w.startsWith(cw))) hits += 1;
+  }
+  return hits / qWords.length;
+}
+
 /**
  * Fuzzy match an ingredient name from Gemini against INGREDIENTS_DB.
+ * Exportado para smoke / tests (SP-9).
  */
-function fuzzyMatchIngredient(name: string): Ingredient | undefined {
+export function fuzzyMatchIngredient(name: string): Ingredient | undefined {
   const resolved = resolveAlias(name);
   const normalized = resolved.toLowerCase().trim();
+  if (!normalized) return undefined;
 
   const exact = INGREDIENTS_DB.find(
-    (ing) => ing.name.toLowerCase() === normalized,
+    (ing) => ing.name.toLowerCase() === normalized
+      || normalizeToken(ing.name) === normalizeToken(normalized),
   );
   if (exact) return exact;
 
-  const includes = INGREDIENTS_DB.find(
-    (ing) =>
-      ing.name.toLowerCase().includes(normalized) ||
-      normalized.includes(ing.name.toLowerCase()),
-  );
-  if (includes) return includes;
-
-  const firstWord = normalized.split(' ')[0];
-  if (firstWord && firstWord.length >= 3) {
-    const startsWith = INGREDIENTS_DB.find((ing) =>
-      ing.name.toLowerCase().startsWith(firstWord),
-    );
-    if (startsWith) return startsWith;
+  let best: Ingredient | undefined;
+  let bestScore = 0;
+  for (const ing of INGREDIENTS_DB) {
+    const score = scoreNameMatch(normalized, ing.name);
+    if (score > bestScore) {
+      bestScore = score;
+      best = ing;
+    }
   }
 
+  if (best && bestScore >= MIN_MATCH_SCORE) return best;
   return undefined;
 }
 
 /** kcal estimadas cuando el ingrediente no está en la DB (para no subcontar). */
-function estimateUnmatchedKcal(name: string, grams: number): number {
+export function estimateUnmatchedKcal(name: string, grams: number): number {
   if (grams <= 0) return 0;
-  const n = name.toLowerCase();
-  if (n.includes('sal') || n.includes('agua')) return 0;
+  const n = normalizeToken(name);
+  if (n.includes('sal') || n === 'agua' || n.includes('agua ')) return 0;
   if (n.includes('aceite')) return (884 * grams) / 100;
   if (n.includes('manteca') || n.includes('mantequilla')) return (717 * grams) / 100;
   if (
     n.includes('hierba')
     || n.includes('especi')
-    || n.includes('orégano')
     || n.includes('oregano')
     || n.includes('perejil')
+    || n.includes('albahaca')
+    || n.includes('cilantro')
   ) {
     return (40 * grams) / 100;
   }
-  if (n.includes('limón') || n.includes('limon')) return (29 * grams) / 100;
+  if (n.includes('limon') || n.includes('lima')) return (29 * grams) / 100;
   if (
     n.includes('zucchini')
     || n.includes('zapallito')
     || n.includes('morron')
-    || n.includes('morrón')
     || n.includes('cebolla')
     || n.includes('tomate')
     || n.includes('lechuga')
     || n.includes('verdura')
+    || n.includes('espinaca')
+    || n.includes('zanahoria')
+    || n.includes('brocoli')
+    || n.includes('pepino')
   ) {
     return (25 * grams) / 100;
   }
@@ -141,6 +216,9 @@ function estimateUnmatchedKcal(name: string, grams: number): number {
     || n.includes('pescado')
     || n.includes('huevo')
     || n.includes('merluza')
+    || n.includes('atun')
+    || n.includes('salmon')
+    || n.includes('cerdo')
   ) {
     return (150 * grams) / 100;
   }
@@ -150,10 +228,16 @@ function estimateUnmatchedKcal(name: string, grams: number): number {
     || n.includes('papa')
     || n.includes('fideo')
     || n.includes('choclo')
+    || n.includes('avena')
+    || n.includes('pan')
   ) {
     return (120 * grams) / 100;
   }
-  return (100 * grams) / 100;
+  if (n.includes('queso') || n.includes('yogur') || n.includes('yogurt')) {
+    return (200 * grams) / 100;
+  }
+  // Default conservador (antes 100): evita inventar platos densos
+  return (80 * grams) / 100;
 }
 
 function kcalForEntry(
@@ -230,7 +314,19 @@ function totalDishKcal(items: HydratedAiIngredient[]): number {
 }
 
 function scaleIngredientGrams(grams: number, factor: number): number {
-  return Math.max(GRAM_STEP, Math.floor((grams * factor) / GRAM_STEP) * GRAM_STEP);
+  if (!Number.isFinite(grams) || grams <= 0) return GRAM_STEP;
+  const scaled = Math.floor((grams * factor) / GRAM_STEP) * GRAM_STEP;
+  return Math.max(GRAM_STEP, scaled);
+}
+
+function countUnmatched(items: HydratedAiIngredient[]): number {
+  return items.filter((h) => !h.ingredientId).length;
+}
+
+function isWithinTolerance(kcal: number, budgetKcal: number, tol = CALORIE_TOLERANCE): boolean {
+  if (budgetKcal <= 0) return true;
+  const ratio = kcal / budgetKcal;
+  return ratio >= 1 - tol && ratio <= 1 + tol;
 }
 
 /**
@@ -242,14 +338,36 @@ export function hydrateAiDish(
   options?: { useGrams?: boolean },
 ): HydratedAiDish {
   const useGrams = options?.useGrams ?? false;
-  const entries = dish.ingredientes.map((ai) => {
-    const matched = fuzzyMatchIngredient(ai.nombre);
-    return {
-      ingredientId: matched?.id ?? null,
-      name: matched?.name ?? ai.nombre,
-      grams: ai.gramos,
-    };
+  const rawList = Array.isArray(dish.ingredientes) ? dish.ingredientes : [];
+  const entries = rawList
+    .filter((ai) => ai && typeof ai.nombre === 'string' && Number(ai.gramos) > 0)
+    .map((ai) => {
+      const matched = fuzzyMatchIngredient(ai.nombre);
+      return {
+        ingredientId: matched?.id ?? null,
+        name: matched?.name ?? ai.nombre.trim(),
+        grams: Math.max(GRAM_STEP, Math.round(Number(ai.gramos) || 0)),
+      };
+    });
+
+  const unmatchedNames = entries.filter((e) => !e.ingredientId).map((e) => e.name);
+  chatClientLog('hydrate_dish', {
+    name: dish.nombre,
+    count: entries.length,
+    unmatchedCount: unmatchedNames.length,
+    unmatched: unmatchedNames.slice(0, 8),
   });
+
+  if (entries.length === 0) {
+    return {
+      name: dish.nombre?.trim() || 'Plato',
+      humanIngredients: [],
+      macros: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      prepMinutes: dish.tiempo_prep ?? 0,
+      preparation: dish.preparacion ?? '',
+      tip: 'No pude interpretar los ingredientes. Probá regenerar el plato.',
+    };
+  }
 
   const humanIngredients = buildHumanIngredients(entries, useGrams);
   const macros = macrosFromIngredients(entries);
@@ -265,6 +383,111 @@ export function hydrateAiDish(
 }
 
 /**
+ * Normaliza al presupuesto del slot y expone si hubo escala (SP-9 trust layer).
+ */
+export function normalizeHydratedAiDishToBudgetDetailed(
+  dish: HydratedAiDish,
+  budgetKcal: number,
+  options?: { useGrams?: boolean },
+): NormalizeBudgetResult {
+  const useGrams = options?.useGrams ?? false;
+  const unmatchedCount = countUnmatched(dish.humanIngredients);
+  const beforeKcal = Math.round(totalDishKcal(dish.humanIngredients));
+
+  if (budgetKcal <= 0 || dish.humanIngredients.length === 0 || beforeKcal <= 0) {
+    chatClientLog('normalize_budget', {
+      name: dish.name,
+      budgetKcal,
+      beforeKcal,
+      emptyOrZero: true,
+      scaled: false,
+    });
+    return {
+      dish,
+      scaled: false,
+      beforeKcal,
+      afterKcal: beforeKcal,
+      budgetKcal,
+      unmatchedCount,
+      emptyOrZero: true,
+      withinTolerance: false,
+    };
+  }
+
+  if (isWithinTolerance(beforeKcal, budgetKcal)) {
+    return {
+      dish,
+      scaled: false,
+      beforeKcal,
+      afterKcal: beforeKcal,
+      budgetKcal,
+      unmatchedCount,
+      emptyOrZero: false,
+      withinTolerance: true,
+    };
+  }
+
+  let working = dish.humanIngredients;
+  let scaled = false;
+  for (let pass = 0; pass < MAX_NORMALIZE_PASSES; pass++) {
+    const current = totalDishKcal(working);
+    if (current <= 0) break;
+    if (isWithinTolerance(current, budgetKcal)) break;
+
+    const factor = budgetKcal / current;
+    working = working.map((h) => ({
+      ...h,
+      grams: scaleIngredientGrams(h.grams, factor),
+    }));
+    scaled = true;
+  }
+
+  // Si sigue muy por encima, recorte adicional agresivo (±10% trust band)
+  let afterKcal = totalDishKcal(working);
+  if (afterKcal > budgetKcal * (1 + TRUST_BUDGET_TOLERANCE)) {
+    const factor = (budgetKcal * 0.98) / afterKcal;
+    working = working.map((h) => ({
+      ...h,
+      grams: scaleIngredientGrams(h.grams, factor),
+    }));
+    scaled = true;
+    afterKcal = totalDishKcal(working);
+  }
+
+  const entries = working.map((h) => ({
+    ingredientId: h.ingredientId,
+    name: h.name,
+    grams: h.grams,
+  }));
+  const humanIngredients = buildHumanIngredients(entries, useGrams);
+  const macros = macrosFromIngredients(entries);
+  const resultDish = { ...dish, humanIngredients, macros };
+  afterKcal = Math.round(macros.calories);
+  const withinTolerance = isWithinTolerance(afterKcal, budgetKcal, TRUST_BUDGET_TOLERANCE);
+
+  chatClientLog(scaled ? 'budget_miss' : 'normalize_budget', {
+    name: dish.name,
+    beforeKcal,
+    afterKcal,
+    budgetKcal,
+    scaled,
+    withinTolerance,
+    unmatchedCount,
+  });
+
+  return {
+    dish: resultDish,
+    scaled,
+    beforeKcal,
+    afterKcal,
+    budgetKcal,
+    unmatchedCount,
+    emptyOrZero: false,
+    withinTolerance,
+  };
+}
+
+/**
  * Ajusta gramos hacia arriba o abajo para acercar el plato al presupuesto del slot (±8%).
  */
 export function normalizeHydratedAiDishToBudget(
@@ -272,29 +495,11 @@ export function normalizeHydratedAiDishToBudget(
   budgetKcal: number,
   options?: { useGrams?: boolean },
 ): HydratedAiDish {
-  const useGrams = options?.useGrams ?? false;
-  if (budgetKcal <= 0) return dish;
-
-  const currentKcal = totalDishKcal(dish.humanIngredients);
-  if (currentKcal <= 0) return dish;
-
-  const ratio = currentKcal / budgetKcal;
-  if (ratio >= 1 - CALORIE_TOLERANCE && ratio <= 1 + CALORIE_TOLERANCE) {
-    return dish;
-  }
-
-  const factor = budgetKcal / currentKcal;
-  const scaledEntries = dish.humanIngredients.map((h) => ({
-    ingredientId: h.ingredientId,
-    name: h.name,
-    grams: scaleIngredientGrams(h.grams, factor),
-  }));
-
-  const humanIngredients = buildHumanIngredients(scaledEntries, useGrams);
-  const macros = macrosFromIngredients(scaledEntries);
-
-  return { ...dish, humanIngredients, macros };
+  return normalizeHydratedAiDishToBudgetDetailed(dish, budgetKcal, options).dish;
 }
+
+/** Copy cuando el motor escala porciones (SP-9). */
+export const PORTION_ADJUST_COPY = 'Ajusté las cantidades para tu objetivo de hoy.';
 
 /** @deprecated Use normalizeHydratedAiDishToBudget */
 export function trimHydratedAiDishToBudget(

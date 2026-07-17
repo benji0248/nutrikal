@@ -7,7 +7,13 @@
 const TAG = '[NutriKal·chat]';
 
 function chatLogEnabled(): boolean {
-  if (import.meta.env.VITE_CHAT_FLOW_LOG === '1') return true;
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CHAT_FLOW_LOG === '1') {
+      return true;
+    }
+  } catch {
+    /* non-vite (smoke/tsx) */
+  }
   try {
     if (typeof localStorage !== 'undefined') {
       const v = localStorage.getItem('nutrikal-debug-chat');
@@ -16,7 +22,7 @@ function chatLogEnabled(): boolean {
   } catch {
     /* ignore */
   }
-  return true;
+  return typeof localStorage !== 'undefined';
 }
 
 export function chatClientLog(phase: string, data?: Record<string, unknown>): void {

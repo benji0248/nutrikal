@@ -8,6 +8,7 @@
     "dev:api": "tsx scripts/dev-api-server.ts",
     "dev:all": "concurrently -n api,vite -c blue,green \"npm run dev:api\" \"npm run dev\"",
     "smoke:db": "node scripts/smoke-db.mjs",
+    "smoke:portion": "tsx scripts/smoke-portion-trust.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
