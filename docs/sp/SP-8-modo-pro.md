@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | [ ] pendiente · [ ] en progreso · [ ] hecho |
+| **Estado** | [ ] pendiente · [ ] en progreso · [x] hecho |
 | **Dependencias** | SP-1 |
 | **Próximo** | — (puede hacerse en paralelo tras SP-1) |
 
@@ -67,11 +67,11 @@ src/services/apiService.ts
 
 ## Criterios de aceptación
 
-- [ ] Toggles en settings funcionan y persisten tras reload
-- [ ] Con toggles OFF: cero números (SP-1 intacto)
-- [ ] Con toggles ON: kcal/macros/gramos visibles donde corresponde
-- [ ] Calculadora accesible pero no prominente en flujo chat
-- [ ] `npm run build` pasa
+- [x] Toggles en settings funcionan y persisten tras reload
+- [x] Con toggles OFF: cero números (SP-1 intacto)
+- [x] Con toggles ON: kcal/macros/gramos visibles donde corresponde
+- [x] Calculadora accesible pero no prominente en flujo chat
+- [x] `npm run build` pasa
 
 ---
 
@@ -96,10 +96,10 @@ src/services/apiService.ts
 
 | Campo | Valor |
 |-------|-------|
-| **Commit** | — |
-| **Qué quedó hecho** | — |
-| **Desviaciones** | — |
-| **Deuda técnica** | — |
+| **Commit** | feat(settings): SP-8 pro mode opt-in calories and grams |
+| **Qué quedó hecho** | Modo Pro en Ajustes; DishCard macros+gramos live; hydrate settings desde API; calculadora desde settings |
+| **Desviaciones** | Ninguna |
+| **Deuda técnica** | Planner cells muestran kcal pero no P/C/F agregados |
 
 ---
 

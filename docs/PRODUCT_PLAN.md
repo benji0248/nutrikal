@@ -58,7 +58,7 @@ El usuario delega qué comer. El motor local controla déficit/superávit y macr
 | SP-5 | Plan semanal | [sp/SP-5-plan-semanal.md](sp/SP-5-plan-semanal.md) | [x] hecho |
 | SP-6 | Desvíos + rescue | [sp/SP-6-desvios-rescue.md](sp/SP-6-desvios-rescue.md) | [x] hecho |
 | SP-7 | Personalización visible | [sp/SP-7-personalizacion-visible.md](sp/SP-7-personalizacion-visible.md) | [x] hecho |
-| SP-8 | Modo Pro | [sp/SP-8-modo-pro.md](sp/SP-8-modo-pro.md) | [ ] |
+| SP-8 | Modo Pro | [sp/SP-8-modo-pro.md](sp/SP-8-modo-pro.md) | [x] hecho |
 | SP-9 | Confiabilidad motor | [sp/SP-9-confiabilidad-motor.md](sp/SP-9-confiabilidad-motor.md) | [ ] |
 
 **Orden:** SP-0 → SP-1 → SP-2 → SP-3 → SP-4 → SP-5 → SP-6 → SP-7. SP-8 tras SP-1. SP-9 tras SP-3/SP-5.
@@ -71,13 +71,13 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 
 | Campo | Valor |
 |-------|-------|
-| **Último SP completado** | SP-7 |
-| **Commit** | feat(personalization): SP-7 visible memory in copy |
-| **Qué quedó hecho** | Copy de memoria en plato/semana/regenerate; dislikes visibles; prompts con avoid/dislike |
+| **Último SP completado** | SP-8 |
+| **Commit** | feat(settings): SP-8 pro mode opt-in calories and grams |
+| **Qué quedó hecho** | Sección Modo Pro en ajustes (Ver calorías / Usar gramos / Calculadora); macros en DishCard; gramos en vivo; hydrate API como fuente de verdad |
 | **Desviaciones del plan** | Ninguna |
-| **Deuda técnica** | Nota de “semana pasada te gustó” usa proxies (señales/ingredientes), no nombre de plato histórico dedicado |
+| **Deuda técnica** | Macros P/C/F en planner cells requieren lookup de ingredientes (solo kcal hoy) |
 | **Smoke / build** | `npm run build` OK |
-| **Siguiente SP recomendado** | SP-8 o SP-9 |
+| **Siguiente SP recomendado** | SP-9 |
 
 ---
 
@@ -102,3 +102,4 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | 2026-07-14 | SP-2 completado e integrado sobre `master` |
 | 2026-07-14 | SP-3 completado: flujo E2E cocinar ahora (inferencia horaria, apply directo, go_calendar) |
 | 2026-07-14 | SP-7 completado: memoria visible en copy (plato, semana, regenerate, dislikes) |
+| 2026-07-17 | SP-8 completado: Modo Pro opt-in (calorías, gramos, calculadora en ajustes) |

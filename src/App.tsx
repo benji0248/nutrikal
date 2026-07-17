@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone } from 'lucide-react';
+import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone, Calculator } from 'lucide-react';
 import { WeekPlanningSetup } from './components/profile/WeekPlanningSetup';
 import { MEAL_PATTERN_LABELS } from './types';
 import { normalizeWeekPlanningProfile } from './utils/flexDayHelpers';
@@ -29,6 +29,10 @@ import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
+import { CalorieCalculator } from './components/calculator/CalorieCalculator';
+import { BottomSheet } from './components/ui/BottomSheet';
+import { Modal } from './components/ui/Modal';
+import { todayKey } from './utils/dateHelpers';
 
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
@@ -318,6 +322,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
   const setShowCalories = useSettingsStore((s) => s.setShowCalories);
   const useGrams = useSettingsStore((s) => s.useGrams);
   const setUseGrams = useSettingsStore((s) => s.setUseGrams);
+  const [showCalculator, setShowCalculator] = useState(false);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -386,45 +391,71 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
       <WeekPlanningSettingsRow />
 
       <section className="space-y-4">
-        <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">Preferencias</h2>
+        <div className="px-2 space-y-1">
+          <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold">Modo Pro</h2>
+          <p className="text-xs font-body text-[#707a6c]">
+            Opt-in: números y gramos. Por defecto seguís en Modo Simple.
+          </p>
+        </div>
         <div className="bg-[#f3f5eb] rounded-lg p-2 space-y-2">
-          {/* Measurement Toggle */}
-          <div
-            onClick={() => setUseGrams(!useGrams)}
-            className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-[#a05d22]/10 flex items-center justify-center text-[#824509]">
-                <Scale size={24} />
-              </div>
-              <div>
-                <p className="font-semibold text-[#191c17]">Sistema de Medición</p>
-                <p className="text-sm text-[#40493d]">{useGrams ? 'Gramos exactos' : 'Medidas caseras'}</p>
-              </div>
-            </div>
-            <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', useGrams ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
-              <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', useGrams ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
-            </div>
-          </div>
-
-          {/* Calories Toggle */}
-          <div
+          <button
+            type="button"
             onClick={() => setShowCalories(!showCalories)}
-            className="flex items-center justify-between p-4 bg-[#ffffff] rounded-xl cursor-pointer"
+            className="flex w-full items-center justify-between p-4 bg-[#ffffff] rounded-xl text-left"
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-[#3d795d]/10 flex items-center justify-center text-[#226046]">
                 <LayoutGrid size={24} />
               </div>
               <div>
-                <p className="font-semibold text-[#191c17]">Mostrar Calorías</p>
-                <p className="text-sm text-[#40493d]">Visibles en el feed personal</p>
+                <p className="font-semibold text-[#191c17]">Ver calorías</p>
+                <p className="text-sm text-[#40493d]">
+                  {showCalories ? 'kcal y macros visibles' : 'Modo Simple — sin números'}
+                </p>
               </div>
             </div>
             <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', showCalories ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
               <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', showCalories ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
             </div>
-          </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUseGrams(!useGrams)}
+            className="flex w-full items-center justify-between p-4 bg-[#ffffff] rounded-xl text-left"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#a05d22]/10 flex items-center justify-center text-[#824509]">
+                <Scale size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Usar gramos</p>
+                <p className="text-sm text-[#40493d]">
+                  {useGrams ? 'Porciones en gramos' : 'Medidas caseras (rebanadas, tazas…)'}
+                </p>
+              </div>
+            </div>
+            <div className={clsx('w-12 h-6 rounded-full relative p-1 flex items-center transition-colors', useGrams ? 'bg-[#b1f0ce]' : 'bg-[#bfcaba]/30')}>
+              <div className={clsx('w-4 h-4 rounded-full shadow-sm transition-transform', useGrams ? 'bg-[#226046] translate-x-6' : 'bg-[#ffffff] translate-x-0')} />
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCalculator(true)}
+            className="flex w-full items-center justify-between p-4 bg-[#ffffff] rounded-xl text-left hover:bg-[#edefe6] transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#226046]/10 flex items-center justify-center text-[#226046]">
+                <Calculator size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#191c17]">Calculadora</p>
+                <p className="text-sm text-[#40493d]">Sumá ingredientes y macros a mano</p>
+              </div>
+            </div>
+            <span className="text-[#707a6c] font-bold text-xs uppercase tracking-widest">Abrir</span>
+          </button>
         </div>
       </section>
 
@@ -465,6 +496,33 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
         </div>
         <p className="text-[#40493d] font-medium text-sm">NutriKal v5.0</p>
         <p className="text-xs text-[#707a6c] italic">Hecho con conciencia nutricional</p>
+      </div>
+
+      <div className="md:hidden">
+        <BottomSheet
+          isOpen={showCalculator}
+          onClose={() => setShowCalculator(false)}
+          title="Calculadora"
+        >
+          <CalorieCalculator
+            targetDate={todayKey()}
+            targetMealType="almuerzo"
+            onSentToMeal={() => setShowCalculator(false)}
+          />
+        </BottomSheet>
+      </div>
+      <div className="hidden md:block">
+        <Modal
+          isOpen={showCalculator}
+          onClose={() => setShowCalculator(false)}
+          title="Calculadora"
+        >
+          <CalorieCalculator
+            targetDate={todayKey()}
+            targetMealType="almuerzo"
+            onSentToMeal={() => setShowCalculator(false)}
+          />
+        </Modal>
       </div>
     </div>
   );

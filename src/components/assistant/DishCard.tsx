@@ -1,11 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Clock, ChefHat, RefreshCw, PlusCircle } from 'lucide-react';
 import type { HydratedAiDish, MealType } from '../../types';
 import { todayKey } from '../../utils/dateHelpers';
-import { getMealWeightLabel, formatMealWeightLabel } from '../../utils/portionHelpers';
+import {
+  formatNamedIngredientPortion,
+  getMealWeightLabel,
+  formatMealWeightLabel,
+} from '../../utils/portionHelpers';
 import { MEAL_WEIGHT_BADGE } from './journalTokens';
 import { ScheduleMealPicker } from '../meals/ScheduleMealPicker';
 import { ScheduleMealSheet } from '../meals/ScheduleMealSheet';
+import { useSettingsStore } from '../../store/useSettingsStore';
+import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { INGREDIENTS_DB } from '../../data/ingredients';
 
 interface DishCardProps {
   dish: HydratedAiDish;
@@ -29,6 +36,13 @@ export const DishCard = ({
   chatBusy = false,
 }: DishCardProps) => {
   const [showPicker, setShowPicker] = useState(false);
+  const useGrams = useSettingsStore((s) => s.useGrams);
+  const customIngredients = useIngredientsStore((s) => s.customIngredients);
+  const allIngredients = useMemo(
+    () => [...INGREDIENTS_DB, ...customIngredients],
+    [customIngredients],
+  );
+
   const totalKcal = Math.round(dish.macros.calories);
   const weightKey = mealSlotBudgetKcal
     ? getMealWeightLabel(totalKcal, mealSlotBudgetKcal)
@@ -77,6 +91,14 @@ export const DishCard = ({
               </div>
             </div>
 
+            {showCalories && (
+              <div className="flex flex-wrap gap-2 font-mono text-[11px] text-[var(--text-muted)]">
+                <span>P {Math.round(dish.macros.protein)}g</span>
+                <span>C {Math.round(dish.macros.carbs)}g</span>
+                <span>G {Math.round(dish.macros.fat)}g</span>
+              </div>
+            )}
+
             {personalizationNote && (
               <p className="font-body text-xs italic leading-relaxed text-[var(--text-muted)]">
                 {personalizationNote}
@@ -95,7 +117,12 @@ export const DishCard = ({
                   >
                     <span>{ing.name}</span>
                     <span className="text-[var(--text-muted)] ml-3 shrink-0">
-                      {ing.humanPortion}
+                      {formatNamedIngredientPortion(
+                        ing.name,
+                        ing.grams,
+                        allIngredients,
+                        useGrams,
+                      )}
                     </span>
                   </li>
                 ))}

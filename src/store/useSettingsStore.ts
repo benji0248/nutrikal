@@ -4,11 +4,8 @@ import type { Theme } from '../types';
 
 const USE_GRAMS_KEY = 'nutrikal-use-grams';
 
-function readUseGramsFromStorage(): boolean | null {
-  const stored = localStorage.getItem(USE_GRAMS_KEY);
-  if (stored === 'true') return true;
-  if (stored === 'false') return false;
-  return null;
+function writeUseGramsToStorage(value: boolean): void {
+  localStorage.setItem(USE_GRAMS_KEY, String(value));
 }
 
 interface SettingsState {
@@ -22,7 +19,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
   showCalories: false,
-  useGrams: readUseGramsFromStorage() ?? false,
+  useGrams: false,
   theme: 'dark',
 
   setShowCalories: (value: boolean) => {
@@ -31,7 +28,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   },
 
   setUseGrams: (value: boolean) => {
-    localStorage.setItem(USE_GRAMS_KEY, String(value));
+    writeUseGramsToStorage(value);
     set({ useGrams: value });
     api.saveSettings({ useGrams: value }).catch((err) => {
       console.error('useGrams save failed (¿corriste sql/002_add_use_grams.sql?):', err);
@@ -39,12 +36,9 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   },
 
   hydrateSettings: (settings) => {
-    const storedUseGrams = readUseGramsFromStorage();
-    const useGrams = storedUseGrams ?? settings.useGrams ?? false;
-
-    if (storedUseGrams === null && settings.useGrams !== undefined) {
-      localStorage.setItem(USE_GRAMS_KEY, String(settings.useGrams));
-    }
+    // API / batch-load es la fuente de verdad; localStorage solo cachea.
+    const useGrams = settings.useGrams ?? false;
+    writeUseGramsToStorage(useGrams);
 
     set({
       showCalories: settings.showCalories ?? false,
