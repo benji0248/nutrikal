@@ -13,6 +13,9 @@ import type {
   ShoppingItem,
   IngredientSignalEntry,
   Theme,
+  BodyCheckIn,
+  PeriodExperience,
+  ProgressCheckInSource,
 } from '../types';
 
 const JWT_KEY = 'nutrikal-jwt';
@@ -182,6 +185,7 @@ export interface BatchLoadResponse {
   planMemory: PlanMemory | null;
   favorites: string[];
   ingredientSignals: IngredientSignalEntry[];
+  progressCheckIns: BodyCheckIn[];
 }
 
 export async function batchLoadAllData(): Promise<BatchLoadResponse> {
@@ -231,6 +235,21 @@ export async function saveProfile(profile: UserProfile): Promise<void> {
 export async function loadProfile(): Promise<UserProfile | null> {
   const data = await get<{ profile: UserProfile | null }>('/api/profile');
   return data.profile;
+}
+
+// ── Progress check-ins ──
+
+export async function loadProgressCheckIns(): Promise<BodyCheckIn[]> {
+  const data = await get<{ checkIns: BodyCheckIn[] }>('/api/progress/check-ins');
+  return data.checkIns;
+}
+
+export async function createProgressCheckIn(input: {
+  weightKg: number;
+  periodExperience?: PeriodExperience;
+  source: ProgressCheckInSource;
+}): Promise<{ checkIn: BodyCheckIn; profile: UserProfile }> {
+  return post('/api/progress/check-ins', input);
 }
 
 export async function saveWeekPlanning(weekPlanning: WeekPlanningProfile): Promise<void> {

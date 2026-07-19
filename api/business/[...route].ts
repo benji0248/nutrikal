@@ -20,6 +20,37 @@ type RouteHandler = (
   segments: string[],
 ) => Promise<VercelResponse | void>;
 
+function mapProgressCheckIn(row: Record<string, unknown>) {
+  return {
+    id: row.id as string,
+    weightKg: Number(row.weight_kg),
+    periodExperience: (row.period_experience as string | null) ?? undefined,
+    source: row.source as string,
+    recordedAt: row.recorded_at as string,
+  };
+}
+
+function mapProfileRow(row: Record<string, unknown>) {
+  return {
+    id: row.profile_id as string,
+    name: row.name as string,
+    birthDate: row.birth_date as string,
+    sex: row.sex as string,
+    heightCm: Number(row.height_cm),
+    weightKg: Number(row.weight_kg),
+    activityLevel: row.activity_level as string,
+    goal: row.goal as string,
+    restrictions: (row.restrictions as string[]) ?? [],
+    dislikedIngredientIds: (row.disliked_ingredient_ids as string[]) ?? [],
+    dislikedCategories: (row.disliked_categories as string[]) ?? [],
+    allowedExceptions: (row.allowed_exceptions as string[]) ?? [],
+    nationality: (row.nationality as string | null) ?? undefined,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+    lastRecalibration: row.last_recalibration as string,
+  };
+}
+
 function getSegments(req: VercelRequest): string[] {
   const stripInfraPrefixes = (rawSegments: string[]): string[] => {
     let segs = [...rawSegments];
@@ -147,6 +178,7 @@ const handlers: Record<string, RouteHandler> = {
       settingsRes,
       favoritesRes,
       signalsRes,
+      progressRes,
     ] = await Promise.all([
       supabase.from('meals').select('*').eq('user_id', uid).gte('date', dateFrom).order('date', { ascending: true }),
       supabase.from('day_notes').select('*').eq('user_id', uid).gte('date', dateFrom),
@@ -159,6 +191,7 @@ const handlers: Record<string, RouteHandler> = {
       supabase.from('user_settings').select('*').eq('user_id', uid).single(),
       supabase.from('favorites').select('dish_name').eq('user_id', uid),
       supabase.from('ingredient_signals').select('*').eq('user_id', uid).order('fecha', { ascending: false }).limit(Number(req.query.signalLimit) || 800),
+      supabase.from('body_check_ins').select('*').eq('user_id', uid).order('recorded_at', { ascending: true }),
     ]);
 
     const parseWeekPlanning = (raw: unknown) => {
@@ -313,6 +346,9 @@ const handlers: Record<string, RouteHandler> = {
       ingredientes_agregados: s.ingredientes_agregados ?? [],
       accion: s.accion,
     }));
+    const progressCheckIns = (progressRes.data ?? []).map((row) =>
+      mapProgressCheckIn(row as Record<string, unknown>),
+    );
 
     return res.status(200).json({
       meals,
@@ -328,6 +364,7 @@ const handlers: Record<string, RouteHandler> = {
       ingredientSignals,
       weekPlanning,
       planMemory,
+      progressCheckIns,
     });
   },
 
@@ -520,7 +557,11 @@ const handlers: Record<string, RouteHandler> = {
       };
       let { error: settingsErr } = await supabase.from('user_settings').upsert(settingsPayload);
       if (settingsErr?.message?.includes('use_grams')) {
-        const { use_grams: _d, ...fallback } = settingsPayload;
+        const fallback = {
+          user_id: settingsPayload.user_id,
+          theme: settingsPayload.theme,
+          show_calories: settingsPayload.show_calories,
+        };
         settingsErr = (await supabase.from('user_settings').upsert(fallback)).error;
       }
       if (settingsErr) console.error('migrate: user_settings upsert error', settingsErr);
@@ -772,6 +813,101 @@ const handlers: Record<string, RouteHandler> = {
     return res.status(200).json({ ok: true, enabled: !row.enabled });
   },
 
+  'GET progress/check-ins': async (_req, res, auth) => {
+    const { data, error } = await getSupabase()
+      .from('body_check_ins')
+      .select('*')
+      .eq('user_id', auth.userId)
+      .order('recorded_at', { ascending: true });
+    if (error) {
+      return res.status(500).json({
+        error: 'Error al leer check-ins',
+        ...(exposeDbErrors() ? { dbMessage: error.message } : {}),
+      });
+    }
+    return res.status(200).json({
+      checkIns: (data ?? []).map((row) =>
+        mapProgressCheckIn(row as Record<string, unknown>),
+      ),
+    });
+  },
+
+  'POST progress/check-ins': async (req, res, auth) => {
+    const weightKg = Number(req.body?.weightKg);
+    const periodExperience = req.body?.periodExperience;
+    const source = req.body?.source ?? 'manual';
+    const validExperiences = ['easy', 'normal', 'hard'];
+    const validSources = ['onboarding', 'scheduled', 'manual', 'confirmation', 'profile'];
+
+    if (!Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 500) {
+      return res.status(400).json({ error: 'Peso inválido' });
+    }
+    if (periodExperience != null && !validExperiences.includes(periodExperience)) {
+      return res.status(400).json({ error: 'Experiencia del período inválida' });
+    }
+    if (!validSources.includes(source)) {
+      return res.status(400).json({ error: 'Origen de check-in inválido' });
+    }
+
+    const supabase = getSupabase();
+    const { data: profileRow, error: profileReadError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (profileReadError) {
+      return res.status(500).json({ error: 'Error al leer perfil' });
+    }
+    if (!profileRow) {
+      return res.status(400).json({ error: 'Creá tu perfil nutricional primero' });
+    }
+
+    const recordedAt = new Date().toISOString();
+    const row = {
+      id: randomUUID(),
+      user_id: auth.userId,
+      weight_kg: weightKg,
+      period_experience: periodExperience ?? null,
+      source,
+      recorded_at: recordedAt,
+    };
+    const { data: inserted, error: insertError } = await supabase
+      .from('body_check_ins')
+      .insert(row)
+      .select('*')
+      .single();
+    if (insertError || !inserted) {
+      return res.status(500).json({
+        error: 'Error al guardar check-in',
+        ...(exposeDbErrors() ? { dbMessage: insertError?.message ?? null } : {}),
+      });
+    }
+
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from('user_profiles')
+      .update({
+        weight_kg: weightKg,
+        last_recalibration: recordedAt,
+        updated_at: recordedAt,
+      })
+      .eq('user_id', auth.userId)
+      .select('*')
+      .single();
+    if (updateError || !updatedProfile) {
+      await supabase
+        .from('body_check_ins')
+        .delete()
+        .eq('id', inserted.id)
+        .eq('user_id', auth.userId);
+      return res.status(500).json({ error: 'Error al actualizar el perfil' });
+    }
+
+    return res.status(200).json({
+      checkIn: mapProgressCheckIn(inserted as Record<string, unknown>),
+      profile: mapProfileRow(updatedProfile as Record<string, unknown>),
+    });
+  },
+
   'GET profile': async (_req, res, auth) => {
     const { data, error } = await getSupabase().from('user_profiles').select('*').eq('user_id', auth.userId).maybeSingle();
     if (error) {
@@ -920,6 +1056,42 @@ const handlers: Record<string, RouteHandler> = {
           : {}),
       });
     }
+
+    const supabase = getSupabase();
+    const { data: latestCheckIn, error: checkInReadError } = await supabase
+      .from('body_check_ins')
+      .select('weight_kg')
+      .eq('user_id', auth.userId)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (checkInReadError) {
+      return res.status(500).json({
+        error: 'Perfil guardado, pero no se pudo leer su historial de progreso',
+        ...(exposeDbErrors() ? { dbMessage: checkInReadError.message } : {}),
+      });
+    }
+
+    const needsCheckIn =
+      !latestCheckIn ||
+      Math.abs(Number(latestCheckIn.weight_kg) - weightKg) > 0.001;
+    if (needsCheckIn) {
+      const { error: checkInError } = await supabase.from('body_check_ins').insert({
+        id: randomUUID(),
+        user_id: auth.userId,
+        weight_kg: weightKg,
+        period_experience: null,
+        source: latestCheckIn ? 'profile' : 'onboarding',
+        recorded_at: latestCheckIn ? now : (profile.createdAt ?? now),
+      });
+      if (checkInError) {
+        return res.status(500).json({
+          error: 'Perfil guardado, pero no se pudo actualizar su historial de progreso',
+          ...(exposeDbErrors() ? { dbMessage: checkInError.message } : {}),
+        });
+      }
+    }
+
     console.log('PUT profile ok:', JSON.stringify({
       reqId,
       userId: auth.userId,
@@ -982,7 +1154,11 @@ const handlers: Record<string, RouteHandler> = {
 
     // Column may not exist yet — save other settings without failing the toggle
     if (error && typeof error.message === 'string' && error.message.includes('use_grams')) {
-      const { use_grams: _drop, ...withoutUseGrams } = merged;
+      const withoutUseGrams = {
+        user_id: merged.user_id,
+        theme: merged.theme,
+        show_calories: merged.show_calories,
+      };
       const retry = await supabase.from('user_settings').upsert(withoutUseGrams);
       error = retry.error;
     }

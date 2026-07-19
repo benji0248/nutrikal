@@ -354,6 +354,44 @@ export interface UserProfile {
   lastRecalibration: string;
 }
 
+export type PeriodExperience = 'easy' | 'normal' | 'hard';
+
+export type ProgressCheckInSource =
+  | 'onboarding'
+  | 'scheduled'
+  | 'manual'
+  | 'confirmation'
+  | 'profile';
+
+export interface BodyCheckIn {
+  id: string;
+  weightKg: number;
+  periodExperience?: PeriodExperience;
+  source: ProgressCheckInSource;
+  recordedAt: string;
+}
+
+export type ProgressState =
+  | 'on_track'
+  | 'stable'
+  | 'off_track'
+  | 'goal_reached'
+  | 'insufficient_data';
+
+export type ProgressFreshness = 'fresh' | 'aging' | 'stale';
+
+export type ProgressConfidence = 'low' | 'medium' | 'high';
+
+export interface ProgressReading {
+  state: ProgressState;
+  freshness: ProgressFreshness;
+  confidence: ProgressConfidence;
+  text: string;
+  currentWeightKg?: number;
+  deltaFromStartKg?: number;
+  insightId: string;
+}
+
 export interface MetabolicResult {
   bmr: number;
   tdee: number;

@@ -60,8 +60,9 @@ El usuario delega qué comer. El motor local controla déficit/superávit y macr
 | SP-7 | Personalización visible | [sp/SP-7-personalizacion-visible.md](sp/SP-7-personalizacion-visible.md) | [x] hecho |
 | SP-8 | Modo Pro | [sp/SP-8-modo-pro.md](sp/SP-8-modo-pro.md) | [x] hecho |
 | SP-9 | Confiabilidad motor | [sp/SP-9-confiabilidad-motor.md](sp/SP-9-confiabilidad-motor.md) | [x] hecho |
+| SP-10 | Memoria de progreso | [sp/SP-10-memoria-progreso.md](sp/SP-10-memoria-progreso.md) | [x] hecho |
 
-**Orden:** SP-0 → SP-1 → SP-2 → SP-3 → SP-4 → SP-5 → SP-6 → SP-7. SP-8 tras SP-1. SP-9 tras SP-3/SP-5.
+**Orden:** SP-0 → SP-1 → SP-2 → SP-3 → SP-4 → SP-5 → SP-6 → SP-7. SP-8 tras SP-1. SP-9 tras SP-3/SP-5. SP-10 tras SP-4/SP-2.
 
 ---
 
@@ -71,13 +72,13 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 
 | Campo | Valor |
 |-------|-------|
-| **Último SP completado** | SP-9 |
-| **Commit** | fix(engine): SP-9 portion trust layer and smoke tests |
-| **Qué quedó hecho** | Fuzzy match scoreado, normalizeDetailed con scaled/emptyOrZero, copy de ajuste, smoke `npm run smoke:portion` 6/6 (100%) |
-| **Desviaciones del plan** | Ninguna |
-| **Deuda técnica** | Segunda pasada de trim estilo portionEngine aún no compartida con dishResolver |
-| **Smoke / build** | `npm run build` OK; `npm run smoke:portion` 6/6 |
-| **Siguiente SP recomendado** | — (mapa SP cerrado) |
+| **Último SP completado** | SP-10 |
+| **Commit** | — |
+| **Qué quedó hecho** | Historial/API/store, motor local State⊥Freshness+Confidence, PeriodExperience, captura≠lectura, detalles opt-in y chat espontáneo con dedupe |
+| **Desviaciones del plan** | `goal_reached` reservado hasta contar con un peso objetivo explícito |
+| **Deuda técnica** | Aplicar `sql/006_progress_check_ins.sql` en cada entorno |
+| **Smoke / build** | `npm run build` OK; `npm run lint` sin errores; smoke engine OK |
+| **Siguiente SP recomendado** | — |
 
 ---
 
@@ -104,3 +105,4 @@ _Completar al cerrar cada sub-plan (también en el handoff del SP correspondient
 | 2026-07-14 | SP-7 completado: memoria visible en copy (plato, semana, regenerate, dislikes) |
 | 2026-07-17 | SP-8 completado: Modo Pro opt-in (calorías, gramos, calculadora en ajustes) |
 | 2026-07-17 | SP-9 completado: trust layer hydrate/normalize + smoke-portion 6/6 |
+| 2026-07-18 | SP-10 completado: check-ins, motor local, lectura cualitativa y chat |

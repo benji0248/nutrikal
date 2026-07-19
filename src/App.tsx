@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone, Calculator } from 'lucide-react';
 import { WeekPlanningSetup } from './components/profile/WeekPlanningSetup';
-import { MEAL_PATTERN_LABELS } from './types';
+import { GOAL_LABELS, MEAL_PATTERN_LABELS } from './types';
 import { normalizeWeekPlanningProfile } from './utils/flexDayHelpers';
 import { WEEKDAY_FLEX_MODE_LABELS } from './utils/flexDayHelpers';
 import { clsx } from 'clsx';
@@ -18,7 +18,13 @@ import { useHistorialStore } from './store/useHistorialStore';
 import { useIngredientSignalStore } from './store/useIngredientSignalStore';
 import { useWeekPlanningStore } from './store/useWeekPlanningStore';
 import { usePlanRotationStore } from './store/usePlanRotationStore';
-import { batchLoadAllData, loadProfile, migrateUser } from './services/apiService';
+import { useProgressStore } from './store/useProgressStore';
+import {
+  batchLoadAllData,
+  loadProfile,
+  loadProgressCheckIns,
+  migrateUser,
+} from './services/apiService';
 import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { WeekView } from './components/calendar/WeekView';
@@ -29,6 +35,7 @@ import { ChatAssistant } from './components/assistant/ChatAssistant';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
+import { ProgressOverview } from './components/profile/ProgressOverview';
 import { CalorieCalculator } from './components/calculator/CalorieCalculator';
 import { BottomSheet } from './components/ui/BottomSheet';
 import { Modal } from './components/ui/Modal';
@@ -65,7 +72,8 @@ function App() {
 
 function AuthenticatedApp() {
   const profile = useProfileStore((s) => s.profile);
-  const needsRecalibration = useProfileStore((s) => s.needsRecalibration);
+  const progressCheckIns = useProgressStore((s) => s.checkIns);
+  const getProgressPromptLevel = useProgressStore((s) => s.getPromptLevel);
 
   const [ready, setReady] = useState(false);
   const { activeTab, setActiveTab } = usePersistedAppTab();
@@ -75,7 +83,14 @@ function AuthenticatedApp() {
   const goToToday = useCalendarStore((s) => s.goToToday);
 
   const [showRecalibrate, setShowRecalibrate] = useState(false);
+  const [recalibrateSource, setRecalibrateSource] = useState<'scheduled' | 'manual'>('scheduled');
+  const [showProgress, setShowProgress] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
+
+  const openManualCheckIn = useCallback(() => {
+    setRecalibrateSource('manual');
+    setShowRecalibrate(true);
+  }, []);
 
   // New init flow: migrate → batch-load → hydrate stores
   useEffect(() => {
@@ -100,6 +115,8 @@ function AuthenticatedApp() {
             const fallbackProfile = await loadProfile();
             if (fallbackProfile) {
               useProfileStore.getState().hydrateProfile(fallbackProfile);
+              const checkIns = await loadProgressCheckIns();
+              useProgressStore.getState().hydrateCheckIns(checkIns);
             }
           } catch (profileErr) {
             console.error('Profile fallback load error:', profileErr);
@@ -114,12 +131,15 @@ function AuthenticatedApp() {
         useHistorialStore.getState().hydrateFavorites(data.favorites);
         useIngredientSignalStore.getState().hydrateSignals(data.ingredientSignals);
         usePlanRotationStore.getState().hydrate(data.planMemory ?? undefined);
+        useProgressStore.getState().hydrateCheckIns(data.progressCheckIns ?? []);
       } catch (e) {
         console.error('Init data load error:', e);
         try {
           const fallbackProfile = await loadProfile();
           if (fallbackProfile) {
             useProfileStore.getState().hydrateProfile(fallbackProfile);
+            const checkIns = await loadProgressCheckIns();
+            useProgressStore.getState().hydrateCheckIns(checkIns);
           }
         } catch (profileErr) {
           console.error('Profile fallback load error:', profileErr);
@@ -139,15 +159,16 @@ function AuthenticatedApp() {
     initializeData();
   }, []);
 
-  // Check recalibration on mount
+  // El prompt fuerte abre captura; el prompt suave se comunica en el chat.
   useEffect(() => {
-    if (profile && needsRecalibration()) {
+    if (ready && profile && getProgressPromptLevel() === 'hard') {
       const timeout = setTimeout(() => {
+        setRecalibrateSource('scheduled');
         setShowRecalibrate(true);
       }, 0);
       return () => clearTimeout(timeout);
     }
-  }, [profile, needsRecalibration]);
+  }, [ready, profile, progressCheckIns, getProgressPromptLevel]);
 
   if (!ready) {
     return <LoadingScreen />;
@@ -229,7 +250,12 @@ function AuthenticatedApp() {
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
           {activeTab === 'historial' && <HistorialView />}
           {activeTab === 'shopping' && <ShoppingListView />}
-          {activeTab === 'settings' && <SettingsView onEditProfile={() => setShowProfileEdit(true)} />}
+          {activeTab === 'settings' && (
+            <SettingsView
+              onEditProfile={() => setShowProfileEdit(true)}
+              onOpenProgress={() => setShowProgress(true)}
+            />
+          )}
         </div>
       </main>
 
@@ -239,7 +265,32 @@ function AuthenticatedApp() {
         isOpen={showRecalibrate}
         onClose={() => setShowRecalibrate(false)}
         onEditProfile={() => { setShowRecalibrate(false); setShowProfileEdit(true); }}
+        source={recalibrateSource}
       />
+      <BottomSheet
+        isOpen={showProgress}
+        onClose={() => setShowProgress(false)}
+        title="¿Voy bien?"
+      >
+        <ProgressOverview
+          onAddCheckIn={() => {
+            setShowProgress(false);
+            openManualCheckIn();
+          }}
+        />
+      </BottomSheet>
+      <Modal
+        isOpen={showProgress}
+        onClose={() => setShowProgress(false)}
+        title="¿Voy bien?"
+      >
+        <ProgressOverview
+          onAddCheckIn={() => {
+            setShowProgress(false);
+            openManualCheckIn();
+          }}
+        />
+      </Modal>
       <ProfileSetup
         isOpen={showProfileEdit}
         onClose={() => {
@@ -314,7 +365,13 @@ function WeekPlanningSettingsRow() {
   );
 }
 
-function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
+function SettingsView({
+  onEditProfile,
+  onOpenProgress,
+}: {
+  onEditProfile: () => void;
+  onOpenProgress: () => void;
+}) {
   const user = useAuthStore((s) => s.user);
   const settingsProfile = useProfileStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
@@ -368,7 +425,7 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
                 <div>
                   <p className="font-semibold text-[#191c17] text-sm">Objetivo de Salud</p>
                   <p className="text-xs text-[#40493d]">
-                    {settingsProfile.heightCm} cm • {settingsProfile.weightKg} kg
+                    {GOAL_LABELS[settingsProfile.goal]} · perfil listo
                   </p>
                 </div>
               ) : (
@@ -387,6 +444,34 @@ function SettingsView({ onEditProfile }: { onEditProfile: () => void }) {
           </div>
         </div>
       </section>
+
+      {settingsProfile && (
+        <section className="space-y-4">
+          <h2 className="text-xs uppercase tracking-widest text-[#40493d] font-semibold px-2">
+            Progreso
+          </h2>
+          <div className="bg-[#f3f5eb] rounded-lg p-2">
+            <button
+              type="button"
+              onClick={onOpenProgress}
+              className="flex w-full items-center justify-between p-4 bg-[#ffffff] rounded-xl text-left hover:bg-[#edefe6] transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#226046]/10 flex items-center justify-center text-[#226046]">
+                  <Scale size={24} />
+                </div>
+                <div>
+                  <p className="font-semibold text-[#191c17]">¿Voy bien?</p>
+                  <p className="text-sm text-[#40493d]">Una lectura simple de tus check-ins</p>
+                </div>
+              </div>
+              <span className="text-[#707a6c] font-bold text-xs uppercase tracking-widest">
+                Abrir
+              </span>
+            </button>
+          </div>
+        </section>
+      )}
 
       <WeekPlanningSettingsRow />
 

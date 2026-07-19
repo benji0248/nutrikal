@@ -47,6 +47,10 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
         onTabChange('shopping');
         return;
       }
+      if (option.action === 'go_progress' && onTabChange) {
+        onTabChange('settings');
+        return;
+      }
       if (option.action === 'week_plan') {
         if (!hasWeekPlanningProfile) {
           setShowWeekPlanningSetup(true);

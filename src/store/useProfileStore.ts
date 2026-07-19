@@ -3,6 +3,16 @@ import type { UserProfile, MetabolicResult } from '../types';
 import { computeMetabolism } from '../services/metabolicService';
 import * as api from '../services/apiService';
 
+async function syncProgressCheckIns(): Promise<void> {
+  try {
+    const checkIns = await api.loadProgressCheckIns();
+    const { useProgressStore } = await import('./useProgressStore');
+    useProgressStore.getState().hydrateCheckIns(checkIns);
+  } catch (error) {
+    console.error('Progress check-ins sync error:', error);
+  }
+}
+
 interface ProfileState {
   profile: UserProfile | null;
   saveError: string | null;
@@ -26,6 +36,7 @@ async function saveInBackground(
 ) {
   try {
     await api.saveProfile(profile);
+    await syncProgressCheckIns();
     set({ saveError: null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al guardar perfil';
@@ -49,6 +60,7 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
     set({ profile, justOnboarded: isNew, saveError: null });
     try {
       await api.saveProfile(profile);
+      await syncProgressCheckIns();
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al guardar perfil';

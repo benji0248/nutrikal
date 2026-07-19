@@ -44,6 +44,8 @@ import {
 } from '../../services/personalizationCopy';
 import { usePlanRotationStore } from '../../store/usePlanRotationStore';
 import { useIngredientSignalStore } from '../../store/useIngredientSignalStore';
+import { useProgressStore } from '../../store/useProgressStore';
+import { formatProgressDetails } from '../../services/progressCopy';
 import { computeMetabolism } from '../../services/metabolicService';
 import { getMealSlotBudget } from '../../services/portionEngine';
 import { useCalendarStore } from '../../store/useCalendarStore';
@@ -292,6 +294,7 @@ export function useChatEngine(): ChatEngineResult {
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const showCalories = useSettingsStore((s) => s.showCalories);
   const useGrams = useSettingsStore((s) => s.useGrams);
+  const progressCheckIns = useProgressStore((s) => s.checkIns);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const p = useProfileStore.getState().profile;
@@ -330,6 +333,7 @@ export function useChatEngine(): ChatEngineResult {
   } | null>(null);
   const prevProfileRef = useRef(profile);
   const sendingLockRef = useRef(false);
+  const progressSurfaceCheckedRef = useRef(false);
 
   function buildWelcomeMessages(): ChatMessage[] {
     if (!profile) {
@@ -371,6 +375,51 @@ export function useChatEngine(): ChatEngineResult {
   function addMessages(...msgs: ChatMessage[]) {
     setMessages((prev) => [...prev, ...msgs]);
   }
+
+  useEffect(() => {
+    if (!profile || progressSurfaceCheckedRef.current) return;
+    progressSurfaceCheckedRef.current = true;
+
+    const progress = useProgressStore.getState();
+    const reading = progress.getReading();
+    if (!reading || !progress.shouldSurfaceReading()) return;
+
+    const promptLevel = progress.getPromptLevel();
+    const text =
+      promptLevel === 'soft'
+        ? 'Si sentís que hubo cambios importantes, podés registrar un nuevo peso cuando quieras.'
+        : reading.text;
+    const option: ChatOption =
+      promptLevel === 'soft'
+        ? {
+            id: `progress-open-${reading.insightId}`,
+            label: 'Ir a progreso',
+            action: 'go_progress',
+            icon: 'ChevronDown',
+          }
+        : {
+            id: `progress-details-${reading.insightId}`,
+            label: 'Ver detalles',
+            action: 'progress_details',
+            icon: 'ChevronDown',
+          };
+
+    addMessages(
+      {
+        id: `progress-${reading.insightId}`,
+        type: 'assistant-text',
+        text,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: `progress-options-${reading.insightId}`,
+        type: 'assistant-options',
+        options: [option],
+        timestamp: new Date().toISOString(),
+      },
+    );
+    progress.markReadingSeen(reading.insightId);
+  }, [profile, progressCheckIns]);
 
   function appendWelcomeOptions() {
     addMessages({
@@ -808,6 +857,26 @@ export function useChatEngine(): ChatEngineResult {
             id: makeId(),
             type: 'assistant-options',
             options: buildRescueOptions(),
+            timestamp: new Date().toISOString(),
+          },
+        );
+        return;
+      }
+
+      if (option.action === 'progress_details') {
+        const reading = useProgressStore.getState().getReading();
+        if (!reading) return;
+        addMessages(
+          {
+            id: makeId(),
+            type: 'user-choice',
+            text: option.label,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: makeId(),
+            type: 'assistant-text',
+            text: formatProgressDetails(reading),
             timestamp: new Date().toISOString(),
           },
         );
