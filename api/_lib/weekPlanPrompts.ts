@@ -15,6 +15,9 @@ export interface WeekdayFlexRuleInput {
   nickname?: string;
 }
 
+export type CookingTimePref = 'rapido' | 'normal' | 'elaborado';
+export type BudgetPref = 'economico' | 'normal' | 'premium';
+
 export interface WeekPlanningInput {
   mealPattern: MealPattern;
   mealRhythmMode: MealRhythmMode;
@@ -25,6 +28,9 @@ export interface WeekPlanningInput {
   flexMealScope: string;
   preferredFlexWeekdays?: number[];
   activeSlots: string[];
+  /** Preferencia de tiempo/complejidad de cocina (afecta platos sugeridos). */
+  cookingTime?: CookingTimePref;
+  budget?: BudgetPref;
 }
 
 export function getWeekTemplateBudget(weekPlanning: Pick<WeekPlanningInput, 'mealPattern'>): number {
@@ -41,6 +47,22 @@ const GOAL_GUIDANCE: Record<string, string> = {
   lose: 'El usuario busca bajar de peso. Usá platos saciantes, buena proteína, porciones ajustadas al presupuesto calórico indicado.',
   maintain: 'El usuario mantiene peso. Armá platos equilibrados y satisfactorios dentro del presupuesto calórico.',
   gain: 'El usuario busca ganar masa muscular. Platos con buena densidad calórica y proteína, respetando el presupuesto.',
+};
+
+const COOKING_TIME_GUIDANCE: Record<CookingTimePref, string> = {
+  rapido:
+    'Priorizá platos de ≤15 min, pocas sartenes, técnicas básicas (hervir, tostar, saltear simple, microondas). Nada de milanesas caseras, sofritos largos, masas, ni cortes que requieran punto de cocción preciso. Preferí ingredientes listos o semi-listos comunes en supermercado.',
+  normal:
+    'Platos caseros cotidianos de 15-25 min. Técnicas simples (sartén, hervido, horno básico). Evitá recetas de restaurante o que intimiden a alguien con poca práctica de cocina.',
+  elaborado:
+    'Podés incluir platos un poco más elaborados (hasta ~40 min) si aportan variedad, siempre con pasos claros.',
+};
+
+const BUDGET_GUIDANCE: Record<BudgetPref, string> = {
+  economico:
+    'Priorizá ingredientes baratos y rendidores (huevo, pollo, legumbres, arroz, papa, fideos, verduras de estación). Evitá cortes premium, mariscos caros y snacks gourmet.',
+  normal: 'Ingredientes de supermercado cotidianos; equilibrá costo y variedad.',
+  premium: 'Podés usar cortes o ingredientes un poco más especiales si aportan variedad.',
 };
 
 function buildCalorieBlock(params: {
@@ -131,6 +153,9 @@ export function buildWeekPlanOneShotPrompt(params: {
       })
     : [params.goal ? `Objetivo: ${params.goal}.` : ''];
 
+  const cookingTime = wp.cookingTime ?? 'normal';
+  const budgetPref = wp.budget ?? 'normal';
+
   return [
     'Planificador semanal. Comidas caseras simples, nombres cortos, 4-6 ingredientes por plato.',
     params.profileName ? `Usuario: ${params.profileName}.` : '',
@@ -139,11 +164,17 @@ export function buildWeekPlanOneShotPrompt(params: {
     params.restrictions?.length ? `Restricciones: ${params.restrictions.join(', ')}.` : '',
     ...calorieBlock,
     '',
+    '## Complejidad de cocina',
+    COOKING_TIME_GUIDANCE[cookingTime],
+    BUDGET_GUIDANCE[budgetPref],
+    'Asumí un cocinero promedio: sin técnica avanzada. Si un plato requiere panizado, punto de carne o más de 2 utensilios a la vez, simplificalo o reemplazalo.',
+    '',
     `Slots: ${wp.activeSlots.join(', ')}.`,
     wp.weekdayRulesPrompt ?? 'Todos los días normales.',
     rhythmRules[wp.mealRhythmMode],
     forbidden,
     'Si evitás ingredientes o platos por gusto del usuario, priorizá variedad de proteínas y técnicas.',
+    'No abuses de un mismo plato principal: como máximo 3 apariciones en la semana (contando almuerzo+cena). Preferí rotar 3-4 platos principales distintos.',
     params.weeklyPoolPrompt,
     `Máx ${templateBudget} templateId únicos. Solamente 1-2 recetas distintas para desayuno y para snack en toda la semana (repetilas con link "same:tX").`,
     'Cada fecha tiene TODOS los slots listados arriba (salvo días full_free con slots []).',

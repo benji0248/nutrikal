@@ -9,6 +9,9 @@
     "dev:all": "concurrently -n api,vite -c blue,green \"npm run dev:api\" \"npm run dev\"",
     "smoke:db": "node scripts/smoke-db.mjs",
     "smoke:portion": "tsx scripts/smoke-portion-trust.ts",
+    "test:scenarios": "node scripts/scenario-week-plan.mjs",
+    "test:scenarios:fixtures": "node scripts/scenario-week-plan.mjs --analyze-fixtures",
+    "test:scenarios:list": "node scripts/scenario-week-plan.mjs --list",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

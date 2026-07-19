@@ -1,0 +1,183 @@
+{
+  "id": "captured-user-plan-2026-07-13",
+  "source": "screenshot-ui",
+  "label": "Plan capturado del usuario (semana 13–19 jul)",
+  "persona": "Usuario argentino promedio probando el plan semanal generado en la app.",
+  "scenarioHintId": "ar-promedio-sin-cocina",
+  "notes": "Reconstruido desde capturas de UI Plan Semanal. Calorías = las mostradas en pantalla (post-hidratación). Dom 19/7 no estaba expandido en las capturas.",
+  "skeleton": {
+    "days": [
+      {
+        "date": "2026-07-13",
+        "dayMode": "normal",
+        "slots": [
+          { "mealType": "desayuno", "templateId": "t_avena" },
+          { "mealType": "almuerzo", "templateId": "t_carne_arroz" },
+          { "mealType": "cena", "templateId": "t_milanesa" },
+          { "mealType": "snack", "templateId": "t_yogur" }
+        ]
+      },
+      {
+        "date": "2026-07-14",
+        "dayMode": "normal",
+        "slots": [
+          { "mealType": "desayuno", "templateId": "t_tostadas" },
+          { "mealType": "almuerzo", "templateId": "t_morcilla" },
+          { "mealType": "cena", "templateId": "t_milanesa" },
+          { "mealType": "snack", "templateId": "t_pera" }
+        ]
+      },
+      {
+        "date": "2026-07-15",
+        "dayMode": "normal",
+        "slots": [
+          { "mealType": "desayuno", "templateId": "t_avena" },
+          { "mealType": "almuerzo", "templateId": "t_milanesa" },
+          { "mealType": "cena", "templateId": "t_milanesa" },
+          { "mealType": "snack", "templateId": "t_yogur" }
+        ]
+      },
+      {
+        "date": "2026-07-16",
+        "dayMode": "normal",
+        "slots": [
+          { "mealType": "desayuno", "templateId": "t_tostadas" },
+          { "mealType": "almuerzo", "templateId": "t_milanesa" },
+          { "mealType": "cena", "templateId": "t_milanesa" },
+          { "mealType": "snack", "templateId": "t_pera" }
+        ]
+      },
+      {
+        "date": "2026-07-17",
+        "dayMode": "normal",
+        "slots": [
+          { "mealType": "desayuno", "templateId": "t_avena" },
+          { "mealType": "almuerzo", "templateId": "t_milanesa" },
+          { "mealType": "cena", "templateId": "t_morcilla" },
+          { "mealType": "snack", "templateId": "t_yogur" }
+        ]
+      },
+      {
+        "date": "2026-07-18",
+        "dayMode": "maintenance",
+        "slots": [
+          { "mealType": "desayuno", "templateId": "t_avena" },
+          { "mealType": "almuerzo", "templateId": "t_bife", "isFlexMeal": true },
+          { "mealType": "cena", "templateId": "t_morcilla" },
+          { "mealType": "snack", "templateId": "t_yogur" }
+        ]
+      },
+      {
+        "date": "2026-07-19",
+        "dayMode": "full_free",
+        "slots": []
+      }
+    ]
+  },
+  "rawDishes": {
+    "t_avena": {
+      "nombre": "Avena con Leche y Naranja",
+      "ingredientes": [
+        { "nombre": "Avena", "rol": "base", "gramos": 60 },
+        { "nombre": "Leche", "rol": "lacteo", "gramos": 200 },
+        { "nombre": "Naranja", "rol": "toque", "gramos": 100 }
+      ],
+      "preparacion": "Calentar avena con leche y acompañar con naranja.",
+      "tiempo_prep": 10,
+      "tip": "Desayuno rápido",
+      "uiCalories": 381
+    },
+    "t_tostadas": {
+      "nombre": "Tostadas con Huevo y Queso",
+      "ingredientes": [
+        { "nombre": "Pan", "rol": "base", "gramos": 60 },
+        { "nombre": "Huevo", "rol": "proteina", "gramos": 100 },
+        { "nombre": "Queso", "rol": "lacteo", "gramos": 30 }
+      ],
+      "preparacion": "Tostar pan, freír huevo, agregar queso.",
+      "tiempo_prep": 10,
+      "tip": "Clásico fácil",
+      "uiCalories": 387
+    },
+    "t_carne_arroz": {
+      "nombre": "Carne y Arroz Salteado",
+      "ingredientes": [
+        { "nombre": "Carne", "rol": "proteina", "gramos": 150 },
+        { "nombre": "Arroz", "rol": "base", "gramos": 150 },
+        { "nombre": "Cebolla", "rol": "vegetal", "gramos": 50 }
+      ],
+      "preparacion": "Saltear carne con arroz y verdura.",
+      "tiempo_prep": 20,
+      "tip": "Casero cotidiano",
+      "uiCalories": 514
+    },
+    "t_milanesa": {
+      "nombre": "Milanesa de Bondiola con Ensalada",
+      "ingredientes": [
+        { "nombre": "Bondiola", "rol": "proteina", "gramos": 150 },
+        { "nombre": "Pan rallado", "rol": "base", "gramos": 40 },
+        { "nombre": "Huevo", "rol": "toque", "gramos": 50 },
+        { "nombre": "Lechuga", "rol": "vegetal", "gramos": 80 },
+        { "nombre": "Tomate", "rol": "vegetal", "gramos": 80 }
+      ],
+      "preparacion": "Empanar bondiola, freír/hornear, servir con ensalada.",
+      "tiempo_prep": 25,
+      "tip": "Clásico argentino",
+      "uiCalories": 459
+    },
+    "t_morcilla": {
+      "nombre": "Morcilla con Puré Rústico",
+      "ingredientes": [
+        { "nombre": "Morcilla", "rol": "proteina", "gramos": 120 },
+        { "nombre": "Papa", "rol": "base", "gramos": 200 },
+        { "nombre": "Manteca", "rol": "grasa", "gramos": 10 }
+      ],
+      "preparacion": "Cocinar morcilla y hacer puré de papa.",
+      "tiempo_prep": 20,
+      "tip": "Sábado/cena",
+      "uiCalories": 514
+    },
+    "t_bife": {
+      "nombre": "Bife con Huevo y Champiñones",
+      "ingredientes": [
+        { "nombre": "Bife", "rol": "proteina", "gramos": 150 },
+        { "nombre": "Huevo", "rol": "proteina", "gramos": 50 },
+        { "nombre": "Champiñones", "rol": "vegetal", "gramos": 80 }
+      ],
+      "preparacion": "Cocinar bife, saltear champiñones, freír huevo.",
+      "tiempo_prep": 15,
+      "tip": "Flex / Edgy",
+      "uiCalories": 446
+    },
+    "t_yogur": {
+      "nombre": "Yogur con Maní",
+      "ingredientes": [
+        { "nombre": "Yogur", "rol": "lacteo", "gramos": 150 },
+        { "nombre": "Maní", "rol": "grasa", "gramos": 20 }
+      ],
+      "preparacion": "Mezclar yogur con maní.",
+      "tiempo_prep": 2,
+      "tip": "Snack cero esfuerzo",
+      "uiCalories": 154
+    },
+    "t_pera": {
+      "nombre": "Pera con Pasta de Maní",
+      "ingredientes": [
+        { "nombre": "Pera", "rol": "base", "gramos": 150 },
+        { "nombre": "Pasta de maní", "rol": "grasa", "gramos": 20 }
+      ],
+      "preparacion": "Cortar pera y untar pasta de maní.",
+      "tiempo_prep": 5,
+      "tip": "Snack fácil",
+      "uiCalories": 156
+    }
+  },
+  "uiDailyCalories": {
+    "2026-07-13": 1508,
+    "2026-07-14": 1516,
+    "2026-07-15": 1453,
+    "2026-07-16": 1461,
+    "2026-07-17": 1508,
+    "2026-07-18": 1495
+  }
+}

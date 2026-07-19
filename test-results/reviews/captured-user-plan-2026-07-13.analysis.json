@@ -1,0 +1,497 @@
+{
+  "scenarioId": "captured-user-plan-2026-07-13",
+  "scenarioLabel": "Plan capturado del usuario (semana 13–19 jul)",
+  "score": 55,
+  "verdict": "poco_realista_para_novato",
+  "checks": [
+    {
+      "id": "unique_mains",
+      "ok": true,
+      "detail": "4 platos principales únicos (mín 3): Carne y Arroz Salteado · Milanesa de Bondiola con Ensalada · Morcilla con Puré Rústico · Bife con Huevo y Champiñones",
+      "severity": "pass"
+    },
+    {
+      "id": "main_overuse",
+      "ok": false,
+      "detail": "Sobreuso (>3x): Milanesa de Bondiola con Ensalada×7",
+      "severity": "fail"
+    },
+    {
+      "id": "prep_time",
+      "ok": false,
+      "detail": "Fuera de 20 min: Milanesa de Bondiola con Ensalada (25m)",
+      "severity": "warn"
+    },
+    {
+      "id": "intimidation",
+      "ok": false,
+      "detail": "Pueden intimidar a un novato: Milanesa de Bondiola con Ensalada · Morcilla con Puré Rústico · Bife con Huevo y Champiñones",
+      "severity": "warn"
+    },
+    {
+      "id": "beginner_signal",
+      "ok": false,
+      "detail": "Platos con señal \"fácil\": 1/4",
+      "severity": "info"
+    }
+  ],
+  "stats": {
+    "days": 7,
+    "totalSlots": 24,
+    "linkedSlots": 0,
+    "flexSlots": 1,
+    "uniqueMains": 4,
+    "uniqueTemplates": 8,
+    "appearanceByName": {
+      "Carne y Arroz Salteado": 1,
+      "Milanesa de Bondiola con Ensalada": 7,
+      "Morcilla con Puré Rústico": 3,
+      "Bife con Huevo y Champiñones": 1
+    },
+    "avgPrepMinutes": 15,
+    "maxPrepMinutes": 25,
+    "minPrepMinutes": 2
+  },
+  "daySummaries": [
+    {
+      "date": "2026-07-13",
+      "dayMode": "normal",
+      "meals": [
+        {
+          "mealType": "desayuno",
+          "name": "Avena con Leche y Naranja",
+          "templateId": "t_avena",
+          "prepMinutes": 10,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "almuerzo",
+          "name": "Carne y Arroz Salteado",
+          "templateId": "t_carne_arroz",
+          "prepMinutes": 20,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "cena",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "snack",
+          "name": "Yogur con Maní",
+          "templateId": "t_yogur",
+          "prepMinutes": 2,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 2,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        }
+      ]
+    },
+    {
+      "date": "2026-07-14",
+      "dayMode": "normal",
+      "meals": [
+        {
+          "mealType": "desayuno",
+          "name": "Tostadas con Huevo y Queso",
+          "templateId": "t_tostadas",
+          "prepMinutes": 10,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "almuerzo",
+          "name": "Morcilla con Puré Rústico",
+          "templateId": "t_morcilla",
+          "prepMinutes": 20,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [
+            "\\bmorcilla\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "cena",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "snack",
+          "name": "Pera con Pasta de Maní",
+          "templateId": "t_pera",
+          "prepMinutes": 5,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 2,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        }
+      ]
+    },
+    {
+      "date": "2026-07-15",
+      "dayMode": "normal",
+      "meals": [
+        {
+          "mealType": "desayuno",
+          "name": "Avena con Leche y Naranja",
+          "templateId": "t_avena",
+          "prepMinutes": 10,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "almuerzo",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "cena",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "snack",
+          "name": "Yogur con Maní",
+          "templateId": "t_yogur",
+          "prepMinutes": 2,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 2,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        }
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "dayMode": "normal",
+      "meals": [
+        {
+          "mealType": "desayuno",
+          "name": "Tostadas con Huevo y Queso",
+          "templateId": "t_tostadas",
+          "prepMinutes": 10,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "almuerzo",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "cena",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "snack",
+          "name": "Pera con Pasta de Maní",
+          "templateId": "t_pera",
+          "prepMinutes": 5,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 2,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        }
+      ]
+    },
+    {
+      "date": "2026-07-17",
+      "dayMode": "normal",
+      "meals": [
+        {
+          "mealType": "desayuno",
+          "name": "Avena con Leche y Naranja",
+          "templateId": "t_avena",
+          "prepMinutes": 10,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "almuerzo",
+          "name": "Milanesa de Bondiola con Ensalada",
+          "templateId": "t_milanesa",
+          "prepMinutes": 25,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 5,
+          "intimidationFlags": [
+            "\\bmilanesa\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "cena",
+          "name": "Morcilla con Puré Rústico",
+          "templateId": "t_morcilla",
+          "prepMinutes": 20,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [
+            "\\bmorcilla\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "snack",
+          "name": "Yogur con Maní",
+          "templateId": "t_yogur",
+          "prepMinutes": 2,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 2,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        }
+      ]
+    },
+    {
+      "date": "2026-07-18",
+      "dayMode": "maintenance",
+      "meals": [
+        {
+          "mealType": "desayuno",
+          "name": "Avena con Leche y Naranja",
+          "templateId": "t_avena",
+          "prepMinutes": 10,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        },
+        {
+          "mealType": "almuerzo",
+          "name": "Bife con Huevo y Champiñones",
+          "templateId": "t_bife",
+          "prepMinutes": 15,
+          "link": null,
+          "isFlexMeal": true,
+          "ingredientCount": 3,
+          "intimidationFlags": [
+            "\\bbife\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "cena",
+          "name": "Morcilla con Puré Rústico",
+          "templateId": "t_morcilla",
+          "prepMinutes": 20,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 3,
+          "intimidationFlags": [
+            "\\bmorcilla\\b"
+          ],
+          "beginnerFriendly": false
+        },
+        {
+          "mealType": "snack",
+          "name": "Yogur con Maní",
+          "templateId": "t_yogur",
+          "prepMinutes": 2,
+          "link": null,
+          "isFlexMeal": false,
+          "ingredientCount": 2,
+          "intimidationFlags": [],
+          "beginnerFriendly": true
+        }
+      ]
+    },
+    {
+      "date": "2026-07-19",
+      "dayMode": "full_free",
+      "meals": []
+    }
+  ],
+  "dishes": {
+    "t_avena": {
+      "nombre": "Avena con Leche y Naranja",
+      "tiempo_prep": 10,
+      "ingredientes": [
+        "Avena (60g)",
+        "Leche (200g)",
+        "Naranja (100g)"
+      ],
+      "tip": "Desayuno rápido",
+      "intimidationFlags": [],
+      "beginnerFriendly": true
+    },
+    "t_tostadas": {
+      "nombre": "Tostadas con Huevo y Queso",
+      "tiempo_prep": 10,
+      "ingredientes": [
+        "Pan (60g)",
+        "Huevo (100g)",
+        "Queso (30g)"
+      ],
+      "tip": "Clásico fácil",
+      "intimidationFlags": [],
+      "beginnerFriendly": true
+    },
+    "t_carne_arroz": {
+      "nombre": "Carne y Arroz Salteado",
+      "tiempo_prep": 20,
+      "ingredientes": [
+        "Carne (150g)",
+        "Arroz (150g)",
+        "Cebolla (50g)"
+      ],
+      "tip": "Casero cotidiano",
+      "intimidationFlags": [],
+      "beginnerFriendly": true
+    },
+    "t_milanesa": {
+      "nombre": "Milanesa de Bondiola con Ensalada",
+      "tiempo_prep": 25,
+      "ingredientes": [
+        "Bondiola (150g)",
+        "Pan rallado (40g)",
+        "Huevo (50g)",
+        "Lechuga (80g)",
+        "Tomate (80g)"
+      ],
+      "tip": "Clásico argentino",
+      "intimidationFlags": [
+        "\\bmilanesa\\b"
+      ],
+      "beginnerFriendly": true
+    },
+    "t_morcilla": {
+      "nombre": "Morcilla con Puré Rústico",
+      "tiempo_prep": 20,
+      "ingredientes": [
+        "Morcilla (120g)",
+        "Papa (200g)",
+        "Manteca (10g)"
+      ],
+      "tip": "Sábado/cena",
+      "intimidationFlags": [
+        "\\bmorcilla\\b"
+      ],
+      "beginnerFriendly": false
+    },
+    "t_bife": {
+      "nombre": "Bife con Huevo y Champiñones",
+      "tiempo_prep": 15,
+      "ingredientes": [
+        "Bife (150g)",
+        "Huevo (50g)",
+        "Champiñones (80g)"
+      ],
+      "tip": "Flex / Edgy",
+      "intimidationFlags": [
+        "\\bbife\\b"
+      ],
+      "beginnerFriendly": true
+    },
+    "t_yogur": {
+      "nombre": "Yogur con Maní",
+      "tiempo_prep": 2,
+      "ingredientes": [
+        "Yogur (150g)",
+        "Maní (20g)"
+      ],
+      "tip": "Snack cero esfuerzo",
+      "intimidationFlags": [],
+      "beginnerFriendly": true
+    },
+    "t_pera": {
+      "nombre": "Pera con Pasta de Maní",
+      "tiempo_prep": 5,
+      "ingredientes": [
+        "Pera (150g)",
+        "Pasta de maní (20g)"
+      ],
+      "tip": "Snack fácil",
+      "intimidationFlags": [],
+      "beginnerFriendly": true
+    }
+  },
+  "personaNotes": [
+    "Como usuario promedio me cansaría ver \"Milanesa de Bondiola con Ensalada\" tantas veces (7x). Aunque cocinar una vez y repetir ayuda, 4+ veces en la semana ya se siente monótono.",
+    "Platos que me harían dudar al leer el nombre: Milanesa de Bondiola con Ensalada, Morcilla con Puré Rústico, Bife con Huevo y Champiñones. Si no sé cocinar, \"milanesa casera\", \"morcilla\" o \"bife a punto\" suenan a restaurante, no a martes a la noche.",
+    "Lo que sí me cierra: Carne y Arroz Salteado. Eso lo armo sin mirar tutorial.",
+    "Tiempos de prep razonables (~15 min promedio).",
+    "2 días con el mismo plato en almuerzo y cena: práctico para meal-prep, pero psicológicamente pesado si el plato no es súper simple/rico.",
+    "Este escenario pide cocina rápida: cualquier plato >20 min o con técnica especial debería bajarse."
+  ],
+  "generatedAt": "2026-07-19T10:01:35.356Z"
+}
