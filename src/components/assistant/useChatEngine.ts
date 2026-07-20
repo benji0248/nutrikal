@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import type {
   ChatMessage,
   ChatOption,
@@ -12,6 +12,7 @@ import { useProfileStore } from '../../store/useProfileStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useWeekPlanningStore } from '../../store/useWeekPlanningStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
+import { useChatStore, AI_CONVERSATION_HISTORY_LIMIT } from '../../store/useChatStore';
 import { sendMessage, type SendMessageResult } from '../../services/aiService';
 import { generateWeekPlan } from '../../services/weekPlanApi';
 import {
@@ -61,7 +62,7 @@ import {
   mealTypeToPromptLabel,
 } from '../../utils/mealTimeHelpers';
 
-export const AI_CONVERSATION_HISTORY_LIMIT = 10;
+export { AI_CONVERSATION_HISTORY_LIMIT };
 
 function makeId(): string {
   return crypto.randomUUID();
@@ -280,7 +281,6 @@ interface ChatEngineResult {
   energyRatio: number;
   showCalories: boolean;
   isLoading: boolean;
-  remainingMessages: number | null;
 }
 
 export function useChatEngine(): ChatEngineResult {
@@ -296,85 +296,73 @@ export function useChatEngine(): ChatEngineResult {
   const useGrams = useSettingsStore((s) => s.useGrams);
   const progressCheckIns = useProgressStore((s) => s.checkIns);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const p = useProfileStore.getState().profile;
-    if (!p) {
-      return [
-        {
-          id: makeId(),
-          type: 'assistant-text',
-          text: '¡Bienvenido a NutriKal! Creá tu perfil para empezar.',
-          timestamp: new Date().toISOString(),
-        },
-        {
-          id: makeId(),
-          type: 'assistant-options',
-          options: [
-            { id: 'create_profile', label: 'Crear perfil', action: 'create_profile', icon: 'UserCircle' },
-          ],
-          timestamp: new Date().toISOString(),
-        },
-      ];
-    }
-    return buildWelcomeMessagesForProfile(p, useProfileStore.getState().justOnboarded);
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [remainingMessages, setRemainingMessages] = useState<number | null>(null);
+  const messages = useChatStore((s) => s.messages);
+  const isLoading = useChatStore((s) => s.isLoading);
 
-  const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
-  const lastUserPromptRef = useRef<string | null>(null);
-  const lastMealTypeRef = useRef<MealType | null>(null);
-  const lastWeekPlanRef = useRef<WeekPlan | null>(null);
-  const swapTargetRef = useRef<{ date: string; mealType: MealType } | null>(null);
-  const regenerateDishMessageIdRef = useRef<string | null>(null);
-  const dishPersonalizationRef = useRef<{
-    mode: 'dish' | 'regenerate' | 'swap';
-    previousDishName?: string;
-  } | null>(null);
   const prevProfileRef = useRef(profile);
-  const sendingLockRef = useRef(false);
   const progressSurfaceCheckedRef = useRef(false);
 
-  function buildWelcomeMessages(): ChatMessage[] {
+  function buildNoProfileWelcomeMessages(): ChatMessage[] {
+    return [
+      {
+        id: makeId(),
+        type: 'assistant-text',
+        text: '¡Bienvenido a NutriKal! Creá tu perfil para empezar.',
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: makeId(),
+        type: 'assistant-options',
+        options: [
+          { id: 'create_profile', label: 'Crear perfil', action: 'create_profile', icon: 'UserCircle' },
+        ],
+        timestamp: new Date().toISOString(),
+      },
+    ];
+  }
+
+  function addMessages(...msgs: ChatMessage[]) {
+    useChatStore.getState().appendMessages(...msgs);
+  }
+
+  /** Seed welcome only when the session transcript is empty — never clobber an active chat. */
+  useEffect(() => {
+    const chat = useChatStore.getState();
+    if (chat.messages.length > 0) return;
+
     if (!profile) {
-      return [
-        {
-          id: makeId(),
-          type: 'assistant-text',
-          text: '¡Bienvenido a NutriKal! Creá tu perfil para empezar.',
-          timestamp: new Date().toISOString(),
-        },
-        {
-          id: makeId(),
-          type: 'assistant-options',
-          options: [
-            { id: 'create_profile', label: 'Crear perfil', action: 'create_profile', icon: 'UserCircle' },
-          ],
-          timestamp: new Date().toISOString(),
-        },
-      ];
+      chat.replaceMessages(buildNoProfileWelcomeMessages(), 'initial');
+      return;
     }
 
-    return buildWelcomeMessagesForProfile(profile, justOnboarded);
-  }
+    chat.replaceMessages(
+      buildWelcomeMessagesForProfile(profile, false),
+      'initial',
+    );
+  }, [profile]);
 
   useEffect(() => {
     if (!prevProfileRef.current && profile) {
-      setMessages(buildWelcomeMessages());
-      conversationRef.current = [];
+      const chat = useChatStore.getState();
+      chat.resetConversation();
+      chat.replaceMessages(
+        buildWelcomeMessagesForProfile(profile, justOnboarded),
+        'initial',
+      );
       if (justOnboarded) {
         clearJustOnboarded();
       }
-    } else if (profile && justOnboarded) {
-      setMessages(buildWelcomeMessagesForProfile(profile, true));
+    } else if (profile && justOnboarded && prevProfileRef.current) {
+      const chat = useChatStore.getState();
+      chat.clearConversationHistory();
+      chat.setLastWeekPlan(null);
+      chat.setLastMealType(null);
+      chat.clearPendingAction();
+      chat.replaceMessages(buildWelcomeMessagesForProfile(profile, true), 'initial');
       clearJustOnboarded();
     }
     prevProfileRef.current = profile;
   }, [profile, justOnboarded, clearJustOnboarded]);
-
-  function addMessages(...msgs: ChatMessage[]) {
-    setMessages((prev) => [...prev, ...msgs]);
-  }
 
   useEffect(() => {
     if (!profile || progressSurfaceCheckedRef.current) return;
@@ -434,8 +422,8 @@ export function useChatEngine(): ChatEngineResult {
     const activeProfile = useProfileStore.getState().profile;
     const activeWeekPlanning = useWeekPlanningStore.getState().weekPlanning;
     if (!activeProfile || !activeWeekPlanning?.completedAt) return;
-    if (sendingLockRef.current) return;
-    sendingLockRef.current = true;
+    const chat = useChatStore.getState();
+    if (!chat.tryBeginSend()) return;
 
     addMessages({
       id: makeId(),
@@ -444,7 +432,6 @@ export function useChatEngine(): ChatEngineResult {
       timestamp: new Date().toISOString(),
     });
 
-    setIsLoading(true);
     const loadingId = makeId();
     addMessages({
       id: loadingId,
@@ -454,7 +441,7 @@ export function useChatEngine(): ChatEngineResult {
     });
 
     try {
-      const priorPlan = lastWeekPlanRef.current;
+      const priorPlan = useChatStore.getState().lastWeekPlan;
       if (priorPlan) {
         usePlanRotationStore.getState().rememberPlan(priorPlan);
       }
@@ -488,8 +475,6 @@ export function useChatEngine(): ChatEngineResult {
         variationSeed: `${ctx.weekId}-${Date.now()}`,
       });
 
-      setRemainingMessages(apiResult.remaining);
-
       const plan = buildFullWeekPlanFromApiResponse({
         skeleton: apiResult.skeleton,
         rawDishes: apiResult.rawDishes,
@@ -498,7 +483,7 @@ export function useChatEngine(): ChatEngineResult {
         useGrams,
       });
 
-      lastWeekPlanRef.current = plan;
+      useChatStore.getState().setLastWeekPlan(plan);
       const rot = usePlanRotationStore.getState();
       rot.rememberPlan(plan);
       rot.rememberWeeklyPool(ctx.pool);
@@ -514,7 +499,7 @@ export function useChatEngine(): ChatEngineResult {
         ),
       });
 
-      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      useChatStore.getState().removeMessage(loadingId);
       addMessages({
         id: makeId(),
         type: 'assistant-text',
@@ -530,7 +515,7 @@ export function useChatEngine(): ChatEngineResult {
         timestamp: new Date().toISOString(),
       });
     } catch (err) {
-      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      useChatStore.getState().removeMessage(loadingId);
       const fallback =
         err instanceof Error && err.message.trim()
           ? err.message
@@ -543,8 +528,7 @@ export function useChatEngine(): ChatEngineResult {
       });
       appendWelcomeOptions();
     } finally {
-      sendingLockRef.current = false;
-      setIsLoading(false);
+      useChatStore.getState().endSend();
     }
   }
 
@@ -553,8 +537,8 @@ export function useChatEngine(): ChatEngineResult {
     options?: { variation?: boolean; mealType?: MealType; mealBudgetKcal?: number },
   ) {
     if (!profile) return;
-    if (sendingLockRef.current) return;
-    sendingLockRef.current = true;
+    const chat = useChatStore.getState();
+    if (!chat.tryBeginSend()) return;
 
     const dislikedNames = resolveDislikedIngredientNames(profile, customIngredients);
     const avoidNames = usePlanRotationStore.getState().getAvoidDishNames();
@@ -577,21 +561,18 @@ export function useChatEngine(): ChatEngineResult {
       ? `${text.trim()}\n\n[Generá otro plato completamente distinto: distinto nombre, técnica y presentación. No repitas platos de esta conversación.]${memorySuffix}`
       : `${text.trim()}${memorySuffix}`;
 
-    if (!options?.variation) {
-      lastUserPromptRef.current = text.trim();
-    }
     if (options?.mealType) {
-      lastMealTypeRef.current = options.mealType;
+      useChatStore.getState().setLastMealType(options.mealType);
     }
-    if (!dishPersonalizationRef.current) {
-      dishPersonalizationRef.current = { mode: options?.variation ? 'regenerate' : 'dish' };
+    // Handlers (swap/regenerate) set pendingAction before calling sendToAi.
+    if (!useChatStore.getState().pendingAction) {
+      useChatStore.getState().setPendingAction({ kind: 'dish' });
     }
 
-    const activeMealType = options?.mealType ?? lastMealTypeRef.current ?? undefined;
+    const activeMealType = options?.mealType ?? useChatStore.getState().lastMealType ?? undefined;
     const mealBudgetKcal = options?.mealBudgetKcal
       ?? (activeMealType && profile ? resolveMealBudget(profile, activeMealType) : undefined);
 
-    setIsLoading(true);
     const loadingId = makeId();
     addMessages({
       id: loadingId,
@@ -601,27 +582,21 @@ export function useChatEngine(): ChatEngineResult {
     });
 
     try {
+      const history = useChatStore.getState().conversationHistory;
       const result: SendMessageResult = await sendMessage(
         promptForApi,
-        conversationRef.current,
+        history,
         {
           mealType: activeMealType,
           mealBudgetKcal,
         },
       );
 
-      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
-      setRemainingMessages(result.remaining);
-
-      conversationRef.current.push(
-        { role: 'user', content: promptForApi },
-        { role: 'assistant', content: result.text },
-      );
-      if (conversationRef.current.length > AI_CONVERSATION_HISTORY_LIMIT * 2) {
-        conversationRef.current = conversationRef.current.slice(-AI_CONVERSATION_HISTORY_LIMIT * 2);
-      }
+      useChatStore.getState().removeMessage(loadingId);
+      useChatStore.getState().appendConversationTurn(promptForApi, result.text);
 
       const mealType = activeMealType;
+      const pendingAction = useChatStore.getState().pendingAction;
 
       if (result.dish) {
         let hydrated = hydrateAiDish(result.dish, { useGrams });
@@ -637,16 +612,23 @@ export function useChatEngine(): ChatEngineResult {
               text: 'No pude armar bien las porciones de ese plato. Regeneralo y lo intento de nuevo.',
               timestamp: new Date().toISOString(),
             });
-            dishPersonalizationRef.current = null;
+            useChatStore.getState().clearPendingAction();
             return;
           }
         }
 
-        const persCtx = dishPersonalizationRef.current;
-        dishPersonalizationRef.current = null;
+        useChatStore.getState().clearPendingAction();
         const dishNote = buildPersonalizationNote({
-          mode: persCtx?.mode ?? (options?.variation ? 'regenerate' : 'dish'),
-          previousDishName: persCtx?.previousDishName,
+          mode: pendingAction?.kind === 'swap'
+            ? 'swap'
+            : pendingAction?.kind === 'regenerate'
+              ? 'regenerate'
+              : options?.variation
+                ? 'regenerate'
+                : 'dish',
+          previousDishName: pendingAction && 'previousDishName' in pendingAction
+            ? pendingAction.previousDishName
+            : undefined,
           avoidDishNames: usePlanRotationStore.getState().getAvoidDishNames(),
           dislikedNames: resolveDislikedIngredientNames(profile, customIngredients),
           dislikedCategoryLabels: resolveDislikedCategoryLabels(profile),
@@ -659,9 +641,8 @@ export function useChatEngine(): ChatEngineResult {
           .filter(Boolean)
           .join(' ') || null;
 
-        const swapTarget = swapTargetRef.current;
-        if (swapTarget && mealType) {
-          swapTargetRef.current = null;
+        if (pendingAction?.kind === 'swap' && mealType) {
+          const swapTarget = pendingAction;
           const swapNorm = normalizeHydratedAiDishToBudgetDetailed(
             hydrated,
             mealBudgetKcal ?? hydrated.macros.calories,
@@ -672,7 +653,7 @@ export function useChatEngine(): ChatEngineResult {
             swapNorm.scaled ? PORTION_ADJUST_COPY : null,
             dishNote,
           ].filter(Boolean).join(' ') || null;
-          setMessages((prev) =>
+          useChatStore.getState().updateMessages((prev) =>
             prev.map((m) => {
               if (m.type !== 'assistant-plan' || !m.weekPlan) return m;
               const days = m.weekPlan.days.map((d) => {
@@ -683,7 +664,7 @@ export function useChatEngine(): ChatEngineResult {
                 };
               });
               const updated = { ...m.weekPlan, days };
-              lastWeekPlanRef.current = updated;
+              useChatStore.getState().setLastWeekPlan(updated);
               usePlanRotationStore.getState().rememberPlan(updated);
               return { ...m, weekPlan: updated };
             }),
@@ -697,10 +678,9 @@ export function useChatEngine(): ChatEngineResult {
             personalizationNote: swapNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
-        } else if (regenerateDishMessageIdRef.current) {
-          const targetId = regenerateDishMessageIdRef.current;
-          regenerateDishMessageIdRef.current = null;
-          setMessages((prev) =>
+        } else if (pendingAction?.kind === 'regenerate' && pendingAction.messageId) {
+          const targetId = pendingAction.messageId;
+          useChatStore.getState().updateMessages((prev) =>
             prev.map((m) =>
               m.id === targetId && m.type === 'assistant-dish'
                 ? {
@@ -737,9 +717,10 @@ export function useChatEngine(): ChatEngineResult {
         if (mealType) {
           appendWelcomeOptions();
         }
+        useChatStore.getState().clearPendingAction();
       }
     } catch (err) {
-      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      useChatStore.getState().removeMessage(loadingId);
 
       const fallback =
         err instanceof Error && err.message === 'Not authenticated'
@@ -754,13 +735,12 @@ export function useChatEngine(): ChatEngineResult {
         text: fallback,
         timestamp: new Date().toISOString(),
       });
-      dishPersonalizationRef.current = null;
+      useChatStore.getState().clearPendingAction();
       if (activeMealType) {
         appendWelcomeOptions();
       }
     } finally {
-      sendingLockRef.current = false;
-      setIsLoading(false);
+      useChatStore.getState().endSend();
     }
   }
 
@@ -792,7 +772,7 @@ export function useChatEngine(): ChatEngineResult {
 
         const inferred = getCurrentMealType();
         if (inferred && profile) {
-          lastMealTypeRef.current = inferred;
+          useChatStore.getState().setLastMealType(inferred);
           addMessages({
             id: makeId(),
             type: 'assistant-text',
@@ -1033,7 +1013,7 @@ export function useChatEngine(): ChatEngineResult {
 
       if (option.action === 'pick_meal_type' && option.payload && isMealType(option.payload)) {
         const mealType = option.payload;
-        lastMealTypeRef.current = mealType;
+        useChatStore.getState().setLastMealType(mealType);
         const label = mealTypeChipLabel(mealType);
         const prompt = profile
           ? buildCookNowPrompt(mealType, computeMetabolism(profile).budget)
@@ -1116,9 +1096,9 @@ export function useChatEngine(): ChatEngineResult {
 
       recordWeekPlanApplied(plan);
       const applied: WeekPlan = { ...plan, applied: true };
-      lastWeekPlanRef.current = applied;
+      useChatStore.getState().setLastWeekPlan(applied);
 
-      setMessages((prev) =>
+      useChatStore.getState().updateMessages((prev) =>
         prev.map((m) =>
           m.type === 'assistant-plan' && m.weekPlan && !m.weekPlan.applied
             ? { ...m, weekPlan: applied }
@@ -1157,12 +1137,15 @@ export function useChatEngine(): ChatEngineResult {
   const handleRegenerateDish = useCallback(
     (messageId: string, dish: HydratedAiDish, mealType?: MealType) => {
       if (isLoading || !profile) return;
-      const mt = mealType ?? lastMealTypeRef.current ?? 'almuerzo';
+      const mt = mealType ?? useChatStore.getState().lastMealType ?? 'almuerzo';
       usePlanRotationStore.getState().rememberRejected(dish.name);
       recordMealRejected(todayKey(), mt, hydratedDishToAiMeal(dish));
-      regenerateDishMessageIdRef.current = messageId;
-      lastMealTypeRef.current = mt;
-      dishPersonalizationRef.current = { mode: 'regenerate', previousDishName: dish.name };
+      useChatStore.getState().setLastMealType(mt);
+      useChatStore.getState().setPendingAction({
+        kind: 'regenerate',
+        messageId,
+        previousDishName: dish.name,
+      });
       const preview = buildPersonalizationNote({
         mode: 'regenerate',
         previousDishName: dish.name,
@@ -1188,18 +1171,19 @@ export function useChatEngine(): ChatEngineResult {
   const handleSwapMeal = useCallback(
     (date: string, mealType: MealType) => {
       if (isLoading || !profile) return;
-      const plan = lastWeekPlanRef.current;
+      const plan = useChatStore.getState().lastWeekPlan;
       const oldMeal = plan?.days.find((d) => d.date === date)?.meals[mealType];
       if (oldMeal?.name) {
         usePlanRotationStore.getState().rememberRejected(oldMeal.name);
         recordMealRejected(date, mealType, oldMeal);
       }
 
-      swapTargetRef.current = { date, mealType };
-      dishPersonalizationRef.current = {
-        mode: 'swap',
+      useChatStore.getState().setPendingAction({
+        kind: 'swap',
+        date,
+        mealType,
         previousDishName: oldMeal?.name,
-      };
+      });
       const label = mealTypeChipLabel(mealType);
       const weekNames = collectDishNamesFromWeekPlan(plan);
       const avoid = usePlanRotationStore.getState().getAvoidDishNames();
@@ -1211,7 +1195,7 @@ export function useChatEngine(): ChatEngineResult {
           ? ` No repitas estos platos: ${distinct.slice(0, 24).join(' · ')}.`
           : '';
       const prompt = `Generá otro plato para mi ${mealTypeToPromptLabel(mealType)} del ${date}.${avoidLine}`;
-      lastMealTypeRef.current = mealType;
+      useChatStore.getState().setLastMealType(mealType);
       const weekPlanning = useWeekPlanningStore.getState().weekPlanning;
       const slotBudget = weekPlanning
         ? getMealBudgetForPlanDay(date, mealType, profile, weekPlanning)
@@ -1251,6 +1235,5 @@ export function useChatEngine(): ChatEngineResult {
     energyRatio: 0.5,
     showCalories,
     isLoading,
-    remainingMessages,
   };
 }

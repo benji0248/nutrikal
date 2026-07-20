@@ -5,6 +5,7 @@ import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
 import { WeekPlanningSetup } from '../profile/WeekPlanningSetup';
 import { useChatEngine } from './useChatEngine';
+import { useChatStore } from '../../store/useChatStore';
 
 interface ChatAssistantProps {
   onTabChange?: (tab: AppTab) => void;
@@ -28,6 +29,9 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     hasWeekPlanningProfile,
     runWeekPlanGeneration,
   } = useChatEngine();
+
+  const scrollIntent = useChatStore((s) => s.scrollIntent);
+  const clearScrollIntent = useChatStore((s) => s.clearScrollIntent);
 
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [showWeekPlanningSetup, setShowWeekPlanningSetup] = useState(false);
@@ -64,15 +68,42 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prependAnchorRef = useRef<{ prevHeight: number; prevTop: number } | null>(null);
 
+  const scrollToBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  // Remount with an existing session transcript → land at the bottom once.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-      }
-    }, 50);
+    const timer = setTimeout(scrollToBottom, 50);
     return () => clearTimeout(timer);
-  }, [messages]);
+  }, [scrollToBottom]);
+
+  // Intent-driven scroll: append/initial → bottom; prepend → preserve (PR3 ready).
+  useEffect(() => {
+    if (scrollIntent === 'none') return;
+
+    const el = scrollContainerRef.current;
+    const timer = setTimeout(() => {
+      if (!el) {
+        clearScrollIntent();
+        return;
+      }
+      if (scrollIntent === 'append' || scrollIntent === 'initial') {
+        el.scrollTop = el.scrollHeight;
+      } else if (scrollIntent === 'prepend' && prependAnchorRef.current) {
+        const { prevHeight, prevTop } = prependAnchorRef.current;
+        el.scrollTop = el.scrollHeight - prevHeight + prevTop;
+        prependAnchorRef.current = null;
+      }
+      clearScrollIntent();
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [scrollIntent, messages, clearScrollIntent]);
 
   const onSubmit = useCallback(
     (e: React.FormEvent) => {
