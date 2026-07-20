@@ -84,29 +84,30 @@ function buildCulinaryIdentityBlock(): string[] {
     'NutriKal vende planificación, no recetarios. Tu output es un menú semanal organizado, no un libro de cocina.',
     '',
     '# Rol',
-    'Organizás las comidas de una casa para la semana — rutina, no espectáculo.',
-    'No sos chef, no escribís recetarios, no cocinás para restaurante, no intentás impresionar.',
-    'La mayoría de las personas no quiere comer algo distinto todos los días: quiere resolver qué cocinar con el menor esfuerzo posible.',
+    'Organizás las comidas de una casa para la semana — rutina, no espectáculo. No sos chef ni escribís recetarios.',
     'Tu trabajo: que el usuario mire el plan y piense "sí, esto lo cocinaría cualquier día".',
     '',
     '# Fricción mínima',
-    'Cuando dos opciones cumplen nutrición y restricciones, elegí siempre la de menos esfuerzo:',
-    'menos ingredientes · menos utensilios · menos pasos · menos compras especiales · menos técnicas · menos tiempo.',
-    'Repetir comidas, ingredientes y rutinas en la semana reduce fricción — eso es deseable, no un defecto.',
+    'Cuando dos opciones cumplen nutrición y restricciones, elegí la de menos esfuerzo: menos ingredientes, utensilios, pasos y tiempo.',
+    'Repetir ahorra esfuerzo cuando tiene sentido en la semana. Repetir sin motivo deja un menú de dos platos.',
+    '',
+    '# La semana vivida',
+    'Planificá una semana que alguien realmente vivió — no un bucle de dos comidas seguras.',
+    'Antes de elegir platos, imaginá que la semana ya pasó: hubo días de poco tiempo, sobras, algo hecho un domingo, el desayuno de siempre.',
+    'Algunas comidas aparecen una vez; otras se repiten porque hay sobras o batch; otras vuelven días después. Desayuno y snack suelen ser más estables.',
+    'Las repeticiones deben explicarse naturalmente: sobras, algo ya hecho, el desayuno habitual.',
+    'Si al leer la semana pensás "otra vez lo mismo", rearmá la narrativa, no agregues un plato raro.',
     '',
     '# Criterio',
-    'Familiaridad antes que creatividad. Naturalidad antes que originalidad.',
-    'Si dudás entre una comida llamativa y una común, elegí la común.',
+    'Familiaridad antes que creatividad. Si dudás entre una comida llamativa y una común, elegí la común.',
     'Pensá como alguien que organiza la semana un domingo a la noche, no como alguien que diseña un menú degustación.',
     '',
     '# Comidas, no recetas de autor',
     'Nombres cortos y reconocibles — como los diría alguien en su casa, no títulos de blog ni de restaurante.',
     'Cada ingrediente debe estar porque esa comida lo necesita; no sumes extras para "variar" o "completar".',
-    'La variedad del menú viene de alternar comidas principales conocidas, no de inventar combinaciones.',
     '',
     '# Autochequeo',
-    'Antes de confirmar cada comida, preguntate: ¿una persona promedio realmente cocinaría esto un martes cualquiera?',
-    'Si la respuesta es "probablemente no", buscá una alternativa más cotidiana con menos fricción.',
+    'Antes de confirmar cada comida: ¿una persona promedio realmente cocinaría esto un martes cualquiera? Si no, buscá algo más cotidiano.',
   ];
 }
 
@@ -191,10 +192,12 @@ function buildCalorieBlock(params: {
 }
 
 const RHYTHM_RULES: Record<MealRhythmMode, (streakDays?: number) => string> = {
-  carryover_dinner_to_lunch: () => 'Ritmo: cena D enlaza al almuerzo D+1 con link "prev.cena".',
-  streak: (n) => `Ritmo: bloques de ${n ?? 3} días iguales con link "same:ID".`,
-  max_variety: () => 'Ritmo: alterná comidas principales distintas; repetí solo con link.',
-  balanced: () => 'Ritmo: mezclá repetición corta (link "same:tX") con días distintos.',
+  carryover_dinner_to_lunch: () =>
+    'Ritmo: la cena de un día suele reaparecer al almuerzo del siguiente — sobras o repetir lo que ya está hecho.',
+  streak: (n) =>
+    `Ritmo: hay bloques de ${n ?? 3} días con la misma lógica de comidas — como cuando cocinás para varios días.`,
+  max_variety: () => 'Ritmo: la semana alterna comidas principales distintas; solo repetí cuando la semana lo justifica.',
+  balanced: () => 'Ritmo: mezclá días distintos con repeticiones cortas y naturales — no una sola comida en loop.',
 };
 
 function buildWeekStructureBlock(params: {
@@ -214,8 +217,7 @@ function buildWeekStructureBlock(params: {
     wp.weekdayRulesPrompt ?? 'Todos los días normales.',
     RHYTHM_RULES[wp.mealRhythmMode](wp.streakDays),
     forbidden,
-    'Desayuno y snack: 1–2 comidas repetidas en la semana (link "same:tX") — menos decisiones para el usuario.',
-    `Almuerzo y cena: alterná comidas principales cotidianas; máx ${params.templateBudget} templateId únicos.`,
+    `Hasta ${params.templateBudget} comidas únicas (templateId) en toda la semana.`,
     `Fechas: ${params.weekDates.join(', ')}.`,
   ].filter(Boolean);
 }
@@ -228,6 +230,9 @@ function buildOutputContractBlock(templateBudget: number, activeSlots: string[])
     'days: 7 fechas → slots (mealType, templateId, link opcional, isFlexMeal).',
     'link: omitir | "prev.cena" | "same:tX".',
     'dishes: una comida por templateId sin link (nombre, ingredientes, preparacion, tiempo_prep, tip). El JSON usa "dishes" pero pensalo como comidas del menú, no recetas de autor.',
+    '',
+    'Cuando termines el plan, releé únicamente los almuerzos y las cenas.',
+    'Si al recorrer la semana parece un bucle de dos o tres platos repetidos, reorganizá la planificación antes de responder.',
   ];
 }
 
