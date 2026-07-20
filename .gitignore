@@ -1,3 +1,6 @@
+# Scenario test runs (keep fixtures/ + reviews/)
+test-results/runs/
+
 # Logs
 logs
 *.log

@@ -1,4 +1,4 @@
-import { normalizeNationality, getCuisineContext, getJerga } from './gemini.js';
+import { normalizeNationality, getJerga } from './gemini.js';
 import { getMealSlotBudgetForPattern, type MealType } from './metabolic.js';
 
 export type MealRhythmMode =
@@ -15,6 +15,9 @@ export interface WeekdayFlexRuleInput {
   nickname?: string;
 }
 
+export type CookingTimePref = 'rapido' | 'normal' | 'elaborado';
+export type BudgetPref = 'economico' | 'normal' | 'premium';
+
 export interface WeekPlanningInput {
   mealPattern: MealPattern;
   mealRhythmMode: MealRhythmMode;
@@ -25,6 +28,8 @@ export interface WeekPlanningInput {
   flexMealScope: string;
   preferredFlexWeekdays?: number[];
   activeSlots: string[];
+  cookingTime?: CookingTimePref;
+  budget?: BudgetPref;
 }
 
 export function getWeekTemplateBudget(weekPlanning: Pick<WeekPlanningInput, 'mealPattern'>): number {
@@ -38,10 +43,105 @@ export function getWeekTemplateBudget(weekPlanning: Pick<WeekPlanningInput, 'mea
 }
 
 const GOAL_GUIDANCE: Record<string, string> = {
-  lose: 'El usuario busca bajar de peso. Usá platos saciantes, buena proteína, porciones ajustadas al presupuesto calórico indicado.',
-  maintain: 'El usuario mantiene peso. Armá platos equilibrados y satisfactorios dentro del presupuesto calórico.',
-  gain: 'El usuario busca ganar masa muscular. Platos con buena densidad calórica y proteína, respetando el presupuesto.',
+  lose: 'El usuario busca bajar de peso: comidas saciantes, buena proteína, porciones ajustadas al presupuesto calórico.',
+  maintain: 'El usuario mantiene peso: comidas equilibradas y satisfactorias dentro del presupuesto calórico.',
+  gain: 'El usuario busca ganar masa muscular: comidas con buena densidad calórica y proteína, respetando el presupuesto.',
 };
+
+/**
+ * Patrones de hábito cotidiano por país — enseñan forma de pensar, no platos a copiar.
+ * Sin nombres de platos concretos para evitar anclaje.
+ */
+const EVERYDAY_EATING_PATTERNS: Record<string, string> = {
+  ar: 'proteína simple a la plancha u horno + arroz/papa/puré; pastas con salsa básica; huevo en desayuno; ensalada o verdura de acompañamiento; guisos de una olla entre semana.',
+  uy: 'similar al cono sur: carne o pollo con acompañamiento clásico, pastas, huevos, guisos sencillos, ensalada de mesa.',
+  mx: 'proteína sencilla + arroz o frijoles; huevo en varias comidas; sopas caseras; verdura de acompañamiento; desayunos rápidos.',
+  co: 'arroz como base frecuente; pollo o carne simple; legumbres; sopas; ensalada o verdura cocida.',
+  cl: 'arroz con proteína; legumbres; cazuela u olla; huevo; ensalada simple.',
+  pe: 'arroz con proteína; legumbres; saltado u olla simple; sopa casera; pescado a la plancha.',
+  es: 'tortilla o huevo; pasta o legumbres; pollo o pescado al horno; ensalada; sopa de fideos.',
+  ve: 'arroz con proteína; pasta sencilla; sopas; arepa o pan como acompañamiento ocasional.',
+  us: 'proteína al horno o sartén + acompañamiento clásico; pasta; ensalada; sándwich o huevo; sopas.',
+  de: 'proteína con papa o pasta; sopas; ensalada; huevo; platos de una sartén u horno.',
+};
+
+const PRACTICAL_COOKING: Record<CookingTimePref, string> = {
+  rapido: '≤15 min, una sartén o hervir. Nada de apanar, masas ni cocciones finas.',
+  normal: '15–25 min, técnicas de cocina de casa (sartén, hervido, horno básico).',
+  elaborado: 'Hasta ~40 min si la comida sigue siendo doméstica y conocida.',
+};
+
+const PRACTICAL_BUDGET: Record<BudgetPref, string> = {
+  economico: 'Ingredientes baratos y rendidores del súper.',
+  normal: 'Ingredientes cotidianos del súper.',
+  premium: 'Podés usar algún ingrediente un poco mejor, sin salir de lo doméstico.',
+};
+
+function buildCulinaryIdentityBlock(): string[] {
+  return [
+    '# Principio NutriKal',
+    'No buscás la comida más interesante. Organizás el menú semanal que una persona real tenga más chances de cocinar y sostener con el menor esfuerzo posible.',
+    'NutriKal vende planificación, no recetarios. Tu output es un menú semanal organizado, no un libro de cocina.',
+    '',
+    '# Rol',
+    'Organizás las comidas de una casa para la semana — rutina, no espectáculo.',
+    'No sos chef, no escribís recetarios, no cocinás para restaurante, no intentás impresionar.',
+    'La mayoría de las personas no quiere comer algo distinto todos los días: quiere resolver qué cocinar con el menor esfuerzo posible.',
+    'Tu trabajo: que el usuario mire el plan y piense "sí, esto lo cocinaría cualquier día".',
+    '',
+    '# Fricción mínima',
+    'Cuando dos opciones cumplen nutrición y restricciones, elegí siempre la de menos esfuerzo:',
+    'menos ingredientes · menos utensilios · menos pasos · menos compras especiales · menos técnicas · menos tiempo.',
+    'Repetir comidas, ingredientes y rutinas en la semana reduce fricción — eso es deseable, no un defecto.',
+    '',
+    '# Criterio',
+    'Familiaridad antes que creatividad. Naturalidad antes que originalidad.',
+    'Si dudás entre una comida llamativa y una común, elegí la común.',
+    'Pensá como alguien que organiza la semana un domingo a la noche, no como alguien que diseña un menú degustación.',
+    '',
+    '# Comidas, no recetas de autor',
+    'Nombres cortos y reconocibles — como los diría alguien en su casa, no títulos de blog ni de restaurante.',
+    'Cada ingrediente debe estar porque esa comida lo necesita; no sumes extras para "variar" o "completar".',
+    'La variedad del menú viene de alternar comidas principales conocidas, no de inventar combinaciones.',
+    '',
+    '# Autochequeo',
+    'Antes de confirmar cada comida, preguntate: ¿una persona promedio realmente cocinaría esto un martes cualquiera?',
+    'Si la respuesta es "probablemente no", buscá una alternativa más cotidiana con menos fricción.',
+  ];
+}
+
+function buildEverydayCultureBlock(code: string, displayName?: string): string[] {
+  if (code === 'neutral' || !displayName) {
+    return [
+      '# Hábitos cotidianos',
+      'Pensá en qué almuerza y cena una persona normal entre semana — no en festejos ni en carta de restaurante.',
+      'Patrones mentales (no son platos a copiar): proteína simple + acompañamiento habitual; pastas o arroz; huevo; ensalada o verdura; una olla o sartén.',
+    ];
+  }
+
+  const patterns = EVERYDAY_EATING_PATTERNS[code];
+  const lines = [
+    '# Hábitos cotidianos',
+    `Usuario de ${displayName}. Pensá en qué come una persona normal ahí entre semana — no en "lo más típico del país" ni en gastronomía festiva.`,
+    'Comida cotidiana = lo que se repite en casa. Comida típica = lo que aparece en guías o restaurantes. Planificá lo primero.',
+  ];
+  if (patterns) {
+    lines.push(
+      'Patrones de referencia mental (NO son platos obligatorios ni una lista para copiar — solo enseñan la lógica de ese contexto):',
+      patterns,
+    );
+  }
+  return lines;
+}
+
+function buildPracticalBlock(cookingTime: CookingTimePref, budget: BudgetPref): string[] {
+  return [
+    '# Cocina real',
+    `Tiempo: ${PRACTICAL_COOKING[cookingTime]}`,
+    `Presupuesto: ${PRACTICAL_BUDGET[budget]}`,
+    'Cocinero sin técnica avanzada. Si una comida exige panizado casero, punto fino de carne o varios pasos, cambiá por otra más doméstica.',
+  ];
+}
 
 function buildCalorieBlock(params: {
   goal?: string;
@@ -71,23 +171,64 @@ function buildCalorieBlock(params: {
 
   lines.push('');
   lines.push('⚠️ CRÍTICO — CALORÍAS:');
-  lines.push('- Cada plato DEBE sumar entre 90% y 110% del objetivo calórico de su slot. No se aceptan platos fuera de ese rango.');
-  lines.push('- Usá los valores kcal/100g de cada ingrediente (indicados en la Canasta Semanal) para calcular el total del plato.');
-  lines.push('- Si un plato queda por debajo del 90%, aumentá gramos de ingredientes densos (cereales, carnes, grasas).');
-  lines.push('- Si un plato supera el 110%, reducí gramos de los ingredientes más calóricos.');
+  lines.push('- Cada comida DEBE sumar entre 90% y 110% del objetivo calórico de su slot. No se aceptan platos fuera de ese rango.');
+  lines.push('- Usá los valores kcal/100g de cada ingrediente (indicados en la Canasta Semanal) para calcular el total.');
+  lines.push('- Para ajustar calorías sin perder naturalidad: PRIMERO aumentá o reducí gramos de los ingredientes que ya están en el plato (más arroz, más pollo, más papa, más pasta).');
+  lines.push('- Solo si con porciones no alcanza, sumá un ingrediente que esa comida llevaría naturalmente — no agregues grasa, queso o extras solo para cerrar el número.');
   lines.push('- El presupuesto diario es la suma de sus slots. Cada slot se cumple por separado; no uses un slot para compensar otro.');
-  lines.push('- Si un slot es "isFlexMeal": true, ese plato puede tener hasta 120% del objetivo base del slot.');
+  lines.push('- Si un slot es "isFlexMeal": true, esa comida puede tener hasta 120% del objetivo base del slot.');
 
   if (params.goal) {
     const guidance = GOAL_GUIDANCE[params.goal];
     if (guidance) {
       lines.push('');
-      lines.push(`### Objetivo del usuario`);
+      lines.push('### Objetivo del usuario');
       lines.push(guidance);
     }
   }
 
   return lines;
+}
+
+const RHYTHM_RULES: Record<MealRhythmMode, (streakDays?: number) => string> = {
+  carryover_dinner_to_lunch: () => 'Ritmo: cena D enlaza al almuerzo D+1 con link "prev.cena".',
+  streak: (n) => `Ritmo: bloques de ${n ?? 3} días iguales con link "same:ID".`,
+  max_variety: () => 'Ritmo: alterná comidas principales distintas; repetí solo con link.',
+  balanced: () => 'Ritmo: mezclá repetición corta (link "same:tX") con días distintos.',
+};
+
+function buildWeekStructureBlock(params: {
+  weekPlanning: WeekPlanningInput;
+  forbiddenDishNames: string[];
+  templateBudget: number;
+  weekDates: string[];
+}): string[] {
+  const wp = params.weekPlanning;
+  const forbidden = params.forbiddenDishNames.length
+    ? `Evitá estas comidas recientes: ${params.forbiddenDishNames.slice(0, 15).join(' · ')}.`
+    : '';
+
+  return [
+    '# Planificación semanal',
+    `Slots del menú: ${wp.activeSlots.join(', ')}.`,
+    wp.weekdayRulesPrompt ?? 'Todos los días normales.',
+    RHYTHM_RULES[wp.mealRhythmMode](wp.streakDays),
+    forbidden,
+    'Desayuno y snack: 1–2 comidas repetidas en la semana (link "same:tX") — menos decisiones para el usuario.',
+    `Almuerzo y cena: alterná comidas principales cotidianas; máx ${params.templateBudget} templateId únicos.`,
+    `Fechas: ${params.weekDates.join(', ')}.`,
+  ].filter(Boolean);
+}
+
+function buildOutputContractBlock(templateBudget: number, activeSlots: string[]): string[] {
+  return [
+    '# Formato de salida',
+    `Cada fecha incluye todos los slots (${activeSlots.join(', ')}), salvo dayMode "full_free" con slots [].`,
+    `Máx ${templateBudget} templateId únicos.`,
+    'days: 7 fechas → slots (mealType, templateId, link opcional, isFlexMeal).',
+    'link: omitir | "prev.cena" | "same:tX".',
+    'dishes: una comida por templateId sin link (nombre, ingredientes, preparacion, tiempo_prep, tip). El JSON usa "dishes" pero pensalo como comidas del menú, no recetas de autor.',
+  ];
 }
 
 export function buildWeekPlanOneShotPrompt(params: {
@@ -104,54 +245,49 @@ export function buildWeekPlanOneShotPrompt(params: {
 }): string {
   const wp = params.weekPlanning;
   const templateBudget = getWeekTemplateBudget(wp);
-
   const { code, displayName } = normalizeNationality(params.nationality);
-  const cuisine = getCuisineContext(code, displayName ?? params.nationality);
   const jerga = getJerga(code);
+  const cookingTime = wp.cookingTime ?? 'normal';
+  const budgetPref = wp.budget ?? 'normal';
 
-  const rhythmRules: Record<MealRhythmMode, string> = {
-    carryover_dinner_to_lunch:
-      'Cena D enlaza al almuerzo D+1 con link "prev.cena".',
-    streak: `Bloques de ${wp.streakDays ?? 3} días iguales con link "same:ID".`,
-    max_variety: 'Variedad dentro del presupuesto de templates; repetí solo con link.',
-    balanced: 'Mezclá repetición corta (link "same:ID") con días distintos.',
-  };
+  const calorieBlock =
+    params.dailyBudgetKcal != null && params.dailyBudgetKcal > 0
+      ? buildCalorieBlock({
+          goal: params.goal,
+          mealPattern: wp.mealPattern,
+          activeSlots: wp.activeSlots,
+          dailyBudgetKcal: params.dailyBudgetKcal,
+          maintenanceBudgetKcal: params.maintenanceBudgetKcal,
+        })
+      : params.goal
+        ? [`Objetivo: ${params.goal}.`]
+        : [];
 
-  const forbidden = params.forbiddenDishNames.length
-    ? `No repitas estos platos recientes (variedad visible al usuario): ${params.forbiddenDishNames.slice(0, 15).join(' · ')}.`
-    : '';
+  const sections = [
+    buildCulinaryIdentityBlock().join('\n'),
+    [
+      buildEverydayCultureBlock(code, displayName ?? params.nationality).join('\n'),
+      params.profileName ? `Usuario: ${params.profileName}.` : '',
+      params.restrictions?.length ? `Restricciones: ${params.restrictions.join(', ')}.` : '',
+      `Tono regional (solo nombres y tips): ${jerga}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    buildPracticalBlock(cookingTime, budgetPref).join('\n'),
+    calorieBlock.join('\n'),
+    buildWeekStructureBlock({
+      weekPlanning: wp,
+      forbiddenDishNames: params.forbiddenDishNames,
+      templateBudget,
+      weekDates: params.weekDates,
+    }).join('\n'),
+    [
+      '# Canasta semanal',
+      'Ingredientes disponibles en la casa esta semana. Referencia para planificar — no excusa para combinar raro.',
+      params.weeklyPoolPrompt,
+    ].join('\n'),
+    buildOutputContractBlock(templateBudget, wp.activeSlots).join('\n'),
+  ].filter(Boolean);
 
-  const calorieBlock = params.dailyBudgetKcal != null && params.dailyBudgetKcal > 0
-    ? buildCalorieBlock({
-        goal: params.goal,
-        mealPattern: wp.mealPattern,
-        activeSlots: wp.activeSlots,
-        dailyBudgetKcal: params.dailyBudgetKcal,
-        maintenanceBudgetKcal: params.maintenanceBudgetKcal,
-      })
-    : [params.goal ? `Objetivo: ${params.goal}.` : ''];
-
-  return [
-    'Planificador semanal. Comidas caseras simples, nombres cortos, 4-6 ingredientes por plato.',
-    params.profileName ? `Usuario: ${params.profileName}.` : '',
-    cuisine,
-    `Tono regional para nombres de platos y tips: ${jerga}`,
-    params.restrictions?.length ? `Restricciones: ${params.restrictions.join(', ')}.` : '',
-    ...calorieBlock,
-    '',
-    `Slots: ${wp.activeSlots.join(', ')}.`,
-    wp.weekdayRulesPrompt ?? 'Todos los días normales.',
-    rhythmRules[wp.mealRhythmMode],
-    forbidden,
-    'Si evitás ingredientes o platos por gusto del usuario, priorizá variedad de proteínas y técnicas.',
-    params.weeklyPoolPrompt,
-    `Máx ${templateBudget} templateId únicos. Solamente 1-2 recetas distintas para desayuno y para snack en toda la semana (repetilas con link "same:tX").`,
-    'Cada fecha tiene TODOS los slots listados arriba (salvo días full_free con slots []).',
-    'days: 7 fechas con slots (mealType, templateId, link opcional, isFlexMeal).',
-    'link: omitir, "prev.cena", o "same:tX". Días full_free: slots [].',
-    'dishes: una receta por templateId sin link (nombre, ingredientes, preparacion, tiempo_prep, tip).',
-    `Fechas: ${params.weekDates.join(', ')}.`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  return sections.join('\n\n');
 }
