@@ -92,6 +92,9 @@ export const useAuthStore = create<AuthStoreState>()(
         import('./usePlanRotationStore').then(({ usePlanRotationStore }) =>
           usePlanRotationStore.getState().clear({ sync: false }),
         );
+        import('./useChatStore').then(({ useChatStore }) =>
+          useChatStore.getState().resetConversation(),
+        );
         import('./useSettingsStore').then(({ useSettingsStore }) => {
           useSettingsStore.setState({ showCalories: false, useGrams: false, theme: 'dark' });
           localStorage.removeItem('nutrikal-use-grams');
