@@ -1,11 +1,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Plus, Send, UserCircle } from 'lucide-react';
+import { History, Plus, Send, UserCircle } from 'lucide-react';
 import type { ChatOption, AppTab } from '../../types';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
 import { WeekPlanningSetup } from '../profile/WeekPlanningSetup';
 import { useChatEngine } from './useChatEngine';
 import { useChatStore } from '../../store/useChatStore';
+import { ChatHistoryPanel } from './ChatHistoryPanel';
 
 interface ChatAssistantProps {
   onTabChange?: (tab: AppTab) => void;
@@ -32,9 +33,13 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   const scrollIntent = useChatStore((s) => s.scrollIntent);
   const clearScrollIntent = useChatStore((s) => s.clearScrollIntent);
+  const hasMoreOlder = useChatStore((s) => s.hasMoreOlder);
+  const isLoadingOlder = useChatStore((s) => s.isLoadingOlder);
+  const loadOlderMessages = useChatStore((s) => s.loadOlderMessages);
 
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [showWeekPlanningSetup, setShowWeekPlanningSetup] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [inputText, setInputText] = useState('');
 
   const wrappedHandleOption = useCallback(
@@ -69,6 +74,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prependAnchorRef = useRef<{ prevHeight: number; prevTop: number } | null>(null);
+  const loadingOlderRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -76,13 +82,11 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     el.scrollTop = el.scrollHeight;
   }, []);
 
-  // Remount with an existing session transcript → land at the bottom once.
   useEffect(() => {
     const timer = setTimeout(scrollToBottom, 50);
     return () => clearTimeout(timer);
   }, [scrollToBottom]);
 
-  // Intent-driven scroll: append/initial → bottom; prepend → preserve (PR3 ready).
   useEffect(() => {
     if (scrollIntent === 'none') return;
 
@@ -104,6 +108,21 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
     return () => clearTimeout(timer);
   }, [scrollIntent, messages, clearScrollIntent]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el || !hasMoreOlder || isLoadingOlder || loadingOlderRef.current) return;
+    if (el.scrollTop > 96) return;
+
+    prependAnchorRef.current = {
+      prevHeight: el.scrollHeight,
+      prevTop: el.scrollTop,
+    };
+    loadingOlderRef.current = true;
+    void loadOlderMessages().finally(() => {
+      loadingOlderRef.current = false;
+    });
+  }, [hasMoreOlder, isLoadingOlder, loadOlderMessages]);
 
   const onSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -152,10 +171,31 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
   return (
     <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-transparent text-[#191c17]">
 
+      <div className="pointer-events-none fixed left-0 right-0 top-[60px] z-30 flex justify-end px-4 pt-2 md:static md:pointer-events-auto md:justify-end md:px-4 md:pt-0">
+        <button
+          type="button"
+          onClick={() => setShowHistory(true)}
+          className="pointer-events-auto inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#ffffff]/90 px-4 py-2 font-body text-sm font-medium text-[#226046] shadow-md ring-1 ring-[#bfcaba]/30 backdrop-blur-md transition hover:bg-[#ffffff] md:shadow-sm"
+          aria-label="Ver conversaciones"
+        >
+          <History size={18} />
+          <span className="hidden sm:inline">Conversaciones</span>
+        </button>
+      </div>
+
       <div
         ref={scrollContainerRef}
+        onScroll={handleScroll}
         className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-24 pb-32 md:pt-6 md:pb-32"
       >
+        {(isLoadingOlder || hasMoreOlder) && (
+          <div className="flex justify-center py-2">
+            <span className="font-body text-xs text-[#707a6c]">
+              {isLoadingOlder ? 'Cargando mensajes anteriores…' : '↑ Deslizá para ver más'}
+            </span>
+          </div>
+        )}
+
         {messages.map((msg) => (
           <ChatMessageBubble
             key={msg.id}
@@ -206,6 +246,8 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
           </button>
         </div>
       </form>
+
+      <ChatHistoryPanel isOpen={showHistory} onClose={() => setShowHistory(false)} />
 
       <ProfileSetup isOpen={showProfileSetup} onClose={() => setShowProfileSetup(false)} />
       <WeekPlanningSetup

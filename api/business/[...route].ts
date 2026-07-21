@@ -8,6 +8,10 @@ import {
   normalizeMealType,
   persistableMessages,
   rowToMessage,
+  deriveConversationTitle,
+  messagePreview,
+  CHAT_MESSAGES_PAGE_SIZE,
+  CHAT_CONVERSATIONS_PAGE_SIZE,
 } from '../_lib/chatConversation.js';
 
 interface AuthenticatedRequest {
@@ -36,24 +40,77 @@ function mapProgressCheckIn(row: Record<string, unknown>) {
   };
 }
 
-async function loadActiveChatConversation(userId: string) {
+async function loadConversationMessagesPage(
+  userId: string,
+  conversationId: string,
+  options: { limit?: number; before?: string | null } = {},
+) {
+  const supabase = getSupabase();
+  const limit = Math.min(Math.max(options.limit ?? CHAT_MESSAGES_PAGE_SIZE, 1), 100);
+
+  let query = supabase
+    .from('chat_messages')
+    .select('id, type, content, created_at')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit + 1);
+
+  if (options.before) {
+    query = query.lt('created_at', options.before);
+  }
+
+  const { data: rows, error } = await query;
+  if (error) {
+    console.error('loadConversationMessagesPage error:', error.message);
+    return {
+      messages: [] as Record<string, unknown>[],
+      hasMoreOlder: false,
+      olderCursor: null as string | null,
+    };
+  }
+
+  const raw = rows ?? [];
+  const hasMoreOlder = raw.length > limit;
+  const page = raw.slice(0, limit).reverse();
+  const messages = page.map((row) =>
+    rowToMessage(row as {
+      id: string;
+      type: string;
+      content: Record<string, unknown> | null;
+      created_at?: string;
+    }),
+  );
+  const olderCursor =
+    hasMoreOlder && messages.length > 0
+      ? String((messages[0] as { timestamp?: string }).timestamp ?? page[0]?.created_at ?? '')
+      : null;
+
+  return { messages, hasMoreOlder, olderCursor: olderCursor || null };
+}
+
+async function loadActiveChatConversation(
+  userId: string,
+  messageLimit = CHAT_MESSAGES_PAGE_SIZE,
+) {
   const supabase = getSupabase();
   const { data: conversation, error: convErr } = await supabase
     .from('chat_conversations')
-    .select('id, last_week_plan, last_meal_type, updated_at')
+    .select('id, title, last_week_plan, last_meal_type, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (convErr) {
-    // Table may not exist yet before migration 007 — treat as empty.
     console.error('loadActiveChatConversation conversation error:', convErr.message);
     return {
       conversationId: null as string | null,
       messages: [] as Record<string, unknown>[],
       lastWeekPlan: null as unknown,
       lastMealType: null as string | null,
+      hasMoreOlder: false,
+      olderCursor: null as string | null,
     };
   }
 
@@ -63,39 +120,36 @@ async function loadActiveChatConversation(userId: string) {
       messages: [] as Record<string, unknown>[],
       lastWeekPlan: null as unknown,
       lastMealType: null as string | null,
+      hasMoreOlder: false,
+      olderCursor: null as string | null,
     };
   }
 
-  const { data: rows, error: msgErr } = await supabase
-    .from('chat_messages')
-    .select('id, type, content, created_at')
-    .eq('conversation_id', conversation.id)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-
-  if (msgErr) {
-    console.error('loadActiveChatConversation messages error:', msgErr.message);
-    return {
-      conversationId: conversation.id as string,
-      messages: [] as Record<string, unknown>[],
-      lastWeekPlan: conversation.last_week_plan ?? null,
-      lastMealType: normalizeMealType(conversation.last_meal_type),
-    };
-  }
+  const page = await loadConversationMessagesPage(userId, conversation.id as string, {
+    limit: messageLimit,
+  });
 
   return {
     conversationId: conversation.id as string,
-    messages: (rows ?? []).map((row) =>
-      rowToMessage(row as {
-        id: string;
-        type: string;
-        content: Record<string, unknown> | null;
-        created_at?: string;
-      }),
-    ),
+    messages: page.messages,
     lastWeekPlan: conversation.last_week_plan ?? null,
     lastMealType: normalizeMealType(conversation.last_meal_type),
+    hasMoreOlder: page.hasMoreOlder,
+    olderCursor: page.olderCursor,
   };
+}
+
+async function loadConversationById(userId: string, conversationId: string) {
+  const supabase = getSupabase();
+  const { data: conversation, error } = await supabase
+    .from('chat_conversations')
+    .select('id, title, last_week_plan, last_meal_type, updated_at')
+    .eq('id', conversationId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !conversation) return null;
+  return conversation;
 }
 
 function mapProfileRow(row: Record<string, unknown>) {
@@ -478,10 +532,12 @@ const handlers: Record<string, RouteHandler> = {
     }
 
     if (!conversationId) {
+      const title = deriveConversationTitle(messages);
       const { data: created, error: createErr } = await supabase
         .from('chat_conversations')
         .insert({
           user_id: auth.userId,
+          title,
           last_week_plan: lastWeekPlan,
           last_meal_type: lastMealType,
           updated_at: now,
@@ -494,9 +550,18 @@ const handlers: Record<string, RouteHandler> = {
       }
       conversationId = created.id as string;
     } else {
+      const { data: convMeta } = await supabase
+        .from('chat_conversations')
+        .select('title')
+        .eq('id', conversationId)
+        .eq('user_id', auth.userId)
+        .maybeSingle();
+      const title =
+        convMeta?.title ?? deriveConversationTitle(messages);
       const { error: updateErr } = await supabase
         .from('chat_conversations')
         .update({
+          title: title ?? null,
           last_week_plan: lastWeekPlan,
           last_meal_type: lastMealType,
           updated_at: now,
@@ -554,6 +619,121 @@ const handlers: Record<string, RouteHandler> = {
       ok: true,
       conversationId,
       messageCount: rows.length,
+    });
+  },
+
+  'GET chat/conversations': async (req, res, auth) => {
+    const supabase = getSupabase();
+    const limit = Math.min(Math.max(Number(req.query.limit) || CHAT_CONVERSATIONS_PAGE_SIZE, 1), 50);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+    const { data: rows, error, count } = await supabase
+      .from('chat_conversations')
+      .select('id, title, updated_at', { count: 'exact' })
+      .eq('user_id', auth.userId)
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('GET chat/conversations error:', error.message);
+      return res.status(500).json({ error: 'Error al listar conversaciones' });
+    }
+
+    const conversations = await Promise.all(
+      (rows ?? []).map(async (row) => {
+        const { data: lastMsg } = await supabase
+          .from('chat_messages')
+          .select('type, content')
+          .eq('conversation_id', row.id)
+          .eq('user_id', auth.userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const preview = lastMsg
+          ? messagePreview({
+              type: lastMsg.type,
+              ...(lastMsg.content as Record<string, unknown>),
+            })
+          : '';
+
+        return {
+          id: row.id as string,
+          title: (row.title as string | null) ?? null,
+          preview,
+          updatedAt: row.updated_at as string,
+        };
+      }),
+    );
+
+    const total = count ?? 0;
+    const hasMore = offset + limit < total;
+
+    return res.status(200).json({
+      conversations,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+    });
+  },
+
+  'POST chat/conversations': async (_req, res, auth) => {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+    const { data: created, error } = await supabase
+      .from('chat_conversations')
+      .insert({
+        user_id: auth.userId,
+        updated_at: now,
+      })
+      .select('id, updated_at')
+      .single();
+
+    if (error || !created) {
+      console.error('POST chat/conversations error:', error?.message);
+      return res.status(500).json({ error: 'Error al crear conversación' });
+    }
+
+    return res.status(201).json({
+      conversation: {
+        id: created.id as string,
+        title: null,
+        preview: '',
+        updatedAt: created.updated_at as string,
+      },
+    });
+  },
+
+  'GET chat/conversations/:id/messages': async (req, res, auth, segments) => {
+    const conversationId = segments[2];
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId requerido' });
+    }
+
+    const conversation = await loadConversationById(auth.userId, conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    const limit = Math.min(Math.max(Number(req.query.limit) || CHAT_MESSAGES_PAGE_SIZE, 1), 100);
+    const before =
+      typeof req.query.before === 'string' && req.query.before.trim()
+        ? req.query.before.trim()
+        : null;
+
+    const page = await loadConversationMessagesPage(auth.userId, conversationId, {
+      limit,
+      before,
+    });
+
+    return res.status(200).json({
+      conversationId,
+      title: (conversation.title as string | null) ?? null,
+      lastWeekPlan: conversation.last_week_plan ?? null,
+      lastMealType: normalizeMealType(conversation.last_meal_type),
+      updatedAt: conversation.updated_at as string,
+      messages: page.messages,
+      hasMoreOlder: page.hasMoreOlder,
+      olderCursor: page.olderCursor,
     });
   },
 
@@ -1478,6 +1658,11 @@ function normalizeKey(method: string | undefined, segments: string[]): string {
     s[3] = ':itemId';
   }
   if (s[0] === 'shopping' && s[1] && !s[2]) s[1] = ':listId';
+  if (s[0] === 'chat' && s[1] === 'conversations' && s[2] && s[3] === 'messages') {
+    s[2] = ':id';
+  } else if (s[0] === 'chat' && s[1] === 'conversations' && s[2] && !s[3]) {
+    s[2] = ':id';
+  }
 
   return routeKey(method, s);
 }
