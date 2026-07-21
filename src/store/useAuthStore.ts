@@ -93,7 +93,7 @@ export const useAuthStore = create<AuthStoreState>()(
           usePlanRotationStore.getState().clear({ sync: false }),
         );
         import('./useChatStore').then(({ useChatStore }) =>
-          useChatStore.getState().resetConversation(),
+          useChatStore.getState().resetConversation({ sync: false }),
         );
         import('./useSettingsStore').then(({ useSettingsStore }) => {
           useSettingsStore.setState({ showCalories: false, useGrams: false, theme: 'dark' });

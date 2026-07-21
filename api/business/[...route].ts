@@ -3,6 +3,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyToken } from '../_lib/jwt.js';
 import { getSupabase } from '../_lib/supabase.js';
 import { normalizePlanMemory } from '../_lib/planMemory.js';
+import {
+  messageToRow,
+  normalizeMealType,
+  persistableMessages,
+  rowToMessage,
+} from '../_lib/chatConversation.js';
 
 interface AuthenticatedRequest {
   userId: string;
@@ -27,6 +33,68 @@ function mapProgressCheckIn(row: Record<string, unknown>) {
     periodExperience: (row.period_experience as string | null) ?? undefined,
     source: row.source as string,
     recordedAt: row.recorded_at as string,
+  };
+}
+
+async function loadActiveChatConversation(userId: string) {
+  const supabase = getSupabase();
+  const { data: conversation, error: convErr } = await supabase
+    .from('chat_conversations')
+    .select('id, last_week_plan, last_meal_type, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (convErr) {
+    // Table may not exist yet before migration 007 — treat as empty.
+    console.error('loadActiveChatConversation conversation error:', convErr.message);
+    return {
+      conversationId: null as string | null,
+      messages: [] as Record<string, unknown>[],
+      lastWeekPlan: null as unknown,
+      lastMealType: null as string | null,
+    };
+  }
+
+  if (!conversation) {
+    return {
+      conversationId: null as string | null,
+      messages: [] as Record<string, unknown>[],
+      lastWeekPlan: null as unknown,
+      lastMealType: null as string | null,
+    };
+  }
+
+  const { data: rows, error: msgErr } = await supabase
+    .from('chat_messages')
+    .select('id, type, content, created_at')
+    .eq('conversation_id', conversation.id)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (msgErr) {
+    console.error('loadActiveChatConversation messages error:', msgErr.message);
+    return {
+      conversationId: conversation.id as string,
+      messages: [] as Record<string, unknown>[],
+      lastWeekPlan: conversation.last_week_plan ?? null,
+      lastMealType: normalizeMealType(conversation.last_meal_type),
+    };
+  }
+
+  return {
+    conversationId: conversation.id as string,
+    messages: (rows ?? []).map((row) =>
+      rowToMessage(row as {
+        id: string;
+        type: string;
+        content: Record<string, unknown> | null;
+        created_at?: string;
+      }),
+    ),
+    lastWeekPlan: conversation.last_week_plan ?? null,
+    lastMealType: normalizeMealType(conversation.last_meal_type),
   };
 }
 
@@ -179,6 +247,7 @@ const handlers: Record<string, RouteHandler> = {
       favoritesRes,
       signalsRes,
       progressRes,
+      chatConversation,
     ] = await Promise.all([
       supabase.from('meals').select('*').eq('user_id', uid).gte('date', dateFrom).order('date', { ascending: true }),
       supabase.from('day_notes').select('*').eq('user_id', uid).gte('date', dateFrom),
@@ -192,6 +261,7 @@ const handlers: Record<string, RouteHandler> = {
       supabase.from('favorites').select('dish_name').eq('user_id', uid),
       supabase.from('ingredient_signals').select('*').eq('user_id', uid).order('fecha', { ascending: false }).limit(Number(req.query.signalLimit) || 800),
       supabase.from('body_check_ins').select('*').eq('user_id', uid).order('recorded_at', { ascending: true }),
+      loadActiveChatConversation(uid),
     ]);
 
     const parseWeekPlanning = (raw: unknown) => {
@@ -365,6 +435,125 @@ const handlers: Record<string, RouteHandler> = {
       weekPlanning,
       planMemory,
       progressCheckIns,
+      chatConversation,
+    });
+  },
+
+  'GET chat/conversation': async (_req, res, auth) => {
+    const chatConversation = await loadActiveChatConversation(auth.userId);
+    return res.status(200).json({ chatConversation });
+  },
+
+  'PUT chat/conversation': async (req, res, auth) => {
+    const body = req.body ?? {};
+    const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+    const messages = persistableMessages(rawMessages as Array<Record<string, unknown>>);
+    const lastWeekPlan = body.lastWeekPlan ?? null;
+    const lastMealType = normalizeMealType(body.lastMealType);
+    const requestedId =
+      typeof body.conversationId === 'string' && body.conversationId.trim()
+        ? body.conversationId.trim()
+        : null;
+
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    let conversationId = requestedId;
+
+    if (conversationId) {
+      const { data: owned } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('user_id', auth.userId)
+        .maybeSingle();
+      if (!owned) {
+        conversationId = null;
+      }
+    }
+
+    if (!conversationId) {
+      const existing = await loadActiveChatConversation(auth.userId);
+      conversationId = existing.conversationId;
+    }
+
+    if (!conversationId) {
+      const { data: created, error: createErr } = await supabase
+        .from('chat_conversations')
+        .insert({
+          user_id: auth.userId,
+          last_week_plan: lastWeekPlan,
+          last_meal_type: lastMealType,
+          updated_at: now,
+        })
+        .select('id')
+        .single();
+      if (createErr || !created) {
+        console.error('PUT chat/conversation create error:', createErr?.message);
+        return res.status(500).json({ error: 'Error al crear conversación' });
+      }
+      conversationId = created.id as string;
+    } else {
+      const { error: updateErr } = await supabase
+        .from('chat_conversations')
+        .update({
+          last_week_plan: lastWeekPlan,
+          last_meal_type: lastMealType,
+          updated_at: now,
+        })
+        .eq('id', conversationId)
+        .eq('user_id', auth.userId);
+      if (updateErr) {
+        console.error('PUT chat/conversation update error:', updateErr.message);
+        return res.status(500).json({ error: 'Error al actualizar conversación' });
+      }
+    }
+
+    const rows = messages.map((m) => messageToRow(m, conversationId!, auth.userId));
+    const keepIds = rows.map((r) => r.id);
+
+    if (rows.length > 0) {
+      const { error: upsertErr } = await supabase
+        .from('chat_messages')
+        .upsert(rows, { onConflict: 'id' });
+      if (upsertErr) {
+        console.error('PUT chat/conversation upsert messages error:', upsertErr.message);
+        return res.status(500).json({ error: 'Error al guardar mensajes' });
+      }
+    }
+
+    // Remove stale / ephemeral rows that are no longer in the session snapshot.
+    const { data: existingRows, error: listErr } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', auth.userId);
+    if (listErr) {
+      console.error('PUT chat/conversation list messages error:', listErr.message);
+      return res.status(500).json({ error: 'Error al sincronizar mensajes' });
+    }
+
+    const keep = new Set(keepIds);
+    const toDelete = (existingRows ?? [])
+      .map((r) => r.id as string)
+      .filter((id) => !keep.has(id));
+    if (toDelete.length > 0) {
+      const { error: delErr } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('user_id', auth.userId)
+        .eq('conversation_id', conversationId)
+        .in('id', toDelete);
+      if (delErr) {
+        console.error('PUT chat/conversation delete stale error:', delErr.message);
+        return res.status(500).json({ error: 'Error al limpiar mensajes' });
+      }
+    }
+
+    return res.status(200).json({
+      ok: true,
+      conversationId,
+      messageCount: rows.length,
     });
   },
 

@@ -298,6 +298,7 @@ export function useChatEngine(): ChatEngineResult {
 
   const messages = useChatStore((s) => s.messages);
   const isLoading = useChatStore((s) => s.isLoading);
+  const hasHydrated = useChatStore((s) => s.hasHydrated);
 
   const prevProfileRef = useRef(profile);
   const progressSurfaceCheckedRef = useRef(false);
@@ -325,8 +326,9 @@ export function useChatEngine(): ChatEngineResult {
     useChatStore.getState().appendMessages(...msgs);
   }
 
-  /** Seed welcome only when the session transcript is empty — never clobber an active chat. */
+  /** Seed welcome only after hydrate, and never clobber an active chat. */
   useEffect(() => {
+    if (!hasHydrated) return;
     const chat = useChatStore.getState();
     if (chat.messages.length > 0) return;
 
@@ -339,12 +341,12 @@ export function useChatEngine(): ChatEngineResult {
       buildWelcomeMessagesForProfile(profile, false),
       'initial',
     );
-  }, [profile]);
+  }, [profile, hasHydrated]);
 
   useEffect(() => {
     if (!prevProfileRef.current && profile) {
       const chat = useChatStore.getState();
-      chat.resetConversation();
+      chat.resetConversation({ sync: true });
       chat.replaceMessages(
         buildWelcomeMessagesForProfile(profile, justOnboarded),
         'initial',

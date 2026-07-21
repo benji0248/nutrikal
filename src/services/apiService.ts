@@ -16,6 +16,8 @@ import type {
   BodyCheckIn,
   PeriodExperience,
   ProgressCheckInSource,
+  ChatMessage,
+  WeekPlan,
 } from '../types';
 
 const JWT_KEY = 'nutrikal-jwt';
@@ -186,6 +188,12 @@ export interface BatchLoadResponse {
   favorites: string[];
   ingredientSignals: IngredientSignalEntry[];
   progressCheckIns: BodyCheckIn[];
+  chatConversation?: {
+    conversationId: string | null;
+    messages: ChatMessage[];
+    lastWeekPlan: WeekPlan | null;
+    lastMealType: MealType | null;
+  } | null;
 }
 
 export async function batchLoadAllData(): Promise<BatchLoadResponse> {
@@ -268,6 +276,31 @@ export async function savePlanMemory(planMemory: PlanMemory): Promise<void> {
 export async function loadPlanMemory(): Promise<PlanMemory | null> {
   const data = await get<{ planMemory: PlanMemory | null }>('/api/plan-memory');
   return data.planMemory;
+}
+
+// ── Chat conversation (PR2) ──
+
+export type ChatConversationPayload = {
+  conversationId: string | null;
+  messages: ChatMessage[];
+  lastWeekPlan: WeekPlan | null;
+  lastMealType: MealType | null;
+};
+
+export async function loadChatConversation(): Promise<ChatConversationPayload> {
+  const data = await get<{ chatConversation: ChatConversationPayload }>('/api/chat/conversation');
+  return data.chatConversation ?? {
+    conversationId: null,
+    messages: [],
+    lastWeekPlan: null,
+    lastMealType: null,
+  };
+}
+
+export async function saveChatConversation(
+  payload: ChatConversationPayload,
+): Promise<{ conversationId: string; messageCount: number }> {
+  return put('/api/chat/conversation', payload);
 }
 
 // ── Calculator Recipes ──
