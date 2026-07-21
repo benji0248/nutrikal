@@ -41,13 +41,16 @@ export function messageToRow(
       ? message.timestamp
       : new Date().toISOString();
 
-  const { id: _id, type: _type, ...rest } = message;
+  const content: Record<string, unknown> = { ...message, timestamp };
+  delete content.id;
+  delete content.type;
+
   return {
     id,
     conversation_id: conversationId,
     user_id: userId,
     type,
-    content: { ...rest, timestamp },
+    content,
     created_at:
       timestamp && !Number.isNaN(Date.parse(timestamp))
         ? timestamp
