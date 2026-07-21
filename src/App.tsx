@@ -19,6 +19,7 @@ import { useIngredientSignalStore } from './store/useIngredientSignalStore';
 import { useWeekPlanningStore } from './store/useWeekPlanningStore';
 import { usePlanRotationStore } from './store/usePlanRotationStore';
 import { useProgressStore } from './store/useProgressStore';
+import { useChatStore } from './store/useChatStore';
 import {
   batchLoadAllData,
   loadProfile,
@@ -132,8 +133,10 @@ function AuthenticatedApp() {
         useIngredientSignalStore.getState().hydrateSignals(data.ingredientSignals);
         usePlanRotationStore.getState().hydrate(data.planMemory ?? undefined);
         useProgressStore.getState().hydrateCheckIns(data.progressCheckIns ?? []);
+        useChatStore.getState().hydrate(data.chatConversation ?? null);
       } catch (e) {
         console.error('Init data load error:', e);
+        useChatStore.getState().hydrate(null);
         try {
           const fallbackProfile = await loadProfile();
           if (fallbackProfile) {
