@@ -193,6 +193,8 @@ export interface BatchLoadResponse {
     messages: ChatMessage[];
     lastWeekPlan: WeekPlan | null;
     lastMealType: MealType | null;
+    hasMoreOlder?: boolean;
+    olderCursor?: string | null;
   } | null;
 }
 
@@ -287,13 +289,39 @@ export type ChatConversationPayload = {
   lastMealType: MealType | null;
 };
 
-export async function loadChatConversation(): Promise<ChatConversationPayload> {
-  const data = await get<{ chatConversation: ChatConversationPayload }>('/api/chat/conversation');
-  return data.chatConversation ?? {
-    conversationId: null,
-    messages: [],
-    lastWeekPlan: null,
-    lastMealType: null,
+export type ChatConversationSummary = {
+  id: string;
+  title: string | null;
+  preview: string;
+  updatedAt: string;
+};
+
+export type ChatMessagesPageResponse = {
+  conversationId: string;
+  title: string | null;
+  lastWeekPlan: WeekPlan | null;
+  lastMealType: MealType | null;
+  updatedAt: string;
+  messages: ChatMessage[];
+  hasMoreOlder: boolean;
+  olderCursor: string | null;
+};
+
+export async function loadChatConversation(): Promise<
+  ChatConversationPayload & { hasMoreOlder: boolean; olderCursor: string | null }
+> {
+  const data = await get<{ chatConversation: ChatConversationPayload & {
+    hasMoreOlder?: boolean;
+    olderCursor?: string | null;
+  } }>('/api/chat/conversation');
+  const chat = data.chatConversation;
+  return {
+    conversationId: chat?.conversationId ?? null,
+    messages: chat?.messages ?? [],
+    lastWeekPlan: chat?.lastWeekPlan ?? null,
+    lastMealType: chat?.lastMealType ?? null,
+    hasMoreOlder: chat?.hasMoreOlder ?? false,
+    olderCursor: chat?.olderCursor ?? null,
   };
 }
 
@@ -301,6 +329,32 @@ export async function saveChatConversation(
   payload: ChatConversationPayload,
 ): Promise<{ conversationId: string; messageCount: number }> {
   return put('/api/chat/conversation', payload);
+}
+
+export async function listChatConversations(
+  offset = 0,
+  limit = 20,
+): Promise<{ conversations: ChatConversationSummary[]; hasMore: boolean; nextOffset: number | null }> {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+  });
+  return get(`/api/chat/conversations?${params.toString()}`);
+}
+
+export async function createChatConversation(): Promise<{ conversation: ChatConversationSummary }> {
+  return post('/api/chat/conversations', {});
+}
+
+export async function loadChatMessagesPage(
+  conversationId: string,
+  options?: { before?: string | null; limit?: number },
+): Promise<ChatMessagesPageResponse> {
+  const params = new URLSearchParams();
+  if (options?.before) params.set('before', options.before);
+  if (options?.limit) params.set('limit', String(options.limit));
+  const qs = params.toString();
+  return get(`/api/chat/conversations/${encodeURIComponent(conversationId)}/messages${qs ? `?${qs}` : ''}`);
 }
 
 // ── Calculator Recipes ──

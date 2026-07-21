@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import type { ChatMessage, MealType, WeekPlan } from '../types';
 import * as api from '../services/apiService';
+import type { ChatConversationSummary } from '../services/apiService';
 
 /** Max user+assistant pairs kept for the LLM context (not the UI transcript). */
 export const AI_CONVERSATION_HISTORY_LIMIT = 10;
+
+export const CHAT_MESSAGES_PAGE_SIZE = 30;
 
 export type ChatScrollIntent = 'none' | 'initial' | 'append' | 'prepend';
 
@@ -22,29 +25,33 @@ export type ChatConversationSnapshot = {
   messages: ChatMessage[];
   lastWeekPlan: WeekPlan | null;
   lastMealType: MealType | null;
+  hasMoreOlder?: boolean;
+  olderCursor?: string | null;
 };
 
 interface ChatState {
   conversationId: string | null;
-  /** Visual transcript — session source of truth. */
   messages: ChatMessage[];
-  /** Derived, truncated LLM context — never the full transcript. */
   conversationHistory: ChatConversationTurn[];
   lastWeekPlan: WeekPlan | null;
   lastMealType: MealType | null;
 
-  /** In-flight request gate (also prevents double-send after remount). */
+  hasMoreOlder: boolean;
+  olderCursor: string | null;
+  isLoadingOlder: boolean;
+
+  conversationSummaries: ChatConversationSummary[];
+  hasMoreConversations: boolean;
+  conversationsNextOffset: number;
+  isLoadingConversations: boolean;
+
   isLoading: boolean;
-  /** Context for the request currently in flight — session only, never DB. */
   pendingAction: ChatPendingAction | null;
-
-  /** Scroll driver for ChatAssistant — consumed and cleared by the UI. */
   scrollIntent: ChatScrollIntent;
-
-  /** True after batch-load hydrate attempt (even if empty). */
   hasHydrated: boolean;
 
   appendMessages: (...msgs: ChatMessage[]) => void;
+  prependMessages: (...msgs: ChatMessage[]) => void;
   removeMessage: (id: string) => void;
   replaceMessages: (messages: ChatMessage[], intent?: ChatScrollIntent) => void;
   updateMessages: (
@@ -58,19 +65,20 @@ interface ChatState {
   setLastWeekPlan: (plan: WeekPlan | null) => void;
   setLastMealType: (mealType: MealType | null) => void;
 
-  /** @returns false if a send is already in progress */
   tryBeginSend: () => boolean;
   endSend: () => void;
 
   setPendingAction: (action: ChatPendingAction | null) => void;
   clearPendingAction: () => void;
-
   clearScrollIntent: () => void;
 
-  /** Restore from server — does not write back. */
   hydrate: (snapshot: ChatConversationSnapshot | null | undefined) => void;
+  loadOlderMessages: () => Promise<void>;
 
-  /** Wipe session conversation (logout / new welcome). */
+  loadConversationList: (reset?: boolean) => Promise<void>;
+  openConversation: (conversationId: string) => Promise<void>;
+  startNewConversation: () => Promise<void>;
+
   resetConversation: (options?: { sync?: boolean }) => void;
 }
 
@@ -80,6 +88,13 @@ const initialConversation = {
   conversationHistory: [] as ChatConversationTurn[],
   lastWeekPlan: null as WeekPlan | null,
   lastMealType: null as MealType | null,
+  hasMoreOlder: false,
+  olderCursor: null as string | null,
+  isLoadingOlder: false,
+  conversationSummaries: [] as ChatConversationSummary[],
+  hasMoreConversations: false,
+  conversationsNextOffset: 0,
+  isLoadingConversations: false,
   isLoading: false,
   pendingAction: null as ChatPendingAction | null,
   scrollIntent: 'none' as ChatScrollIntent,
@@ -90,7 +105,6 @@ function isPersistable(message: ChatMessage): boolean {
   return message.type !== 'assistant-loading';
 }
 
-/** Rebuild truncated LLM context from UI transcript (never the full list). */
 export function rebuildConversationHistory(messages: ChatMessage[]): ChatConversationTurn[] {
   const turns: ChatConversationTurn[] = [];
   for (const m of messages) {
@@ -129,7 +143,7 @@ function scheduleSync(): void {
 async function flushSync(): Promise<void> {
   if (!localStorage.getItem('nutrikal-jwt')) return;
   const state = useChatStore.getState();
-  const payload: ChatConversationSnapshot = {
+  const payload: api.ChatConversationPayload = {
     conversationId: state.conversationId,
     messages: state.messages.filter(isPersistable),
     lastWeekPlan: state.lastWeekPlan,
@@ -145,6 +159,26 @@ async function flushSync(): Promise<void> {
   }
 }
 
+function applyConversationPage(
+  snapshot: ChatConversationSnapshot,
+  scrollIntent: ChatScrollIntent = 'initial',
+): Partial<ChatState> {
+  const messages = (snapshot.messages ?? []).filter(isPersistable);
+  return {
+    conversationId: snapshot.conversationId ?? null,
+    messages,
+    conversationHistory: rebuildConversationHistory(messages),
+    lastWeekPlan: snapshot.lastWeekPlan ?? null,
+    lastMealType: snapshot.lastMealType ?? null,
+    hasMoreOlder: snapshot.hasMoreOlder ?? false,
+    olderCursor: snapshot.olderCursor ?? null,
+    isLoading: false,
+    pendingAction: null,
+    scrollIntent,
+    hasHydrated: true,
+  };
+}
+
 export const useChatStore = create<ChatState>()((set, get) => ({
   ...initialConversation,
 
@@ -155,6 +189,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       scrollIntent: 'append',
     }));
     if (msgs.some(isPersistable)) scheduleSync();
+  },
+
+  prependMessages: (...msgs) => {
+    const filtered = msgs.filter(isPersistable);
+    if (filtered.length === 0) return;
+    set((s) => ({
+      messages: [...filtered, ...s.messages],
+      scrollIntent: 'prepend',
+    }));
   },
 
   removeMessage: (id) => {
@@ -190,7 +233,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
       return { conversationHistory: history };
     });
-    // History is derived for LLM; messages already schedule sync when appended.
   },
 
   clearConversationHistory: () => set({ conversationHistory: [] }),
@@ -215,7 +257,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   setPendingAction: (action) => set({ pendingAction: action }),
   clearPendingAction: () => set({ pendingAction: null }),
-
   clearScrollIntent: () => set({ scrollIntent: 'none' }),
 
   hydrate: (snapshot) => {
@@ -224,21 +265,123 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       clearTimeout(syncTimer);
       syncTimer = null;
     }
-
-    const messages = (snapshot?.messages ?? []).filter(isPersistable);
-    set({
-      conversationId: snapshot?.conversationId ?? null,
-      messages,
-      conversationHistory: rebuildConversationHistory(messages),
-      lastWeekPlan: snapshot?.lastWeekPlan ?? null,
-      lastMealType: snapshot?.lastMealType ?? null,
-      isLoading: false,
-      pendingAction: null,
-      scrollIntent: messages.length > 0 ? 'initial' : 'none',
-      hasHydrated: true,
-    });
-
+    set(applyConversationPage(snapshot ?? {
+      conversationId: null,
+      messages: [],
+      lastWeekPlan: null,
+      lastMealType: null,
+      hasMoreOlder: false,
+      olderCursor: null,
+    }));
     syncSuspended = false;
+  },
+
+  loadOlderMessages: async () => {
+    const state = get();
+    if (
+      state.isLoadingOlder ||
+      !state.hasMoreOlder ||
+      !state.conversationId ||
+      !state.olderCursor
+    ) {
+      return;
+    }
+
+    set({ isLoadingOlder: true });
+    try {
+      const page = await api.loadChatMessagesPage(state.conversationId, {
+        before: state.olderCursor,
+        limit: CHAT_MESSAGES_PAGE_SIZE,
+      });
+      get().prependMessages(...(page.messages as ChatMessage[]));
+      set({
+        hasMoreOlder: page.hasMoreOlder,
+        olderCursor: page.olderCursor,
+        isLoadingOlder: false,
+      });
+    } catch (e) {
+      console.error('loadOlderMessages error:', e);
+      set({ isLoadingOlder: false });
+    }
+  },
+
+  loadConversationList: async (reset = false) => {
+    const state = get();
+    if (state.isLoadingConversations) return;
+    const offset = reset ? 0 : state.conversationsNextOffset;
+    if (!reset && !state.hasMoreConversations && state.conversationSummaries.length > 0) {
+      return;
+    }
+
+    set({ isLoadingConversations: true });
+    try {
+      const result = await api.listChatConversations(offset);
+      set({
+        conversationSummaries: reset
+          ? result.conversations
+          : [...state.conversationSummaries, ...result.conversations],
+        hasMoreConversations: result.hasMore,
+        conversationsNextOffset: result.nextOffset ?? offset + result.conversations.length,
+        isLoadingConversations: false,
+      });
+    } catch (e) {
+      console.error('loadConversationList error:', e);
+      set({ isLoadingConversations: false });
+    }
+  },
+
+  openConversation: async (conversationId) => {
+    syncSuspended = true;
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+    }
+    set({ isLoadingOlder: true });
+    try {
+      const page = await api.loadChatMessagesPage(conversationId);
+      set({
+        ...applyConversationPage({
+          conversationId: page.conversationId,
+          messages: page.messages as ChatMessage[],
+          lastWeekPlan: page.lastWeekPlan,
+          lastMealType: page.lastMealType,
+          hasMoreOlder: page.hasMoreOlder,
+          olderCursor: page.olderCursor,
+        }),
+        isLoadingOlder: false,
+      });
+    } catch (e) {
+      console.error('openConversation error:', e);
+      set({ isLoadingOlder: false });
+    } finally {
+      syncSuspended = false;
+    }
+  },
+
+  startNewConversation: async () => {
+    syncSuspended = true;
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+    }
+    try {
+      const { conversation } = await api.createChatConversation();
+      set({
+        ...initialConversation,
+        conversationId: conversation.id,
+        hasHydrated: true,
+        scrollIntent: 'initial',
+      });
+    } catch (e) {
+      console.error('startNewConversation error:', e);
+      set({
+        ...initialConversation,
+        hasHydrated: get().hasHydrated,
+        scrollIntent: 'initial',
+      });
+    } finally {
+      syncSuspended = false;
+    }
   },
 
   resetConversation: (options) => {
@@ -248,7 +391,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       clearTimeout(syncTimer);
       syncTimer = null;
     }
-    set({ ...initialConversation, hasHydrated: get().hasHydrated });
+    set({
+      ...initialConversation,
+      hasHydrated: get().hasHydrated,
+    });
     syncSuspended = false;
     if (shouldSync) scheduleSync();
   },

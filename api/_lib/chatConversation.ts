@@ -2,6 +2,9 @@
 
 const EPHEMERAL_TYPES = new Set(['assistant-loading']);
 
+export const CHAT_MESSAGES_PAGE_SIZE = 30;
+export const CHAT_CONVERSATIONS_PAGE_SIZE = 20;
+
 export type ChatMessageRow = {
   id: string;
   type: string;
@@ -14,6 +17,8 @@ export type ChatConversationPayload = {
   messages: Array<Record<string, unknown>>;
   lastWeekPlan: unknown;
   lastMealType: string | null;
+  hasMoreOlder?: boolean;
+  olderCursor?: string | null;
 };
 
 export function isPersistableChatType(type: string): boolean {
@@ -27,6 +32,34 @@ export function persistableMessages(
     const type = typeof m.type === 'string' ? m.type : '';
     return type && isPersistableChatType(type) && typeof m.id === 'string';
   });
+}
+
+export function deriveConversationTitle(
+  messages: Array<Record<string, unknown>>,
+  maxLen = 48,
+): string | null {
+  for (const m of messages) {
+    const type = typeof m.type === 'string' ? m.type : '';
+    if (type !== 'user-text' && type !== 'user-choice') continue;
+    const text = typeof m.text === 'string' ? m.text.trim() : '';
+    if (!text) continue;
+    return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
+  }
+  return null;
+}
+
+export function messagePreview(message: Record<string, unknown>): string {
+  const type = typeof message.type === 'string' ? message.type : '';
+  if (typeof message.text === 'string' && message.text.trim()) {
+    return message.text.trim();
+  }
+  if (type === 'assistant-dish') {
+    const dish = message.dishSuggestion as { name?: string } | undefined;
+    if (dish?.name) return dish.name;
+  }
+  if (type === 'assistant-plan') return 'Plan semanal';
+  if (type === 'assistant-applied') return 'Plan aplicado';
+  return 'Mensaje';
 }
 
 export function messageToRow(
