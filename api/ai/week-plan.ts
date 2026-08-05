@@ -4,8 +4,18 @@ import { verifyToken } from '../_lib/jwt.js';
 import { getSupabase } from '../_lib/supabase.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
-import { getGeminiClient } from '../_lib/gemini.js';
-import { generateWeekPlanOneShot } from '../_lib/weekPlanGenerate.js';
+import { GeminiTextGenerator } from '../_lib/ai/geminiTextGenerator.js';
+import { RetryingTextGenerator } from '../_lib/ai/retryingTextGenerator.js';
+import { getGenerationTelemetry } from '../_lib/observability/bootstrap.js';
+import { AiProviderError } from '../_lib/observability/errors.js';
+import type { GenerationTracker } from '../_lib/observability/types.js';
+import {
+  generateWeekPlanOneShot,
+  WEEK_PLAN_ALGORITHM_VERSION,
+  WEEK_PLAN_BUSINESS_RULES_VERSION,
+  WEEK_PLAN_MODEL,
+  WEEK_PLAN_PROMPT_VERSION,
+} from '../_lib/weekPlanGenerate.js';
 import { getActiveMealSlots, type MetabolicProfile } from '../_lib/metabolic.js';
 import type { WeekPlanningInput } from '../_lib/weekPlanPrompts.js';
 import type { GemProfile } from '../_lib/gemini.js';
@@ -50,6 +60,8 @@ async function fetchProfile(userId: string): Promise<GemProfile & { metabolic?: 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const reqId = randomUUID();
+  const requestStartedAtMs = Date.now();
+  let tracker: GenerationTracker | undefined;
 
   try {
     if (req.method !== 'POST') {
@@ -68,15 +80,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    const rateAssertion = await assertUnderDailyAiLimit(userId);
-    if (!rateAssertion.allowed) {
-      return res.status(429).json({
-        error: 'rate_limit',
-        text: '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana.',
-        remaining: 0,
-      });
-    }
-
     const body = req.body as WeekPlanRequestBody;
     if (!body.weekDates?.length || !body.weekPlanning || !body.weeklyPoolPrompt) {
       return res.status(400).json({ error: 'Missing week plan context' });
@@ -89,9 +92,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    getGeminiClient();
+    tracker = getGenerationTelemetry().start({
+      generationId: randomUUID(),
+      requestId: reqId,
+      userId,
+      operation: 'week_plan',
+      provider: 'gemini',
+      requestStartedAtMs,
+      recipe: {
+        promptVersion: WEEK_PLAN_PROMPT_VERSION,
+        model: WEEK_PLAN_MODEL,
+        businessRulesVersion: WEEK_PLAN_BUSINESS_RULES_VERSION,
+        algorithmVersion: WEEK_PLAN_ALGORITHM_VERSION,
+        deploymentVersion: process.env.VERCEL_GIT_COMMIT_SHA
+          ?? process.env.GIT_SHA
+          ?? 'local',
+      },
+    });
 
-    const profile = await fetchProfile(userId);
+    const rateAssertion = await tracker.stage(
+      'rate_limit',
+      () => assertUnderDailyAiLimit(userId),
+    );
+    if (!rateAssertion.allowed) {
+      await tracker.fail(new AiProviderError('NutriKal daily AI limit reached', {
+        category: 'rate_limit',
+        code: 'application_rate_limit',
+        retryable: false,
+      }));
+      return res.status(429).json({
+        error: 'rate_limit',
+        text: '¡Uy! Ya usaste todos tus mensajes de hoy. Volvé mañana.',
+        remaining: 0,
+      });
+    }
+
+    const profile = await tracker.stage('read_profile', () => fetchProfile(userId));
     const activeSlots = getActiveMealSlots(body.weekPlanning.mealPattern);
 
     const weekPlanningInput: WeekPlanningInput = {
@@ -105,18 +141,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rhythm: body.weekPlanning.mealRhythmMode,
     });
 
-    const { skeleton, rawDishes } = await generateWeekPlanOneShot({
-      profile,
-      weekPlanning: weekPlanningInput,
-      weeklyPoolPrompt: body.weeklyPoolPrompt,
-      forbiddenDishNames: body.forbiddenDishNames ?? [],
-      weekDates: body.weekDates,
-      variationSeed: body.variationSeed,
-    });
+    const generator = new RetryingTextGenerator(new GeminiTextGenerator(), tracker);
+    const { skeleton, rawDishes } = await generateWeekPlanOneShot(
+      {
+        profile,
+        weekPlanning: weekPlanningInput,
+        weeklyPoolPrompt: body.weeklyPoolPrompt,
+        forbiddenDishNames: body.forbiddenDishNames ?? [],
+        weekDates: body.weekDates,
+        variationSeed: body.variationSeed,
+      },
+      { generator, tracker },
+    );
 
     let remainingOut: number;
     try {
-      remainingOut = (await recordSuccessfulAiChat(userId)).remaining;
+      remainingOut = (await tracker.stage(
+        'record_usage',
+        () => recordSuccessfulAiChat(userId),
+      )).remaining;
     } catch {
       remainingOut = Math.max(0, rateAssertion.remaining - 1);
     }
@@ -127,6 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       remaining: remainingOut,
     });
 
+    await tracker.complete();
     return res.status(200).json({
       skeleton,
       rawDishes,
@@ -134,6 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       remaining: remainingOut,
     });
   } catch (err) {
+    await tracker?.fail(err);
     chatApiLogError(reqId, 'week_plan_error', err);
     if (isGeminiTransientError(err)) {
       return res.status(503).json({

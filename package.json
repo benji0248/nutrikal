@@ -12,6 +12,7 @@
     "test:scenarios": "node scripts/scenario-week-plan.mjs",
     "test:scenarios:fixtures": "node scripts/scenario-week-plan.mjs --analyze-fixtures",
     "test:scenarios:list": "node scripts/scenario-week-plan.mjs --list",
+    "test:unit": "vitest run",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -20,7 +21,9 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@google/generative-ai": "^0.24.1",
+    "@opentelemetry/api": "^1.9.1",
     "@supabase/supabase-js": "^2.100.1",
+    "@vercel/otel": "^2.1.3",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -54,6 +57,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vercel": "^44.2.7",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vitest": "^4.1.10"
   }
 }

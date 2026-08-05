@@ -1,5 +1,8 @@
-import { SchemaType, type ResponseSchema } from '@google/generative-ai';
-import { getGeminiClient, type GemProfile } from './gemini.js';
+import { createHash } from 'node:crypto';
+import type { JsonSchema, TextGenerator } from './ai/types.js';
+import { SchemaValidationError } from './observability/errors.js';
+import type { GenerationTracker, QualityMetric } from './observability/types.js';
+import type { GemProfile } from './gemini.js';
 import {
   isMealType,
   computeDailyBudget,
@@ -12,7 +15,6 @@ import {
   type WeekPlanningInput,
 } from './weekPlanPrompts.js';
 import { parseGeminiJson } from './parseGeminiJson.js';
-import { withGeminiRetry } from './geminiRetry.js';
 
 export interface AiDishIngredient {
   nombre: string;
@@ -50,25 +52,30 @@ export interface WeekPlanSkeleton {
 const MAX_TEMPLATES = 8;
 const PARSE_ATTEMPTS = 2;
 
-const WEEK_PLAN_RESPONSE_SCHEMA: ResponseSchema = {
-  type: SchemaType.OBJECT,
+export const WEEK_PLAN_MODEL = 'gemini-2.5-flash';
+export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v1';
+export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v1';
+export const WEEK_PLAN_ALGORITHM_VERSION = 'week-plan-oneshot-v1';
+
+const WEEK_PLAN_RESPONSE_SCHEMA: JsonSchema = {
+  type: 'object',
   properties: {
     days: {
-      type: SchemaType.ARRAY,
+      type: 'array',
       items: {
-        type: SchemaType.OBJECT,
+        type: 'object',
         properties: {
-          date: { type: SchemaType.STRING },
-          dayMode: { type: SchemaType.STRING },
+          date: { type: 'string' },
+          dayMode: { type: 'string' },
           slots: {
-            type: SchemaType.ARRAY,
+            type: 'array',
             items: {
-              type: SchemaType.OBJECT,
+              type: 'object',
               properties: {
-                mealType: { type: SchemaType.STRING },
-                templateId: { type: SchemaType.STRING },
-                link: { type: SchemaType.STRING },
-                isFlexMeal: { type: SchemaType.BOOLEAN },
+                mealType: { type: 'string' },
+                templateId: { type: 'string' },
+                link: { type: 'string' },
+                isFlexMeal: { type: 'boolean' },
               },
               required: ['mealType', 'templateId'],
             },
@@ -78,27 +85,27 @@ const WEEK_PLAN_RESPONSE_SCHEMA: ResponseSchema = {
       },
     },
     dishes: {
-      type: SchemaType.ARRAY,
+      type: 'array',
       items: {
-        type: SchemaType.OBJECT,
+        type: 'object',
         properties: {
-          templateId: { type: SchemaType.STRING },
-          nombre: { type: SchemaType.STRING },
+          templateId: { type: 'string' },
+          nombre: { type: 'string' },
           ingredientes: {
-            type: SchemaType.ARRAY,
+            type: 'array',
             items: {
-              type: SchemaType.OBJECT,
+              type: 'object',
               properties: {
-                nombre: { type: SchemaType.STRING },
-                rol: { type: SchemaType.STRING },
-                gramos: { type: SchemaType.NUMBER },
+                nombre: { type: 'string' },
+                rol: { type: 'string' },
+                gramos: { type: 'number' },
               },
               required: ['nombre', 'rol', 'gramos'],
             },
           },
-          preparacion: { type: SchemaType.STRING },
-          tiempo_prep: { type: SchemaType.INTEGER },
-          tip: { type: SchemaType.STRING },
+          preparacion: { type: 'string' },
+          tiempo_prep: { type: 'integer' },
+          tip: { type: 'string' },
         },
         required: ['templateId', 'nombre', 'ingredientes', 'preparacion', 'tiempo_prep', 'tip'],
       },
@@ -296,6 +303,22 @@ export function collectTemplatesToGenerate(skeleton: WeekPlanSkeleton): WeekPlan
   return [...byId.values()];
 }
 
+const QUALITY_BASE: Pick<QualityMetric, 'evaluator' | 'evaluatorVersion' | 'source'> = {
+  evaluator: 'week-plan-server',
+  evaluatorVersion: WEEK_PLAN_ALGORITHM_VERSION,
+  source: 'server',
+};
+
+function hash(value: unknown): string {
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+  return createHash('sha256').update(serialized).digest('hex');
+}
+
+export interface WeekPlanGenerationDependencies {
+  generator: TextGenerator;
+  tracker: GenerationTracker;
+}
+
 export async function generateWeekPlanOneShot(params: {
   profile: GemProfile & { metabolic?: MetabolicProfile };
   weekPlanning: WeekPlanningInput;
@@ -303,18 +326,42 @@ export async function generateWeekPlanOneShot(params: {
   forbiddenDishNames: string[];
   weekDates: string[];
   variationSeed?: string;
-}): Promise<{ skeleton: WeekPlanSkeleton; rawDishes: Record<string, AiDishResponse> }> {
+}, dependencies: WeekPlanGenerationDependencies): Promise<{
+  skeleton: WeekPlanSkeleton;
+  rawDishes: Record<string, AiDishResponse>;
+}> {
+  const { generator, tracker } = dependencies;
   const metabolic = params.profile.metabolic;
   const dailyBudgetKcal = metabolic ? computeDailyBudget(metabolic) : undefined;
   const maintenanceBudgetKcal = metabolic && metabolic.goal !== 'maintain'
     ? computeMaintenanceBudget(metabolic)
     : undefined;
 
-  const system = buildWeekPlanOneShotPrompt({
-    profileName: params.profile.name,
-    nationality: params.profile.nationality,
-    restrictions: params.profile.restrictions,
-    goal: metabolic?.goal,
+  const system = await tracker.stage('build_prompt', () => buildWeekPlanOneShotPrompt({
+      profileName: params.profile.name,
+      nationality: params.profile.nationality,
+      restrictions: params.profile.restrictions,
+      goal: metabolic?.goal,
+      weekPlanning: params.weekPlanning,
+      weeklyPoolPrompt: params.weeklyPoolPrompt,
+      forbiddenDishNames: params.forbiddenDishNames,
+      weekDates: params.weekDates,
+      dailyBudgetKcal,
+      maintenanceBudgetKcal,
+    }),
+    { promptVersion: WEEK_PLAN_PROMPT_VERSION },
+  );
+
+  const variationNote = params.variationSeed ? ` Variación: ${params.variationSeed}.` : '';
+  const userMsg = `Generá el plan semanal completo ahora.${variationNote}`;
+  const parameters = { temperature: 0.4 };
+  tracker.updateRecipe({
+    promptHash: hash({ system, userMsg }),
+    modelParametersHash: hash(parameters),
+  });
+  tracker.recordPayload('system_prompt', system);
+  tracker.recordPayload('user_prompt', userMsg);
+  tracker.recordPayload('context', {
     weekPlanning: params.weekPlanning,
     weeklyPoolPrompt: params.weeklyPoolPrompt,
     forbiddenDishNames: params.forbiddenDishNames,
@@ -323,47 +370,94 @@ export async function generateWeekPlanOneShot(params: {
     maintenanceBudgetKcal,
   });
 
-  const model = getGeminiClient().getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: WEEK_PLAN_RESPONSE_SCHEMA,
-      temperature: 0.4,
-    },
-    systemInstruction: system,
-  });
-
-  const variationNote = params.variationSeed ? ` Variación: ${params.variationSeed}.` : '';
-  const userMsg = `Generá el plan semanal completo ahora.${variationNote}`;
-
   let lastError: Error | undefined;
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
+    let responseText: string;
     try {
-      const result = await withGeminiRetry(
-        () => model.generateContent(userMsg),
-        `week_plan_oneshot_a${attempt + 1}`,
-        { maxAttempts: 3, baseDelayMs: 900 },
+      const response = await tracker.stage(
+        'provider_call',
+        () => generator.generate({
+          model: WEEK_PLAN_MODEL,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: userMsg },
+          ],
+          output: { type: 'json', schema: WEEK_PLAN_RESPONSE_SCHEMA, strict: true },
+          parameters,
+        }),
+        { generationAttempt: attempt + 1 },
       );
-      const text = result.response.text().trim();
-      const parsed = parseGeminiJson<OneShotResponse>(text);
-      if (!parsed?.days?.length || !parsed?.dishes?.length) {
-        throw new Error('Planner returned empty week plan');
-      }
+      responseText = response.content.trim();
+      tracker.recordPayload('raw_response', responseText);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      throw error;
+    }
 
-      let skeleton = enforceTemplateBudget(toSkeleton(parsed), params.weekPlanning);
-      skeleton = enforceActiveSlots(skeleton, params.weekPlanning.activeSlots);
-      const rawDishes = toRawDishes(parsed.dishes);
+    let parsed: OneShotResponse;
+    try {
+      parsed = await tracker.stage(
+        'parse_response',
+        () => parseGeminiJson<OneShotResponse>(responseText),
+        { generationAttempt: attempt + 1 },
+      );
+      tracker.recordQuality([{
+        ...QUALITY_BASE,
+        name: 'json.valid',
+        value: true,
+        status: 'pass',
+        details: { generationAttempt: attempt + 1 },
+      }]);
+      tracker.recordPayload('parsed_response', parsed);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      tracker.recordQuality([{
+        ...QUALITY_BASE,
+        name: 'json.valid',
+        value: false,
+        status: 'fail',
+        details: { generationAttempt: attempt + 1 },
+      }]);
+      tracker.recordPayload('parse_error', lastError.message);
+      continue;
+    }
 
-      const needed = collectTemplatesToGenerate(skeleton);
-      for (const slot of needed) {
-        if (!rawDishes[slot.templateId]) {
-          throw new Error(`Missing dish for template ${slot.templateId}`);
+    try {
+      const result = await tracker.stage('schema_validation', () => {
+        if (!parsed?.days?.length || !parsed?.dishes?.length) {
+          throw new SchemaValidationError('Planner returned empty week plan');
         }
-      }
 
-      return { skeleton, rawDishes };
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
+        let skeleton = enforceTemplateBudget(toSkeleton(parsed), params.weekPlanning);
+        skeleton = enforceActiveSlots(skeleton, params.weekPlanning.activeSlots);
+        const rawDishes = toRawDishes(parsed.dishes);
+
+        const needed = collectTemplatesToGenerate(skeleton);
+        for (const slot of needed) {
+          if (!rawDishes[slot.templateId]) {
+            throw new SchemaValidationError(`Missing dish for template ${slot.templateId}`);
+          }
+        }
+        return { skeleton, rawDishes };
+      }, { generationAttempt: attempt + 1 });
+
+      tracker.recordQuality([{
+        ...QUALITY_BASE,
+        name: 'schema.compliant',
+        value: true,
+        status: 'pass',
+        details: { generationAttempt: attempt + 1 },
+      }]);
+      return result;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      tracker.recordQuality([{
+        ...QUALITY_BASE,
+        name: 'schema.compliant',
+        value: false,
+        status: 'fail',
+        details: { generationAttempt: attempt + 1 },
+      }]);
       console.warn(
         `[week-plan] oneshot_fail attempt=${attempt + 1} err=${lastError.message}`,
       );
