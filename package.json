@@ -12,6 +12,7 @@
     "test:scenarios": "node scripts/scenario-week-plan.mjs",
     "test:scenarios:fixtures": "node scripts/scenario-week-plan.mjs --analyze-fixtures",
     "test:scenarios:list": "node scripts/scenario-week-plan.mjs --list",
+    "test:unit": "vitest run",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -56,6 +57,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vercel": "^44.2.7",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vitest": "^4.1.10"
   }
 }
