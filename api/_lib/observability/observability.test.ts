@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AiProviderError, SchemaValidationError, classifyError } from './errors.js';
 import { calculateUsageCost, type ModelPrice } from './pricing.js';
+import { formatDevelopmentSummary } from './repository.js';
 import { DefaultGenerationTelemetry } from './telemetry.js';
 import type {
   GenerationContext,
@@ -145,5 +146,37 @@ describe('generation telemetry', () => {
       stages: [{ name: 'build_prompt', success: true }],
       quality: [{ name: 'json.valid', value: true }],
     });
+  });
+});
+
+describe('development console summary', () => {
+  it('renders a readable request timeline without sensitive user data', () => {
+    const record: GenerationRecord = {
+      schemaVersion: 1,
+      context,
+      status: 'completed',
+      startedAt: new Date(context.requestStartedAtMs).toISOString(),
+      completedAt: new Date(context.requestStartedAtMs + 100).toISOString(),
+      totalDurationMs: 100,
+      stages: [{ name: 'read_profile', durationMs: 41, success: true }],
+      attempts: [],
+      quality: [],
+      payloads: [],
+      usage: {
+        inputTokens: 6_123,
+        outputTokens: 1_328,
+        totalTokens: 7_451,
+        estimated: false,
+      },
+      usageLines: [],
+      totalCostUsd: '0.003700000',
+    };
+
+    const output = formatDevelopmentSummary(record);
+    expect(output).toContain('Load User');
+    expect(output).toContain('41 ms');
+    expect(output).toContain('Input Tokens');
+    expect(output).toContain('$0.003700');
+    expect(output).not.toContain(context.userId);
   });
 });

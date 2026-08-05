@@ -118,6 +118,12 @@ export class SupabaseGenerationRepository implements GenerationRepository {
 
 export class ConsoleGenerationRepository implements GenerationRepository {
   async save(record: GenerationRecord): Promise<void> {
+    if (
+      process.env.NODE_ENV !== 'production'
+      || process.env.AI_OBSERVABILITY_PRETTY_CONSOLE === 'true'
+    ) {
+      console.log(formatDevelopmentSummary(record));
+    }
     console.log('[nutrikal:observability]', JSON.stringify({
       schemaVersion: record.schemaVersion,
       generationId: record.context.generationId,
@@ -146,6 +152,51 @@ export class ConsoleGenerationRepository implements GenerationRepository {
       timestamp: record.completedAt,
     }));
   }
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  rate_limit: 'Rate Limit',
+  read_profile: 'Load User',
+  read_history: 'Load Memory',
+  read_embeddings: 'Load Embeddings',
+  build_context: 'Build Context',
+  build_prompt: 'Build Prompt',
+  provider_call: 'AI Provider',
+  parse_response: 'Parse JSON',
+  schema_validation: 'Validate Schema',
+  nutrition_validation: 'Validate Nutrition',
+  hydrate_dishes: 'Hydrate Dishes',
+  persist_plan: 'Save Plan',
+  record_usage: 'Record Usage',
+};
+
+function dotted(label: string, value: string): string {
+  const dots = '.'.repeat(Math.max(2, 31 - label.length - value.length));
+  return `${label} ${dots} ${value}`;
+}
+
+export function formatDevelopmentSummary(record: GenerationRecord): string {
+  const divider = '═'.repeat(47);
+  const operation = record.context.operation === 'week_plan'
+    ? 'Generate Plan'
+    : record.context.operation;
+  const lines = [
+    divider,
+    `Request: ${record.context.requestId}`,
+    operation,
+    ...record.stages.map((stage) =>
+      dotted(
+        STAGE_LABELS[stage.name] ?? stage.name,
+        `${Math.round(stage.durationMs)} ms${stage.success ? '' : ' ✕'}`,
+      ),
+    ),
+    dotted('Input Tokens', String(record.usage.inputTokens)),
+    dotted('Output Tokens', String(record.usage.outputTokens)),
+    dotted('Cost', record.totalCostUsd ? `$${Number(record.totalCostUsd).toFixed(6)}` : 'n/a'),
+    dotted('TOTAL', `${Math.round(record.totalDurationMs)} ms`),
+    divider,
+  ];
+  return lines.join('\n');
 }
 
 export class BestEffortGenerationRepository implements GenerationRepository {
