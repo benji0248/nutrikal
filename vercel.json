@@ -2,7 +2,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/((?!auth(?:/|$)|ai(?:/|$)).*)",
+      "source": "/api/((?!auth(?:/|$)|ai(?:/|$)|admin(?:/|$)).*)",
       "destination": "/api/business?route=$1"
     },
     {

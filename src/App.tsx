@@ -46,6 +46,7 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
 import { LoadingScreen } from './components/auth/LoadingScreen';
 import { UserMenu } from './components/auth/UserMenu';
+import { ObservabilityAdminApp } from './admin/ObservabilityAdminApp';
 
 import { usePersistedAppTab } from './hooks/usePersistedAppTab';
 
@@ -66,6 +67,10 @@ function App() {
 
   if (authState !== 'authenticated') {
     return authView === 'register' ? <RegisterScreen /> : <LoginScreen />;
+  }
+
+  if (window.location.pathname.startsWith('/admin/observability')) {
+    return <ObservabilityAdminApp />;
   }
 
   return <AuthenticatedApp />;

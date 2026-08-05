@@ -170,12 +170,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       remaining: remainingOut,
     });
 
-    await tracker.complete();
+    const telemetryRecord = await tracker.complete();
+    const exposeDebug = process.env.NODE_ENV !== 'production'
+      || process.env.AI_OBSERVABILITY_EXPOSE_DEBUG === 'true';
     return res.status(200).json({
       skeleton,
       rawDishes,
       text: 'Tu semana está lista para revisar.',
       remaining: remainingOut,
+      observability: exposeDebug && telemetryRecord
+        ? {
+            requestId: telemetryRecord.context.requestId,
+            operation: telemetryRecord.context.operation,
+            stages: telemetryRecord.stages.map((stage) => ({
+              name: stage.name,
+              durationMs: stage.durationMs,
+              success: stage.success,
+            })),
+            inputTokens: telemetryRecord.usage.inputTokens,
+            outputTokens: telemetryRecord.usage.outputTokens,
+            totalTokens: telemetryRecord.usage.totalTokens,
+            totalCostUsd: telemetryRecord.totalCostUsd ?? null,
+            totalDurationMs: telemetryRecord.totalDurationMs,
+          }
+        : undefined,
     });
   } catch (err) {
     await tracker?.fail(err);
