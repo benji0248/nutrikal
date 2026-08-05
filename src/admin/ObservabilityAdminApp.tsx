@@ -471,8 +471,6 @@ function GenerationInspector({ id, onBack }: { id: string; onBack: () => void })
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    setDetail(null);
-    setError(null);
     void fetchGenerationDetail(id)
       .then(setDetail)
       .catch((loadError) => setError(loadError instanceof Error ? loadError : new Error(String(loadError))));

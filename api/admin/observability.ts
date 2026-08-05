@@ -27,6 +27,12 @@ const GENERATION_FIELDS = [
   'error_code',
 ].join(',');
 
+interface GenerationDbRow {
+  [key: string]: unknown;
+  id: string;
+  user_id: string;
+}
+
 function queryValue(req: VercelRequest, key: string): string | undefined {
   const value = req.query[key];
   return Array.isArray(value) ? value[0] : value;
@@ -139,7 +145,7 @@ async function loadGenerations(req: VercelRequest) {
 
   const { data, error, count } = await query;
   ensureQuery(error, 'Generation list query failed');
-  const rows = data ?? [];
+  const rows = (data ?? []) as unknown as GenerationDbRow[];
   const userIds = [...new Set(rows.map((row) => String(row.user_id)))];
   const users = userIds.length > 0
     ? await supabase.from('users').select('id, display_name, email').in('id', userIds)
@@ -175,13 +181,14 @@ async function loadGenerationDetail(req: VercelRequest, adminId: string) {
   const id = queryValue(req, 'id');
   if (!id || !UUID_PATTERN.test(id)) throw new RequestError('Invalid generation id');
   const supabase = getSupabase();
-  const { data: generation, error } = await supabase
+  const { data: generationData, error } = await supabase
     .from('ai_generations')
     .select(GENERATION_FIELDS)
     .eq('id', id)
     .maybeSingle();
   ensureQuery(error, 'Generation detail query failed');
-  if (!generation) return null;
+  if (!generationData) return null;
+  const generation = generationData as unknown as GenerationDbRow;
 
   const [stages, attempts, quality, payloads, user] = await Promise.all([
     supabase.from('ai_generation_stages').select(
