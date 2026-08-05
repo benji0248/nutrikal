@@ -240,7 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const tGemini = Date.now();
     const chat = model.startChat({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
+      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
       history: geminiHistory,
     });
     const result = await withGeminiRetry(() => chat.sendMessage(body.message), 'gemini_chat');
