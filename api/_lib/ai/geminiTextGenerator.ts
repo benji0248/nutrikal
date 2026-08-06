@@ -137,7 +137,7 @@ export class GeminiTextGenerator implements TextGenerator {
           code: classified.code === 'internal_error' ? 'gemini_error' : classified.code,
           retryable: classified.retryable,
         },
-        { cause: error },
+        error,
       );
     }
   }

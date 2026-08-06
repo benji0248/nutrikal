@@ -38,7 +38,7 @@ export class GeminiEmbeddingGenerator implements EmbeddingGenerator {
           code: classified.code === 'internal_error' ? 'gemini_embedding_error' : classified.code,
           retryable: classified.retryable,
         },
-        { cause: error },
+        error,
       );
     }
   }
