@@ -49,6 +49,7 @@ import { UserMenu } from './components/auth/UserMenu';
 import { ObservabilityAdminApp } from './admin/ObservabilityAdminApp';
 
 import { usePersistedAppTab } from './hooks/usePersistedAppTab';
+import type { MealType } from './types';
 
 function App() {
   useTheme();
@@ -84,6 +85,17 @@ function AuthenticatedApp() {
   const [ready, setReady] = useState(false);
   const { activeTab, setActiveTab } = usePersistedAppTab();
   const goToAssistant = useCallback(() => setActiveTab('assistant'), [setActiveTab]);
+  const openMealChat = useCallback(
+    (date: string, mealType: MealType, existingMealName?: string) => {
+      useChatStore.getState().setCalendarMealIntent({
+        date,
+        mealType,
+        existingMealName,
+      });
+      setActiveTab('assistant');
+    },
+    [setActiveTab],
+  );
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
@@ -258,8 +270,12 @@ function AuthenticatedApp() {
         </header>
 
         <div className="px-4 md:px-12 py-6 pb-24 md:pb-12 max-w-7xl mx-auto">
-          {activeTab === 'calendar' && view === 'day' && <DayView onNavigateToAssistant={goToAssistant} />}
-          {activeTab === 'calendar' && view === 'week' && <WeekView onNavigateToAssistant={goToAssistant} />}
+          {activeTab === 'calendar' && view === 'day' && (
+            <DayView onNavigateToAssistant={goToAssistant} onOpenMealChat={openMealChat} />
+          )}
+          {activeTab === 'calendar' && view === 'week' && (
+            <WeekView onNavigateToAssistant={goToAssistant} onOpenMealChat={openMealChat} />
+          )}
           {activeTab === 'calendar' && view === 'month' && <MonthView onNavigateToAssistant={goToAssistant} />}
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
           {activeTab === 'historial' && <HistorialView />}

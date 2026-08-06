@@ -511,6 +511,8 @@ export interface ChatMessage {
   };
   weekPlan?: WeekPlan;
   mealType?: MealType;
+  /** Target calendar date when the dish should apply (from Calendario → chat). */
+  targetDate?: string;
   loadingStyle?: 'cooking';
   timestamp: string;
 }

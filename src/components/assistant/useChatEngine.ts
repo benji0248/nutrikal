@@ -61,6 +61,10 @@ import {
   mealTypeChipLabel,
   mealTypeToPromptLabel,
 } from '../../utils/mealTimeHelpers';
+import {
+  buildCalendarSlotIntro,
+  buildCalendarSlotOptions,
+} from '../../utils/calendarMealChat';
 
 export { AI_CONVERSATION_HISTORY_LIMIT };
 
@@ -299,6 +303,7 @@ export function useChatEngine(): ChatEngineResult {
   const messages = useChatStore((s) => s.messages);
   const isLoading = useChatStore((s) => s.isLoading);
   const hasHydrated = useChatStore((s) => s.hasHydrated);
+  const calendarMealIntent = useChatStore((s) => s.calendarMealIntent);
 
   const prevProfileRef = useRef(profile);
   const progressSurfaceCheckedRef = useRef(false);
@@ -331,6 +336,8 @@ export function useChatEngine(): ChatEngineResult {
     if (!hasHydrated) return;
     const chat = useChatStore.getState();
     if (chat.messages.length > 0) return;
+    // Calendar slot intent seeds its own intro — skip generic welcome.
+    if (chat.calendarMealIntent) return;
 
     if (!profile) {
       chat.replaceMessages(buildNoProfileWelcomeMessages(), 'initial');
@@ -342,6 +349,44 @@ export function useChatEngine(): ChatEngineResult {
       'initial',
     );
   }, [profile, hasHydrated]);
+
+  /** Open chat from Calendario meal slot with contextual suggestions. */
+  useEffect(() => {
+    if (!hasHydrated || !calendarMealIntent) return;
+
+    const chat = useChatStore.getState();
+    const intent = calendarMealIntent;
+    chat.setCalendarMealIntent(null);
+    chat.setLastMealType(intent.mealType);
+    chat.setLastMealDate(intent.date);
+
+    const dateLabel =
+      intent.date === todayKey()
+        ? 'hoy'
+        : formatDayFull(parseDate(intent.date));
+
+    chat.appendMessages(
+      {
+        id: makeId(),
+        type: 'assistant-text',
+        text: buildCalendarSlotIntro(
+          intent.mealType,
+          dateLabel,
+          intent.existingMealName,
+        ),
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: makeId(),
+        type: 'assistant-options',
+        options: buildCalendarSlotOptions(
+          intent.mealType,
+          Boolean(intent.existingMealName),
+        ),
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }, [hasHydrated, calendarMealIntent]);
 
   useEffect(() => {
     if (!prevProfileRef.current && profile) {
@@ -680,6 +725,7 @@ export function useChatEngine(): ChatEngineResult {
                     text: hydrated.name,
                     dishSuggestion: hydrated,
                     mealType: mealType ?? m.mealType,
+                    targetDate: m.targetDate ?? useChatStore.getState().lastMealDate ?? undefined,
                     personalizationNote: combinedNote ?? undefined,
                   }
                 : m,
@@ -692,6 +738,7 @@ export function useChatEngine(): ChatEngineResult {
             text: hydrated.name,
             dishSuggestion: hydrated,
             mealType: mealType ?? undefined,
+            targetDate: useChatStore.getState().lastMealDate ?? undefined,
             personalizationNote: combinedNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
@@ -739,13 +786,14 @@ export function useChatEngine(): ChatEngineResult {
   const handleSendMessage = useCallback(
     (text: string) => {
       if (!text.trim() || isLoading) return;
+      const mealType = useChatStore.getState().lastMealType ?? undefined;
       addMessages({
         id: makeId(),
         type: 'user-text',
         text: text.trim(),
         timestamp: new Date().toISOString(),
       });
-      sendToAi(text.trim());
+      sendToAi(text.trim(), mealType ? { mealType } : undefined);
     },
     [isLoading, profile],
   );
@@ -1021,14 +1069,39 @@ export function useChatEngine(): ChatEngineResult {
         return;
       }
 
-      if (option.action === 'quick_reply' && option.payload) {
+      if (option.action === 'generate_for_slot') {
+        const mealType = useChatStore.getState().lastMealType;
+        if (!mealType) return;
+
+        const isChange = option.payload === 'change';
+        const prompt = profile
+          ? buildCookNowPrompt(mealType, computeMetabolism(profile).budget)
+          : buildCookNowPrompt(mealType, 2000);
+
         addMessages({
           id: makeId(),
           type: 'user-choice',
-          text: option.payload,
+          text: option.label,
           timestamp: new Date().toISOString(),
         });
-        sendToAi(option.payload);
+        void sendToAi(
+          isChange
+            ? `Cambiame esta comida. Generá otra opción para mi ${mealTypeToPromptLabel(mealType)}.`
+            : prompt,
+          { mealType, variation: isChange },
+        );
+        return;
+      }
+
+      if (option.action === 'quick_reply' && option.payload) {
+        const mealType = useChatStore.getState().lastMealType ?? undefined;
+        addMessages({
+          id: makeId(),
+          type: 'user-choice',
+          text: option.label || option.payload,
+          timestamp: new Date().toISOString(),
+        });
+        sendToAi(option.payload, mealType ? { mealType } : undefined);
       }
     },
     [isLoading],

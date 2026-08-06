@@ -10,9 +10,10 @@ import type { MealType } from '../../types';
 
 interface WeekViewProps {
   onNavigateToAssistant?: () => void;
+  onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
 }
 
-export function WeekView({ onNavigateToAssistant }: WeekViewProps) {
+export function WeekView({ onNavigateToAssistant, onOpenMealChat }: WeekViewProps) {
   const currentDate = useCalendarStore((s) => s.currentDate);
   const navWeek = useCalendarStore((s) => s.navigateWeek);
 
@@ -124,13 +125,13 @@ export function WeekView({ onNavigateToAssistant }: WeekViewProps) {
 
       {/* Mobile: single day */}
       <div className="md:hidden">
-        <DayCard date={weekDays[activeDayIdx]} />
+        <DayCard date={weekDays[activeDayIdx]} onOpenMealChat={onOpenMealChat} />
       </div>
 
       {/* Desktop: all days */}
       <div className="hidden md:grid md:grid-cols-1 lg:grid-cols-2 gap-4">
         {weekDays.map((day) => (
-          <DayCard key={formatDateKey(day)} date={day} />
+          <DayCard key={formatDateKey(day)} date={day} onOpenMealChat={onOpenMealChat} />
         ))}
       </div>
     </div>

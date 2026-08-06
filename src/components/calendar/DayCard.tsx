@@ -6,6 +6,7 @@ import { isToday, formatDayFull, formatDateKey } from '../../utils/dateHelpers';
 import { resolveDayFlex } from '../../utils/flexDayHelpers';
 import { MealSlot } from '../meals/MealSlot';
 import { MEAL_TYPE_ORDER } from '../../types';
+import type { MealType } from '../../types';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
@@ -13,9 +14,10 @@ import { getMealCalories } from '../../utils/macroHelpers';
 
 interface DayCardProps {
   date: Date;
+  onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
 }
 
-export function DayCard({ date }: DayCardProps) {
+export function DayCard({ date, onOpenMealChat }: DayCardProps) {
   const dateKey = formatDateKey(date);
   const storedPlan = useCalendarStore((s) => s.dayPlans[dateKey]);
   const dayPlan = useMemo(() => storedPlan ?? createEmptyDayPlan(dateKey), [storedPlan, dateKey]);
@@ -86,7 +88,13 @@ export function DayCard({ date }: DayCardProps) {
       ) : (
         <div className="space-y-2">
           {MEAL_TYPE_ORDER.map((mt) => (
-            <MealSlot key={mt} date={dateKey} mealType={mt} meals={dayPlan.meals[mt]} />
+            <MealSlot
+              key={mt}
+              date={dateKey}
+              mealType={mt}
+              meals={dayPlan.meals[mt]}
+              onOpenMealChat={onOpenMealChat}
+            />
           ))}
         </div>
       )}

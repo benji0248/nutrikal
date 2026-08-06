@@ -12,6 +12,8 @@ import {
   UserCircle,
   AlertCircle,
   ShoppingCart,
+  Clock,
+  RefreshCw,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ChatOption } from '../../types';
@@ -37,6 +39,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   UserCircle,
   AlertCircle,
   ShoppingCart,
+  Clock,
+  RefreshCw,
 };
 
 export const OptionChips = ({ options, onSelect, disabled = false }: OptionChipsProps) => {
