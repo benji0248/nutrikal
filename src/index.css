@@ -25,6 +25,10 @@
     --pink: #b84d6f;
     --green: #215D3E;
     --amber: #f59e0b;
+    /* Fixed/sticky chrome heights — keep ChatAssistant & overlays in sync */
+    --nk-header-inner: 4.5rem; /* py-4 + 40px controls */
+    --nk-header-height: calc(var(--nk-header-inner) + env(safe-area-inset-top, 0px));
+    --nk-bottom-nav-height: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
 
   * {
@@ -86,6 +90,9 @@
 @layer utilities {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
   }
   .font-heading {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;

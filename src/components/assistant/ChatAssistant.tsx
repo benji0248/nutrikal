@@ -136,7 +136,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
 
   if (!hasProfile) {
     return (
-      <div className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-transparent text-[#191c17]">
+      <div className="flex h-[calc(100dvh-var(--nk-header-height)-var(--nk-bottom-nav-height))] flex-col items-center justify-center px-6 md:h-[calc(100dvh-var(--nk-header-height))] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-transparent text-[#191c17]">
         <div className="flex max-w-sm flex-col items-center space-y-6 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#226046]/15 shadow-sm">
             <span className="font-heading text-3xl font-bold text-[#226046]">
@@ -169,9 +169,9 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
   }
 
   return (
-    <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-transparent text-[#191c17]">
+    <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-var(--nk-header-height)-var(--nk-bottom-nav-height))] flex-col md:-mb-6 md:h-[calc(100dvh-var(--nk-header-height))] bg-transparent text-[#191c17]">
 
-      <div className="pointer-events-none fixed left-0 right-0 top-[60px] z-30 flex justify-end px-4 pt-2 md:static md:pointer-events-auto md:justify-end md:px-4 md:pt-0">
+      <div className="pointer-events-none fixed left-0 right-0 top-[var(--nk-header-height)] z-30 flex justify-end px-4 pt-2 md:static md:pointer-events-auto md:justify-end md:px-4 md:pt-0">
         <button
           type="button"
           onClick={() => setShowHistory(true)}
@@ -186,7 +186,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-24 pb-32 md:pt-6 md:pb-32"
+        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-14 pb-32 md:pt-6 md:pb-32"
       >
         {(isLoadingOlder || hasMoreOlder) && (
           <div className="flex justify-center py-2">
