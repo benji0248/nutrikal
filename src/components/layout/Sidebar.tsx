@@ -22,8 +22,14 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
     <aside className="hidden md:flex flex-col w-72 h-dvh bg-[#f8faf1] border-r border-[#e7e9e0] fixed left-0 top-0 py-8 px-6 gap-8 z-40 no-print transition-all">
       <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-lg bg-[#226046] flex flex-shrink-0 items-center justify-center text-white shadow-lg overflow-hidden">
-           <span className="font-heading font-extrabold text-2xl">NK</span>
+        <div className="w-12 h-12 rounded-lg flex flex-shrink-0 items-center justify-center shadow-lg overflow-hidden">
+          <img
+            src="/apple-touch-icon.png"
+            alt="NutriKal"
+            className="w-full h-full object-cover"
+            width={48}
+            height={48}
+          />
         </div>
         <div>
           <h1 className="text-lg font-extrabold text-[#191c17] leading-none">NutriKal</h1>

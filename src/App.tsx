@@ -187,11 +187,17 @@ function AuthenticatedApp() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
       <main className="md:ml-72 relative z-10 min-h-screen">
-        <header className="fixed md:sticky top-0 w-full md:w-auto z-30 bg-[#f8faf1]/80 backdrop-blur-xl md:border-b md:border-border/30 no-print">
+        <header className="sticky top-0 w-full md:w-auto z-30 bg-[#f8faf1]/80 backdrop-blur-xl md:border-b md:border-border/30 pt-[env(safe-area-inset-top)] no-print">
           <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto md:px-12 md:py-3">
             <div className="flex items-center gap-3 md:hidden">
-              <div className="w-10 h-10 rounded-full bg-[#e1e3da] flex items-center justify-center overflow-hidden">
-                <span className="text-[#226046] font-heading font-extrabold text-sm">NK</span>
+              <div className="w-10 h-10 rounded-full bg-[#e1e3da] flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src="/apple-touch-icon.png"
+                  alt="NutriKal"
+                  className="w-full h-full object-cover"
+                  width={40}
+                  height={40}
+                />
               </div>
               <span className="font-heading font-bold text-xl tracking-tight text-[#226046]">NutriKal</span>
             </div>
