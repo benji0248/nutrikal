@@ -208,12 +208,10 @@ export function formatWeeklyPoolForPrompt(
       .filter(Boolean)
       .join('\n');
 
-  const tasteNote = tasteAware
-    ? ' (priorizá ingredientes que el usuario suele aceptar; evitá los que rechazó o repitió mucho en canastas recientes; variá la proteína principal cuando puedas).'
-    : '';
+  const tasteNote = tasteAware ? ' Priorizá aceptados; evitá rechazados recientes.' : '';
 
   return [
-    `CANASTA SEMANAL${tasteNote} — usá estos ingredientes (priorizá estructurales y contextuales):`,
+    `Usá estos ingredientes (priorizá estructurales/contextuales).${tasteNote}`,
     'ESTRUCTURALES:',
     idLines(pool.structural),
     'CONTEXTUALES:',

@@ -12,7 +12,6 @@ import {
 import {
   buildWeekPlanOneShotPrompt,
   getWeekTemplateBudget,
-  type DishMemoryPromptInput,
   type WeekPlanningInput,
 } from './weekPlanPrompts.js';
 import { parseGeminiJson } from './parseGeminiJson.js';
@@ -26,9 +25,9 @@ export interface AiDishIngredient {
 export interface AiDishResponse {
   nombre: string;
   ingredientes: AiDishIngredient[];
-  preparacion: string;
+  preparacion?: string;
   tiempo_prep: number;
-  tip: string;
+  tip?: string;
 }
 
 export interface WeekPlanSkeletonSlot {
@@ -54,7 +53,7 @@ const MAX_TEMPLATES = 8;
 const PARSE_ATTEMPTS = 2;
 
 export const WEEK_PLAN_MODEL = 'gemini-2.5-flash';
-export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v1.1-memory-phase0';
+export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v2-slim';
 export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v1';
 export const WEEK_PLAN_ALGORITHM_VERSION = 'week-plan-oneshot-v1';
 
@@ -104,11 +103,9 @@ const WEEK_PLAN_RESPONSE_SCHEMA: JsonSchema = {
               required: ['nombre', 'rol', 'gramos'],
             },
           },
-          preparacion: { type: 'string' },
           tiempo_prep: { type: 'integer' },
-          tip: { type: 'string' },
         },
-        required: ['templateId', 'nombre', 'ingredientes', 'preparacion', 'tiempo_prep', 'tip'],
+        required: ['templateId', 'nombre', 'ingredientes', 'tiempo_prep'],
       },
     },
   },
@@ -132,9 +129,9 @@ interface OneShotRawDish {
   templateId: string;
   nombre: string;
   ingredientes: AiDishIngredient[];
-  preparacion: string;
+  preparacion?: string;
   tiempo_prep: number;
-  tip: string;
+  tip?: string;
 }
 
 interface OneShotResponse {
@@ -324,8 +321,6 @@ export async function generateWeekPlanOneShot(params: {
   profile: GemProfile & { metabolic?: MetabolicProfile };
   weekPlanning: WeekPlanningInput;
   weeklyPoolPrompt: string;
-  forbiddenDishNames: string[];
-  dishMemory?: DishMemoryPromptInput;
   weekDates: string[];
   variationSeed?: string;
 }, dependencies: WeekPlanGenerationDependencies): Promise<{
@@ -346,8 +341,6 @@ export async function generateWeekPlanOneShot(params: {
       goal: metabolic?.goal,
       weekPlanning: params.weekPlanning,
       weeklyPoolPrompt: params.weeklyPoolPrompt,
-      forbiddenDishNames: params.forbiddenDishNames,
-      dishMemory: params.dishMemory,
       weekDates: params.weekDates,
       dailyBudgetKcal,
       maintenanceBudgetKcal,
@@ -357,19 +350,23 @@ export async function generateWeekPlanOneShot(params: {
 
   const variationNote = params.variationSeed ? ` Variación: ${params.variationSeed}.` : '';
   const userMsg = `Generá el plan semanal completo ahora.${variationNote}`;
-  const parameters = { temperature: 0.4 };
+  const parameters = { temperature: 0.4, thinkingBudget: 0 };
   tracker.updateRecipe({
     promptHash: hash({ system, userMsg }),
     modelParametersHash: hash(parameters),
   });
   tracker.recordPayload('system_prompt', system);
   tracker.recordPayload('user_prompt', userMsg);
+  // Slim telemetry: no duplicate canasta / no dish-memory lists.
   tracker.recordPayload('context', {
-    weekPlanning: params.weekPlanning,
-    weeklyPoolPrompt: params.weeklyPoolPrompt,
-    forbiddenDishNames: params.forbiddenDishNames,
-    dishMemory: params.dishMemory,
     weekDates: params.weekDates,
+    mealPattern: params.weekPlanning.mealPattern,
+    mealRhythmMode: params.weekPlanning.mealRhythmMode,
+    activeSlots: params.weekPlanning.activeSlots,
+    cookingTime: params.weekPlanning.cookingTime,
+    budget: params.weekPlanning.budget,
+    weekdayRulesPrompt: params.weekPlanning.weekdayRulesPrompt,
+    poolChars: params.weeklyPoolPrompt.length,
     dailyBudgetKcal,
     maintenanceBudgetKcal,
   });
