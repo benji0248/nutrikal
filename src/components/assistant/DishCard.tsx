@@ -19,6 +19,7 @@ interface DishCardProps {
   showCalories?: boolean;
   mealSlotBudgetKcal?: number;
   defaultMealType?: MealType;
+  defaultDate?: string;
   personalizationNote?: string;
   onApply?: (dish: HydratedAiDish, date: string, mealType: MealType) => void;
   onRegenerate?: () => void;
@@ -30,6 +31,7 @@ export const DishCard = ({
   showCalories = false,
   mealSlotBudgetKcal,
   defaultMealType,
+  defaultDate,
   personalizationNote,
   onApply,
   onRegenerate,
@@ -51,7 +53,7 @@ export const DishCard = ({
 
   const handleApplyClick = () => {
     if (defaultMealType && onApply) {
-      onApply(dish, todayKey(), defaultMealType);
+      onApply(dish, defaultDate ?? todayKey(), defaultMealType);
       return;
     }
     setShowPicker(true);
@@ -188,7 +190,7 @@ export const DishCard = ({
           title="Agregar al calendario"
         >
           <ScheduleMealPicker
-            defaultDate={todayKey()}
+            defaultDate={defaultDate ?? todayKey()}
             defaultMealType={defaultMealType ?? 'almuerzo'}
             dishName={dish.name}
             calories={showCalories ? totalKcal : undefined}

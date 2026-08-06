@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, Calculator, List, Coffee, Utensils, Apple, Moon, Camera } from 'lucide-react';
+import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, List, Coffee, Utensils, Apple, Moon, Camera } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { MealForm } from './MealForm';
-import { CalorieCalculator } from '../calculator/CalorieCalculator';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 import { MEAL_TYPE_LABELS } from '../../types';
@@ -20,6 +19,8 @@ interface MealSlotProps {
   mealType: MealType;
   meals: Meal[];
   domId?: string;
+  /** Opens NutriKal chat scoped to this meal slot. */
+  onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
 }
 
 const MEAL_STYLE: Record<MealType, { icon: React.ReactNode; iconBg: string; iconColor: string; cardClass: string }> = {
@@ -33,26 +34,25 @@ const MEAL_STYLE: Record<MealType, { icon: React.ReactNode; iconBg: string; icon
     icon: <Utensils size={18} />,
     iconBg: 'bg-green-100',
     iconColor: 'text-green-700',
-    cardClass: '', // O fondo crema según diseño
+    cardClass: '',
   },
   snack: {
     icon: <Apple size={18} />,
     iconBg: 'bg-amber-100',
     iconColor: 'text-amber-700',
-    cardClass: 'border-l-4 border-l-amber-500 rounded-l-md', // Pill a la izquierda
+    cardClass: 'border-l-4 border-l-amber-500 rounded-l-md',
   },
   cena: {
     icon: <Moon size={18} />,
     iconBg: 'bg-emerald-100',
     iconColor: 'text-emerald-700',
-    cardClass: 'border-l-4 border-l-emerald-600 rounded-l-md', // Pill a la izquierda
+    cardClass: 'border-l-4 border-l-emerald-600 rounded-l-md',
   },
 };
 
-export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
+export function MealSlot({ date, mealType, meals, domId, onOpenMealChat }: MealSlotProps) {
   const [expanded, setExpanded] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [showCalc, setShowCalc] = useState(false);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
   const showCalories = useSettingsStore((s) => s.showCalories);
@@ -62,6 +62,16 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
   const deleteMeal = useCalendarStore((s) => s.deleteMeal);
 
   const totalCals = meals.reduce((sum, m) => sum + (getMealCalories(m, allIngredients) ?? 0), 0);
+
+  const openMealChat = () => {
+    const existingMealName = meals[0]?.name;
+    if (onOpenMealChat) {
+      onOpenMealChat(date, mealType, existingMealName);
+      return;
+    }
+    setEditingMeal(null);
+    setShowForm(true);
+  };
 
   const handleMealSubmit = (meal: Meal) => {
     upsertMeal(date, mealType, meal);
@@ -77,14 +87,6 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
         setShowForm(false);
         setEditingMeal(null);
       }}
-    />
-  );
-
-  const calcContent = (
-    <CalorieCalculator
-      targetDate={date}
-      targetMealType={mealType}
-      onSentToMeal={() => setShowCalc(false)}
     />
   );
 
@@ -217,42 +219,27 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
                </div>
                <p className="text-sm font-body text-text-primary">¿Qué tienes planeado para hoy?</p>
                <button
-                 onClick={() => {
-                   setEditingMeal(null);
-                   setShowForm(true);
-                 }}
-                 className="px-5 py-2.5 rounded-full bg-surface2 text-accent font-semibold text-xs hover:bg-surface2/80 transition-colors"
+                 type="button"
+                 onClick={openMealChat}
+                 className="px-5 py-2.5 rounded-full bg-accent text-white font-semibold text-xs hover:bg-accent/90 transition-colors"
                >
-                 Log Meal
+                 Agregar Comida
                </button>
              </div>
           ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setEditingMeal(null);
-                  setShowForm(true);
-                }}
-                className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-[1rem] bg-accent text-white hover:bg-accent/90 transition-all min-h-[48px]"
-              >
-                <Plus size={16} />
-                <span className="text-xs font-body font-bold">Agregar Comida</span>
-              </button>
-              {showCalories && (
-                <button
-                  onClick={() => setShowCalc(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-[1rem] bg-surface2 text-text-primary hover:bg-surface2/80 transition-all min-h-[48px]"
-                  title="Calculadora"
-                >
-                  <Calculator size={16} />
-                </button>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={openMealChat}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[1rem] bg-accent text-white hover:bg-accent/90 transition-all min-h-[48px]"
+            >
+              <Plus size={16} />
+              <span className="text-xs font-body font-bold">Agregar Comida</span>
+            </button>
           )}
         </div>
       )}
 
-      {/* Meal form */}
+      {/* Manual edit form (only for editing existing meals) */}
       <BottomSheet
         isOpen={showForm}
         onClose={() => { setShowForm(false); setEditingMeal(null); }}
@@ -266,23 +253,6 @@ export function MealSlot({ date, mealType, meals, domId }: MealSlotProps) {
         title={editingMeal ? 'Editar comida' : 'Agregar comida'}
       >
         {formContent}
-      </Modal>
-
-      {/* Calculator */}
-      <BottomSheet
-        isOpen={showCalc}
-        onClose={() => setShowCalc(false)}
-        title="Calculadora"
-        snap="full"
-      >
-        {calcContent}
-      </BottomSheet>
-      <Modal
-        isOpen={showCalc}
-        onClose={() => setShowCalc(false)}
-        title="Calculadora"
-      >
-        {calcContent}
       </Modal>
     </div>
   );

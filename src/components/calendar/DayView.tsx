@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { format, getISOWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { clsx } from 'clsx';
@@ -23,7 +23,6 @@ import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { getMealCalories, DAILY_REFERENCE } from '../../utils/macroHelpers';
 import { DaySummaryCard } from './DaySummaryCard';
-import { HydrationCard } from './HydrationCard';
 
 const MEAL_ICONS: Record<MealType, string> = {
   desayuno: '🌅',
@@ -41,6 +40,7 @@ const MEAL_TIME_LABELS: Record<MealType, string> = {
 
 interface DayViewProps {
   onNavigateToAssistant?: () => void;
+  onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
 }
 
 function MealColumn({
@@ -49,12 +49,14 @@ function MealColumn({
   dayPlan,
   today,
   activeMealType,
+  onOpenMealChat,
 }: {
   currentDate: string;
   mt: MealType;
   dayPlan: ReturnType<typeof createEmptyDayPlan>;
   today: boolean;
   activeMealType: MealType | null;
+  onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
 }) {
   const isActive = today && activeMealType === mt;
   const meals = dayPlan.meals[mt];
@@ -66,7 +68,13 @@ function MealColumn({
         isActive && 'ring-2 ring-accent/40 shadow-[0px_12px_32px_rgba(34,96,70,0.12)]',
       )}
     >
-      <MealSlot date={currentDate} mealType={mt} meals={meals} domId={`meal-${mt}`} />
+      <MealSlot
+        date={currentDate}
+        mealType={mt}
+        meals={meals}
+        domId={`meal-${mt}`}
+        onOpenMealChat={onOpenMealChat}
+      />
       {isActive && meals.length === 0 && (
         <p className="py-1 text-center text-[10px] font-body text-accent/80">
           Es hora de {MEAL_TYPE_LABELS[mt].toLowerCase()}
@@ -76,7 +84,7 @@ function MealColumn({
   );
 }
 
-export function DayView({ onNavigateToAssistant }: DayViewProps) {
+export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps) {
   const currentDate = useCalendarStore((s) => s.currentDate);
   const setCurrentDate = useCalendarStore((s) => s.setCurrentDate);
   const navDay = useCalendarStore((s) => s.navigateDay);
@@ -221,10 +229,11 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
     dayPlan,
     today,
     activeMealType,
+    onOpenMealChat,
   };
 
   return (
-    <div className="relative pb-28 md:pb-0">
+    <div className="relative pb-6 md:pb-0">
       {/* ——— Mobile: cabecera interactiva ——— */}
       <div className="mb-6 space-y-6 md:hidden">
         <div className="flex items-end justify-between">
@@ -378,7 +387,6 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
               <MealColumn mt="cena" {...mealStackProps} />
             </>
           )}
-          <HydrationCard />
         </div>
       </div>
 
@@ -399,23 +407,8 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
             <MealColumn key={mt} mt={mt} {...mealStackProps} />
           ))
         )}
-        <HydrationCard />
         {notesSection}
       </div>
-
-      {/* CTA móvil flotante */}
-      {onNavigateToAssistant && (
-        <div className="pointer-events-none fixed bottom-[5.5rem] left-0 right-0 z-30 px-6 md:hidden safe-bottom pb-6">
-          <button
-            type="button"
-            onClick={onNavigateToAssistant}
-            className="pointer-events-auto w-full bg-[#226046] text-[#ffffff] font-heading font-bold py-5 px-8 rounded-xl shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
-          >
-            <Plus size={24} strokeWidth={2.5} />
-            ¿Qué cocinamos?
-          </button>
-        </div>
-      )}
     </div>
   );
 }

@@ -20,6 +20,13 @@ export type ChatPendingAction =
   | { kind: 'regenerate'; messageId: string; previousDishName?: string }
   | { kind: 'swap'; date: string; mealType: MealType; previousDishName?: string };
 
+/** Intent set by Calendario when opening chat from a meal slot. */
+export type CalendarMealIntent = {
+  date: string;
+  mealType: MealType;
+  existingMealName?: string;
+};
+
 export type ChatConversationSnapshot = {
   conversationId: string | null;
   messages: ChatMessage[];
@@ -35,6 +42,8 @@ interface ChatState {
   conversationHistory: ChatConversationTurn[];
   lastWeekPlan: WeekPlan | null;
   lastMealType: MealType | null;
+  lastMealDate: string | null;
+  calendarMealIntent: CalendarMealIntent | null;
 
   hasMoreOlder: boolean;
   olderCursor: string | null;
@@ -64,6 +73,8 @@ interface ChatState {
 
   setLastWeekPlan: (plan: WeekPlan | null) => void;
   setLastMealType: (mealType: MealType | null) => void;
+  setLastMealDate: (date: string | null) => void;
+  setCalendarMealIntent: (intent: CalendarMealIntent | null) => void;
 
   tryBeginSend: () => boolean;
   endSend: () => void;
@@ -88,6 +99,8 @@ const initialConversation = {
   conversationHistory: [] as ChatConversationTurn[],
   lastWeekPlan: null as WeekPlan | null,
   lastMealType: null as MealType | null,
+  lastMealDate: null as string | null,
+  calendarMealIntent: null as CalendarMealIntent | null,
   hasMoreOlder: false,
   olderCursor: null as string | null,
   isLoadingOlder: false,
@@ -170,6 +183,8 @@ function applyConversationPage(
     conversationHistory: rebuildConversationHistory(messages),
     lastWeekPlan: snapshot.lastWeekPlan ?? null,
     lastMealType: snapshot.lastMealType ?? null,
+    lastMealDate: null,
+    calendarMealIntent: null,
     hasMoreOlder: snapshot.hasMoreOlder ?? false,
     olderCursor: snapshot.olderCursor ?? null,
     isLoading: false,
@@ -246,6 +261,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     set({ lastMealType: mealType });
     scheduleSync();
   },
+
+  setLastMealDate: (date) => set({ lastMealDate: date }),
+
+  setCalendarMealIntent: (intent) => set({ calendarMealIntent: intent }),
 
   tryBeginSend: () => {
     if (get().isLoading) return false;
