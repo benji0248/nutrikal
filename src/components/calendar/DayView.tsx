@@ -224,7 +224,7 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
   };
 
   return (
-    <div className="relative pb-40 md:pb-0">
+    <div className="relative pb-28 md:pb-0">
       {/* ——— Mobile: cabecera interactiva ——— */}
       <div className="mb-6 space-y-6 md:hidden">
         <div className="flex items-end justify-between">
@@ -403,8 +403,8 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
         {notesSection}
       </div>
 
-      {/* CTA móvil flotante */}
-      {onNavigateToAssistant && (
+      {/* CTA móvil flotante — oculto si el banner vacío ya ofrece el mismo acceso */}
+      {onNavigateToAssistant && hasAnyMealsThisWeek && (
         <div className="pointer-events-none fixed bottom-[5.5rem] left-0 right-0 z-30 px-6 md:hidden safe-bottom pb-6">
           <button
             type="button"
