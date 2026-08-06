@@ -1,0 +1,246 @@
+# Diagnóstico — forbiddenDishNames (lista de platos prohibidos)
+
+Investigación separada del Batch 1. **No se modificó la lógica.**
+
+---
+
+## Resumen
+
+Los nombres que llegan al prompt como "Evitá estas comidas recientes: …" provienen **exclusivamente de dos fuentes en el cliente**, fusionadas en `buildWeekPlanningContext()`:
+
+1. **Calendario del usuario** (`dayPlans`) — últimas 3 semanas de comidas registradas.
+2. **Memoria de rotación persistida** (`plan_memory.avoidDishNames` en Supabase) — acumulada por planes generados, rechazos y swaps.
+
+No hay listas hardcodeadas de platos prohibidos. No hay seeds de test en producción. Los scripts de escenario envían `forbiddenDishNames: []` explícitamente.
+
+---
+
+## Flujo input → transformación → output
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ FUENTES DE NOMBRES                                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│ A) useCalendarStore.dayPlans                                             │
+│    Cada DayPlan.meals[mealType][] → meal.name                            │
+│    (calendario aplicado, comidas manuales, historial)                    │
+│                                                                          │
+│ B) usePlanRotationStore.avoidDishNames (persistido en plan_memory)       │
+│    Alimentado por:                                                       │
+│    - rememberPlan(plan) → nombres del plan semanal generado/aplicado     │
+│    - rememberRejected(dishName) → swap/rechazo de plato individual       │
+│    - hydrate() al login desde API                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ runWeekPlanGeneration() — useChatEngine.ts                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│ 1. Si hay lastWeekPlan en chat → rememberPlan(priorPlan)                 │
+│    (añade TODOS los nombres del plan previo a avoidDishNames)            │
+│ 2. memoryAvoid = getAvoidDishNames()                                     │
+│ 3. buildWeekPlanningContext(..., extraAvoidDishNames: memoryAvoid)       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ buildWeekPlanningContext() — weekPlanService.ts                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ calendarNames = buildForbiddenDishNames(dayPlans, weeksBack=3)            │
+│   → Set de meal.name con date >= hoy - 21 días                           │
+│                                                                          │
+│ forbiddenDishNames = mergeAvoidDishNames(calendarNames, memoryAvoid)    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ mergeAvoidDishNames() — planRotationMemory.ts                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│ - Concatena grupos en orden                                              │
+│ - Deduplica por string exacto (case-sensitive tras trim)                 │
+│ - Conserva los últimos MAX_AVOID_NAMES = 96                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ POST /api/ai/week-plan — weekPlanApi.ts                                  │
+│ Body: forbiddenDishNames: string[] (array completo, hasta 96)            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ buildWeekPlanAndOutputBlock() — weekPlanPrompts.ts (servidor)            │
+├─────────────────────────────────────────────────────────────────────────┤
+│ forbiddenDishNames.slice(0, 15).join(' · ')                              │
+│ → línea: "Evitá estas comidas recientes: Nombre1 · Nombre2 · …"         │
+│ (máximo 15 nombres en el prompt; items 16–96 se descartan aquí)         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Detalle por función
+
+### 1. `buildForbiddenDishNames(dayPlans, weeksBack=3)`
+
+**Archivo:** `src/services/weekPlanService.ts`
+
+**Input:** `Record<string, DayPlan>` del calendario.
+
+**Lógica:**
+- Calcula `cutoffKey` = fecha de hoy − 21 días (`weeksBack * 7`).
+- Itera todas las fechas en `dayPlans`; omite `date < cutoffKey`.
+- Para cada slot (`desayuno`, `almuerzo`, `cena`, `snack`), toma `meal.name.trim()` y lo agrega a un `Set`.
+
+**Output:** `string[]` sin orden garantizado (orden de iteración del objeto).
+
+**No filtra:** duplicados entre días (Set los unifica). No normaliza mayúsculas. No distingue comidas de IA vs manuales.
+
+---
+
+### 2. `mergeAvoidDishNames(...groups)`
+
+**Archivo:** `src/services/planRotationMemory.ts`
+
+**Input:** uno o más arrays de strings (típicamente `[calendarNames, memoryAvoid]`).
+
+**Lógica:**
+- Recorre grupos en orden.
+- Por cada nombre: trim, skip vacío, skip si ya visto (exact match).
+- Al final: `out.slice(-96)` — **conserva los 96 más recientes** en orden de inserción.
+
+**Output:** hasta 96 nombres únicos.
+
+**Importante:** el orden en el prompt depende de este merge. Los primeros 15 del array final son los que entran al prompt — **no** necesariamente los más recientes cronológicamente si el merge intercaló calendario + memoria.
+
+---
+
+### 3. Memoria `avoidDishNames` — quién escribe
+
+| Evento | Archivo | Función | Qué nombres agrega |
+|--------|---------|---------|-------------------|
+| Regenerar plan (había plan previo en chat) | `useChatEngine.ts` | `rememberPlan(priorPlan)` | Todos los nombres del plan anterior |
+| Plan generado OK | `useChatEngine.ts` | `rememberPlan(plan)` | Todos los nombres del plan nuevo |
+| Usuario rechaza plato en chat | `useChatEngine.ts` | `rememberRejected(dish.name)` | 1 nombre |
+| Swap de comida en plan | `useChatEngine.ts` | `rememberRejected(oldMeal.name)` | 1 nombre |
+| Persistencia | `usePlanRotationStore.ts` | `syncToServer` → `api.savePlanMemory` | JSON en `user_profiles.plan_memory` |
+
+**Recolección de nombres del plan:** `collectDishNamesFromWeekPlan()` — recorre 7 días × 4 slots, toma `day.meals[mt].name`.
+
+---
+
+### 4. Qué llega al prompt final
+
+**Archivo:** `api/_lib/weekPlanPrompts.ts` → `buildWeekPlanAndOutputBlock()`
+
+```typescript
+params.forbiddenDishNames.slice(0, 15).join(' · ')
+```
+
+Solo los **primeros 15** del array recibido en el POST. El servidor **no** reordena por fecha ni relevancia.
+
+---
+
+## Ejemplo concreto (trazado lógico)
+
+### Escenario
+
+Usuario argentino con calendario activo y un plan semanal previo en chat.
+
+**Estado del calendario (`dayPlans`):**
+
+| Fecha | Comida | Nombre |
+|-------|--------|--------|
+| 2026-07-28 | almuerzo | Milanesa con puré |
+| 2026-07-29 | cena | Pollo al horno con papas |
+| 2026-08-01 | almuerzo | Milanesa con puré |
+
+**Memoria (`avoidDishNames`)** antes de generar:
+
+```
+["Avena con leche y naranja", "Yogur con frutas", "Tostadas con queso"]
+```
+(último plan semanal recordado vía `rememberPlan`)
+
+**Paso 1 — `buildForbiddenDishNames(dayPlans, 3)`**
+
+Cutoff ≈ 2026-07-16. Fechas anteriores fuera.
+
+Resultado (orden no garantizado):
+```
+["Milanesa con puré", "Pollo al horno con papas"]
+```
+
+**Paso 2 — `mergeAvoidDishNames(calendar, memory)`**
+
+Orden de inserción: primero calendario, luego memoria.
+
+```
+[
+  "Milanesa con puré",
+  "Pollo al horno con papas",
+  "Avena con leche y naranja",
+  "Yogur con frutas",
+  "Tostadas con queso"
+]
+```
+
+**Paso 3 — POST al API**
+
+`forbiddenDishNames`: los 5 nombres completos.
+
+**Paso 4 — Prompt Gemini**
+
+```
+Evitá estas comidas recientes: Milanesa con puré · Pollo al horno con papas · Avena con leche y naranja · Yogur con frutas · Tostadas con queso.
+```
+
+### Origen exacto de "Milanesa con puré"
+
+| Pregunta | Respuesta |
+|----------|-----------|
+| ¿De dónde sale el string? | `meal.name` en calendario, fechas 2026-07-28 y 2026-08-01 |
+| ¿Quién lo puso en calendario? | Probablemente `handleApplyPlan()` de un plan semanal anterior, o comida agregada manualmente |
+| ¿Viene de seed/fixture? | No en flujo normal de app; scripts de test usan `forbiddenDishNames: []` |
+| ¿Regla hardcodeada? | No |
+| ¿Memoria de rotación sola? | No en este ejemplo — entra por calendario; también entraría si estuviera en un plan recordado |
+
+---
+
+## Hallazgos / posibles restricciones artificiales
+
+1. **Doble conteo calendario + memoria:** un plato del plan aplicado está en calendario Y en `avoidDishNames` tras `rememberPlan`. El Set deduplica, pero la lista crece con variantes de nombre ("Pollo al horno" vs "Pollo al horno con papas").
+
+2. **Truncado a 15 sin criterio de recencia:** si hay 40 nombres, el prompt usa los primeros 15 del merge, no los 15 más recientes del calendario.
+
+3. **`rememberPlan(priorPlan)` antes de cada generación:** al regenerar, el plan que el usuario está reemplazando se agrega a avoid — **intencional** para variar, pero puede prohibir nombres que el usuario acaba de ver y rechazó explícitamente solo si también están en memoria.
+
+4. **Match exacto de strings:** "Milanesa" y "Milanesa con puré" son entradas distintas; no hay fuzzy match.
+
+5. **Sin forbidden en tests:** `scripts/test-week-plan-v2.mjs` y escenarios envían `forbiddenDishNames: []` — el comportamiento con historial no se ejercita en CI.
+
+6. **No hay reglas hardcodeadas de platos** en el pipeline forbidden.
+
+---
+
+## Archivos relevantes (referencia)
+
+| Archivo | Rol |
+|---------|-----|
+| `src/services/weekPlanService.ts` | `buildForbiddenDishNames`, `buildWeekPlanningContext` |
+| `src/services/planRotationMemory.ts` | `mergeAvoidDishNames`, `collectDishNamesFromWeekPlan` |
+| `src/store/usePlanRotationStore.ts` | Persistencia y mutación de `avoidDishNames` |
+| `src/components/assistant/useChatEngine.ts` | Orquestación y llamadas a remember* |
+| `api/_lib/weekPlanPrompts.ts` | `.slice(0, 15)` al armar prompt |
+| `api/ai/week-plan.ts` | Recibe array completo sin transformar |
+| `sql/004_plan_memory.sql` | Columna `plan_memory` JSONB |
+| `api/_lib/planMemory.ts` | Normalización server-side al leer DB |
+
+---
+
+## Próximos pasos sugeridos (fuera de Batch 1)
+
+- Instrumentar log/debug: `{ source: 'calendar' | 'memory', name, date? }` antes del merge.
+- Reordenar por `lastDate` antes del slice(0,15).
+- Recortar en cliente a 15 antes del POST.
+- Evaluar si `rememberPlan(priorPlan)` al regenerar duplica innecesariamente con calendario.
