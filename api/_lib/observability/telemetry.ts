@@ -103,19 +103,19 @@ class DefaultGenerationTracker implements GenerationTracker {
     Object.assign(this.context.recipe, recipe);
   }
 
-  async complete(): Promise<void> {
-    await this.finalize('completed');
+  async complete(): Promise<GenerationRecord | undefined> {
+    return this.finalize('completed');
   }
 
-  async fail(error: unknown): Promise<void> {
-    await this.finalize('failed', classifyError(error));
+  async fail(error: unknown): Promise<GenerationRecord | undefined> {
+    return this.finalize('failed', classifyError(error));
   }
 
   private async finalize(
     status: GenerationRecord['status'],
     error?: GenerationRecord['error'],
-  ): Promise<void> {
-    if (this.finalized) return;
+  ): Promise<GenerationRecord | undefined> {
+    if (this.finalized) return undefined;
     this.finalized = true;
 
     const completedAt = new Date();
@@ -150,8 +150,7 @@ class DefaultGenerationTracker implements GenerationTracker {
       };
     }, { ...EMPTY_USAGE });
 
-    try {
-      await this.repository.save({
+    const record: GenerationRecord = {
         schemaVersion: 1,
         context: this.context,
         status,
@@ -166,9 +165,12 @@ class DefaultGenerationTracker implements GenerationTracker {
         usageLines: cost.lines,
         totalCostUsd: cost.totalCostUsd,
         error,
-      });
+    };
+    try {
+      await this.repository.save(record);
     } finally {
       this.trace?.finish(status, error);
     }
+    return record;
   }
 }

@@ -151,8 +151,8 @@ export interface GenerationTracker {
   recordQuality(metrics: QualityMetric[]): void;
   recordPayload(type: PayloadType, value: unknown): void;
   updateRecipe(recipe: Partial<GenerationRecipe>): void;
-  complete(): Promise<void>;
-  fail(error: unknown): Promise<void>;
+  complete(): Promise<GenerationRecord | undefined>;
+  fail(error: unknown): Promise<GenerationRecord | undefined>;
 }
 
 export interface GenerationTelemetry {

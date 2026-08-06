@@ -16,26 +16,29 @@ export interface ClassifiedError {
 }
 
 export class AiProviderError extends Error {
+  readonly cause?: unknown;
+
   constructor(
     message: string,
     readonly details: Omit<ClassifiedError, 'message'>,
-    options?: ErrorOptions,
+    cause?: unknown,
   ) {
-    super(message, options);
+    super(message);
     this.name = 'AiProviderError';
+    if (cause !== undefined) this.cause = cause;
   }
 }
 
 export class InvalidJsonError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
+  constructor(message: string) {
+    super(message);
     this.name = 'InvalidJsonError';
   }
 }
 
 export class SchemaValidationError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
+  constructor(message: string) {
+    super(message);
     this.name = 'SchemaValidationError';
   }
 }

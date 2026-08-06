@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type { CapturedPayload, PayloadType } from './types.js';
 
 type CaptureMode = 'none' | 'metadata' | 'full';
@@ -45,6 +45,21 @@ function encrypt(content: string, key: Buffer): string {
   const encrypted = Buffer.concat([cipher.update(content, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return ['v1', iv.toString('base64'), tag.toString('base64'), encrypted.toString('base64')].join('.');
+}
+
+export function decryptCapturedPayload(content: string): string {
+  const key = readEncryptionKey();
+  if (!key) throw new Error('AI observability encryption key is not configured');
+  const [version, ivEncoded, tagEncoded, encryptedEncoded] = content.split('.');
+  if (version !== 'v1' || !ivEncoded || !tagEncoded || !encryptedEncoded) {
+    throw new Error('Unsupported encrypted payload format');
+  }
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivEncoded, 'base64'));
+  decipher.setAuthTag(Buffer.from(tagEncoded, 'base64'));
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedEncoded, 'base64')),
+    decipher.final(),
+  ]).toString('utf8');
 }
 
 export function capturePayload(

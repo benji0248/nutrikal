@@ -26,6 +26,11 @@ telemetría nunca impide entregar un plan.
 | `AI_OBSERVABILITY_ALLOW_SENSITIVE` | `true` | Requerida para captura `full` en producción. |
 | `AI_OBSERVABILITY_ENCRYPTION_KEY` | base64 de 32 bytes | Cifra payloads con AES-256-GCM. Sin clave se guarda solo metadata. |
 | `AI_OBSERVABILITY_PAYLOAD_RETENTION_DAYS` | entero positivo | Retención indicada en `expires_at`. Default: 7. |
+| `AI_OBSERVABILITY_PRETTY_CONSOLE` | `true` | Fuerza el resumen legible por request también fuera de desarrollo. |
+| `AI_OBSERVABILITY_EXPOSE_DEBUG` | `true` | Devuelve al frontend un resumen no sensible para imprimirlo en DevTools. |
+| `OBSERVABILITY_ADMIN_USER_IDS` | UUIDs separados por coma | Allowlist de administradores del panel. |
+| `OBSERVABILITY_ADMIN_EMAILS` | emails separados por coma | Allowlist alternativa de administradores del panel. |
+| `AI_OBSERVABILITY_INSPECT_PAYLOADS` | `true` | Permite descifrar payloads desde el inspector para admins autorizados. |
 
 La eliminación de payloads vencidos debe programarse como tarea de mantenimiento:
 
@@ -74,3 +79,19 @@ reglas de negocio, algoritmo y deployment. Agregar versiones de dataset, memoria
 Las métricas de calidad incluyen evaluador, versión y fuente. Las validaciones
 nutricionales que hoy ocurren en el cliente todavía no se consideran autoritativas;
 deben enviarse a un endpoint autenticado o moverse al backend en una fase posterior.
+
+## Panel de diagnóstico
+
+El panel se encuentra en `/admin/observability`. Todos sus endpoints requieren un JWT
+válido y pertenecer a `OBSERVABILITY_ADMIN_USER_IDS` o `OBSERVABILITY_ADMIN_EMAILS`.
+Una allowlist vacía deniega a todos los usuarios.
+
+El dashboard muestra agregados, tendencias y generaciones paginadas. El inspector
+expone receta, timeline, intentos y calidad. Los prompts, contexto y respuestas solo
+aparecen cuando fueron capturados cifrados y `AI_OBSERVABILITY_INSPECT_PAYLOADS=true`.
+En producción también se requiere `AI_OBSERVABILITY_ALLOW_SENSITIVE=true`; cada lectura
+de contenido sensible se registra en logs de auditoría.
+
+El botón de replay se mantiene deshabilitado hasta disponer de ejecución aislada,
+presupuesto propio, autorización reforzada e idempotencia. No debe reutilizar el
+endpoint de producción con side effects.

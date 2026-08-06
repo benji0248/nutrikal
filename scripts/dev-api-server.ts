@@ -12,6 +12,7 @@ import embedHandler from '../api/ai/embed.ts';
 import searchHandler from '../api/ai/search.ts';
 import rawHandler from '../api/ai/raw.ts';
 import weekPlanHandler from '../api/ai/week-plan.ts';
+import observabilityAdminHandler from '../api/admin/observability.ts';
 import businessHandler from '../api/business/[...route].ts';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void | VercelResponse>;
@@ -112,6 +113,7 @@ const exactRoutes: Record<string, Handler> = {
   'POST /api/ai/search': searchHandler,
   'POST /api/ai/raw': rawHandler,
   'POST /api/ai/week-plan': weekPlanHandler,
+  'GET /api/admin/observability': observabilityAdminHandler,
 };
 
 function resolveHandler(method: string, pathname: string): {
@@ -121,7 +123,12 @@ function resolveHandler(method: string, pathname: string): {
   const key = `${method} ${pathname}`;
   if (exactRoutes[key]) return { handler: exactRoutes[key], query: {} };
 
-  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/') && !pathname.startsWith('/api/ai/')) {
+  if (
+    pathname.startsWith('/api/')
+    && !pathname.startsWith('/api/auth/')
+    && !pathname.startsWith('/api/ai/')
+    && !pathname.startsWith('/api/admin/')
+  ) {
     const route = pathname.replace(/^\/api\/?/, '');
     if (route) {
       return {

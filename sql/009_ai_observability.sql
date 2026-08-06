@@ -173,3 +173,7 @@ SELECT
 FROM ai_generation_stages stage
 JOIN ai_generations generation ON generation.id = stage.generation_id
 GROUP BY 1, 2, 3, 4, 5;
+
+-- Views do not inherit table RLS on every supported PostgreSQL version.
+REVOKE ALL ON ai_generation_daily_metrics, ai_stage_daily_metrics FROM anon, authenticated;
+GRANT SELECT ON ai_generation_daily_metrics, ai_stage_daily_metrics TO service_role;
