@@ -197,23 +197,91 @@ const RHYTHM_RULES: Record<MealRhythmMode, (streakDays?: number) => string> = {
   balanced: () => 'Ritmo: mezclá repetición corta (link "same:tX") con días distintos.',
 };
 
+export interface DishMemoryPromptInput {
+  explicitAvoids: string[];
+  recentConsumedDishes: string[];
+  rotationHints: string[];
+}
+
+const EXPLICIT_AVOIDS_CAP = 6;
+const RECENT_CONSUMED_CAP = 8;
+const ROTATION_HINTS_CAP = 6;
+
+function capNames(values: string[], cap: number, blocked: Set<string> = new Set()): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const n = raw.trim();
+    if (!n || seen.has(n) || blocked.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+function normalizeDishMemory(
+  dishMemory: DishMemoryPromptInput | undefined,
+  forbiddenDishNames: string[],
+): DishMemoryPromptInput {
+  if (!dishMemory) {
+    return {
+      explicitAvoids: [],
+      recentConsumedDishes: [],
+      rotationHints: capNames(forbiddenDishNames, ROTATION_HINTS_CAP),
+    };
+  }
+  const explicitAvoids = capNames(dishMemory.explicitAvoids, EXPLICIT_AVOIDS_CAP);
+  const recentConsumedDishes = capNames(
+    dishMemory.recentConsumedDishes,
+    RECENT_CONSUMED_CAP,
+    new Set(explicitAvoids),
+  );
+  const rotationHints = capNames(
+    dishMemory.rotationHints,
+    ROTATION_HINTS_CAP,
+    new Set([...explicitAvoids, ...recentConsumedDishes]),
+  );
+  return { explicitAvoids, recentConsumedDishes, rotationHints };
+}
+
+function buildDishMemoryLines(memory: DishMemoryPromptInput): string[] {
+  const lines: string[] = [];
+  if (memory.explicitAvoids.length > 0) {
+    lines.push(
+      `NO propongas estos platos (rechazo explícito del usuario): ${memory.explicitAvoids.join(' · ')}.`,
+    );
+  }
+  if (memory.recentConsumedDishes.length > 0) {
+    lines.push(
+      `Platos consumidos recientemente en su calendario: ${memory.recentConsumedDishes.join(' · ')}. Priorizá variedad, pero no los trates como prohibidos.`,
+    );
+  }
+  if (memory.rotationHints.length > 0) {
+    lines.push(
+      `Estos platos ya fueron propuestos recientemente: ${memory.rotationHints.join(' · ')}. Variá la selección cuando sea posible, pero no los descartes si siguen siendo una buena opción para el usuario.`,
+    );
+  }
+  return lines;
+}
+
 function buildWeekStructureBlock(params: {
   weekPlanning: WeekPlanningInput;
+  dishMemory?: DishMemoryPromptInput;
   forbiddenDishNames: string[];
   templateBudget: number;
   weekDates: string[];
 }): string[] {
   const wp = params.weekPlanning;
-  const forbidden = params.forbiddenDishNames.length
-    ? `Evitá estas comidas recientes: ${params.forbiddenDishNames.slice(0, 15).join(' · ')}.`
-    : '';
+  const dishMemory = normalizeDishMemory(params.dishMemory, params.forbiddenDishNames);
+  const dishMemoryLines = buildDishMemoryLines(dishMemory);
 
   return [
     '# Planificación semanal',
     `Slots del menú: ${wp.activeSlots.join(', ')}.`,
     wp.weekdayRulesPrompt ?? 'Todos los días normales.',
     RHYTHM_RULES[wp.mealRhythmMode](wp.streakDays),
-    forbidden,
+    ...dishMemoryLines,
     'Desayuno y snack: 1–2 comidas repetidas en la semana (link "same:tX") — menos decisiones para el usuario.',
     `Almuerzo y cena: alterná comidas principales cotidianas; máx ${params.templateBudget} templateId únicos.`,
     `Fechas: ${params.weekDates.join(', ')}.`,
@@ -239,6 +307,7 @@ export function buildWeekPlanOneShotPrompt(params: {
   weekPlanning: WeekPlanningInput;
   weeklyPoolPrompt: string;
   forbiddenDishNames: string[];
+  dishMemory?: DishMemoryPromptInput;
   weekDates: string[];
   dailyBudgetKcal?: number;
   maintenanceBudgetKcal?: number;
@@ -277,6 +346,7 @@ export function buildWeekPlanOneShotPrompt(params: {
     calorieBlock.join('\n'),
     buildWeekStructureBlock({
       weekPlanning: wp,
+      dishMemory: params.dishMemory,
       forbiddenDishNames: params.forbiddenDishNames,
       templateBudget,
       weekDates: params.weekDates,

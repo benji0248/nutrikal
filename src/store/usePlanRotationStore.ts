@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import type { PlanMemory, WeekPlan } from '../types';
 import {
-  collectDishNamesFromWeekPlan,
   DEFAULT_PLAN_MEMORY,
-  mergeAvoidDishNames,
+  mergeRejectedDishNames,
   normalizePlanMemory,
 } from '../services/planRotationMemory';
 import { appendPoolHistory, flattenPoolIds } from '../services/ingredientTasteModel';
@@ -20,6 +19,7 @@ interface PlanRotationState extends PlanMemory {
   }) => void;
   rememberRejected: (dishName: string) => void;
   getAvoidDishNames: () => string[];
+  getRejectedDishNames: () => string[];
   getRecentPoolHistory: () => string[][];
   clear: (options?: { sync?: boolean }) => void;
 }
@@ -27,6 +27,7 @@ interface PlanRotationState extends PlanMemory {
 function toPayload(state: PlanMemory): PlanMemory {
   return {
     avoidDishNames: state.avoidDishNames,
+    rejectedDishNames: state.rejectedDishNames ?? [],
     poolGeneration: state.poolGeneration,
     lastWeekId: state.lastWeekId,
     recentPoolHistory: state.recentPoolHistory,
@@ -63,13 +64,9 @@ export const usePlanRotationStore = create<PlanRotationState>()((set, get) => ({
     return poolGeneration;
   },
 
-  rememberPlan: (plan) => {
-    const names = collectDishNamesFromWeekPlan(plan);
-    if (names.length === 0) return;
-    const avoidDishNames = mergeAvoidDishNames(get().avoidDishNames, names);
-    const next = { ...get(), avoidDishNames };
-    set(next);
-    syncToServer(toPayload(next));
+  rememberPlan: (_plan) => {
+    // Fase 0: evitar que un plan generado termine como restricción negativa.
+    // TODO: reemplazar por generatedPlanHistory en una fase posterior.
   },
 
   rememberWeeklyPool: (pool) => {
@@ -83,13 +80,15 @@ export const usePlanRotationStore = create<PlanRotationState>()((set, get) => ({
   rememberRejected: (dishName) => {
     const n = dishName.trim();
     if (!n) return;
-    const avoidDishNames = mergeAvoidDishNames(get().avoidDishNames, [n]);
-    const next = { ...get(), avoidDishNames };
+    const rejectedDishNames = mergeRejectedDishNames(get().rejectedDishNames ?? [], [n]);
+    const next = { ...get(), rejectedDishNames };
     set(next);
     syncToServer(toPayload(next));
   },
 
   getAvoidDishNames: () => get().avoidDishNames,
+
+  getRejectedDishNames: () => get().rejectedDishNames ?? [],
 
   getRecentPoolHistory: () => get().recentPoolHistory,
 

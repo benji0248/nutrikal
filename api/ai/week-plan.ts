@@ -26,6 +26,11 @@ interface WeekPlanRequestBody {
   weekPlanning: WeekPlanningInput;
   weeklyPoolPrompt: string;
   forbiddenDishNames?: string[];
+  dishMemory?: {
+    explicitAvoids?: string[];
+    recentConsumedDishes?: string[];
+    rotationHints?: string[];
+  };
   variationSeed?: string;
 }
 
@@ -148,6 +153,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         weekPlanning: weekPlanningInput,
         weeklyPoolPrompt: body.weeklyPoolPrompt,
         forbiddenDishNames: body.forbiddenDishNames ?? [],
+        dishMemory: body.dishMemory
+          ? {
+              explicitAvoids: body.dishMemory.explicitAvoids ?? [],
+              recentConsumedDishes: body.dishMemory.recentConsumedDishes ?? [],
+              rotationHints: body.dishMemory.rotationHints ?? [],
+            }
+          : undefined,
         weekDates: body.weekDates,
         variationSeed: body.variationSeed,
       },

@@ -16,6 +16,12 @@ interface GenerationDebugSummary {
   totalDurationMs: number;
 }
 
+interface DishMemoryPayload {
+  explicitAvoids: string[];
+  recentConsumedDishes: string[];
+  rotationHints: string[];
+}
+
 const DEBUG_STAGE_LABELS: Record<string, string> = {
   rate_limit: 'Rate Limit',
   read_profile: 'Load User',
@@ -62,6 +68,7 @@ export async function generateWeekPlan(params: {
   weekPlanning: WeekPlanningProfile & { weekdayRulesPrompt?: string };
   weeklyPoolPrompt: string;
   forbiddenDishNames: string[];
+  dishMemory?: DishMemoryPayload;
   variationSeed?: string;
 }): Promise<WeekPlanGenerateResponse> {
   const token = getToken();
