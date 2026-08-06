@@ -1,0 +1,497 @@
+# Resumen Ejecutivo
+
+* **Principales problemas encontrados.**
+  1. El prompt de sistema es grande y en su mayoría estático (~873 tokens fijos antes de personalización), enviado íntegro en cada generación vía `systemInstruction`.
+  2. Hay redundancia sistemática entre instrucciones de ritmo, fricción, slots y presupuesto de templates (mismas reglas expresadas 2–4 veces).
+  3. Las restricciones alimentarias y los ingredientes no deseados se comunican al modelo aunque la canasta ya fue filtrada en el cliente; el modelo recibe reglas que el código ya aplicó.
+  4. Las instrucciones calóricas son extensas y exigen cálculo fino (90–110% por slot), pero el cliente re-normaliza gramos con `normalizeHydratedAiDishToBudget()`; gran parte de ese esfuerzo del LLM se descarta o corrige después.
+  5. La respuesta exige `preparacion` y `tip` para 5–8 platos completos en una sola llamada (~1.000–2.000+ tokens de salida estimados), campos que la UI de revisión semanal no muestra (solo se usan al aplicar al calendario).
+  6. El payload HTTP duplica datos (`weekdayFlexRules` + `weekdayRulesPrompt`, canasta como string + metadatos de planificación) que el servidor no reutiliza para reconstruir contexto.
+  7. La lista de platos prohibidos acumula hasta 96 nombres en memoria pero solo 15 llegan al prompt; el resto viaja en el POST sin efecto.
+  8. Existe código de hint de diversidad culinaria (`buildCuisineDiversityHint`) que no se invoca en el flujo semanal.
+
+* **Impacto estimado.**
+  - **Tokens de entrada (prompt + schema):** ~2.100–2.400 tokens por llamada en un perfil típico (medido: ~1.761 tokens de system prompt + ~377 del JSON schema + ~18 del user message). El núcleo estático representa ~50% del prompt.
+  - **Tokens de salida:** ~1.200–2.500 tokens según cantidad de templates y longitud de preparaciones (medido con 8 platos de ejemplo: ~1.183 tokens).
+  - **Latencia:** una sola llamada monolítica con output JSON grande; reintentos de parseo (`PARSE_ATTEMPTS = 2`) y retry de red (`maxAttempts = 3`) pueden multiplicar tiempo y costo en fallos.
+  - **Complejidad cognitiva para el modelo:** simultáneamente planifica 7 días, respeta ritmo/links, calcula calorías, elige de canasta, genera 5–8 recetas completas y cumple schema estricto.
+
+* **Prioridad.**
+  1. **Alta:** reducir instrucciones calóricas redundantes (validar post-respuesta); acortar bloque de identidad culinaria; separar o diferir `preparacion`/`tip`.
+  2. **Media:** comprimir canasta (solo IDs o solo nombres); eliminar duplicación de reglas de templates/slots; dejar de enviar campos HTTP no usados; alinear lista prohibida (15 vs 96).
+  3. **Baja:** jerga regional en prompt de menú; fechas ISO; campos deprecated de flex en payload.
+
+
+# Flujo actual
+
+## 1. Disparo en cliente
+
+**Archivo:** `src/components/assistant/useChatEngine.ts`
+**Función:** `runWeekPlanGeneration()`
+
+Secuencia:
+1. Valida perfil y week planning completado.
+2. Si hay plan previo en chat → `usePlanRotationStore.rememberPlan()` agrega nombres de platos a memoria de rotación.
+3. `bumpPoolGeneration(weekId)` incrementa contador de rotación de canasta para la semana ISO.
+4. Llama `buildWeekPlanningContext()` (`src/services/weekPlanService.ts`).
+5. Agrega línea de ingredientes no deseados vía `resolveDislikedIngredientNames()` (`src/services/personalizationCopy.ts`).
+6. Enriquece week planning con `weekPlanningForApi()` → agrega `weekdayRulesPrompt`.
+7. POST a `/api/ai/week-plan` vía `generateWeekPlan()` (`src/services/weekPlanApi.ts`).
+
+## 2. Construcción de contexto (cliente, pre-API)
+
+**Archivo:** `src/services/weekPlanService.ts`
+**Función:** `buildWeekPlanningContext()`
+
+Produce:
+| Campo | Origen | Uso posterior |
+|-------|--------|---------------|
+| `weekDates` | `getWeekDayKeys(todayKey())` en `src/utils/dateHelpers.ts` — 7 fechas ISO lun-dom | Prompt + skeleton |
+| `weekId` | `getIsoWeekId()` — ej. `2026-W32` | Semilla de canasta |
+| `pool` | `buildWeeklyIngredientPool()` | Memoria local post-generación |
+| `weeklyPoolPrompt` | `formatWeeklyPoolForPrompt()` | String insertado en prompt |
+| `forbiddenDishNames` | `buildForbiddenDishNames(dayPlans, 3)` + `mergeAvoidDishNames()` | Prompt (máx 15) |
+
+**Canasta semanal** (`src/services/ingredientSelectionService.ts`):
+- `filterIngredientsForUser()` elimina ingredientes por restricciones/dislikes del perfil.
+- Selección determinista: 10 estructurales + 16 contextuales + 2 opcionales = **28 ingredientes** (no 44 como indica el comentario en código).
+- `formatWeeklyPoolForPrompt()` serializa como `ing_XXX: Nombre (NNN kcal/100g)` por línea.
+
+**Platos prohibidos** (`src/services/weekPlanService.ts` + `src/services/planRotationMemory.ts`):
+- Calendario últimas 3 semanas: todos los nombres de comidas.
+- Memoria persistida `avoidDishNames` (máx 96, deduplicados).
+- Merge sin deduplicar por similitud semántica, solo string exacto.
+
+## 3. Request HTTP
+
+**Archivo:** `src/services/weekPlanApi.ts` → `api/ai/week-plan.ts`
+
+Body JSON enviado:
+```json
+{
+  "weekDates": ["2026-08-04", ...],
+  "weekPlanning": { mealPattern, mealRhythmMode, weekdayFlexRules, weekdayRulesPrompt, flexMealsPerWeek, flexMealScope, cookingTime, budget, completedAt, ... },
+  "weeklyPoolPrompt": "<string multilínea>",
+  "forbiddenDishNames": ["...", ...],
+  "variationSeed": "2026-W32-<timestamp>"
+}
+```
+
+Timeout cliente: 180 segundos.
+
+## 4. Handler API (servidor)
+
+**Archivo:** `api/ai/week-plan.ts`
+**Función:** `handler()`
+
+1. Autenticación JWT + rate limit diario.
+2. `fetchProfile(userId)` — relee nombre, nacionalidad, restricciones y datos metabólicos desde Supabase (no confía en lo que mandó el cliente para restricciones).
+3. `getActiveMealSlots(mealPattern)` — recalcula slots activos server-side.
+4. Invoca `generateWeekPlanOneShot()`.
+
+## 5. Armado del prompt (servidor)
+
+**Archivo:** `api/_lib/weekPlanGenerate.ts` → `api/_lib/weekPlanPrompts.ts`
+**Función:** `buildWeekPlanOneShotPrompt()`
+
+Ensambla 7 bloques unidos con `\n\n`:
+
+| # | Bloque | Función | Contenido |
+|---|--------|---------|-----------|
+| 1 | Principio NutriKal | `buildCulinaryIdentityBlock()` | Filosofía, rol, fricción mínima, criterio, autochequeo (~30 líneas, estático) |
+| 2 | Hábitos + perfil | `buildEverydayCultureBlock()` + datos | Patrones por país, nombre, restricciones, jerga regional |
+| 3 | Cocina real | `buildPracticalBlock()` | Tiempo de cocción + presupuesto económico |
+| 4 | Presupuesto calórico | `buildCalorieBlock()` | kcal diarias, por slot, reglas 90–110%, objetivo |
+| 5 | Planificación semanal | `buildWeekStructureBlock()` | Slots, reglas por día, ritmo, prohibidos, fechas, templates |
+| 6 | Canasta semanal | (string del cliente) | Lista de 28 ingredientes con IDs y kcal |
+| 7 | Formato de salida | `buildOutputContractBlock()` | Contrato JSON: days + dishes + links |
+
+**User message:** `"Generá el plan semanal completo ahora."` + opcional `variationSeed`.
+
+## 6. Llamada a Gemini
+
+**Archivo:** `api/_lib/ai/geminiTextGenerator.ts`
+**Clase:** `GeminiTextGenerator.generate()`
+
+- Modelo: `gemini-2.5-flash` (`WEEK_PLAN_MODEL`)
+- `systemInstruction` = prompt completo
+- `contents` = solo mensaje user (system filtrado)
+- `responseMimeType: application/json`
+- `responseSchema` = `WEEK_PLAN_RESPONSE_SCHEMA` (~377 tokens estimados)
+- `temperature: 0.4`
+- Retry: `RetryingTextGenerator` hasta 3 intentos en errores transitorios
+
+## 7. Post-procesamiento servidor
+
+**Archivo:** `api/_lib/weekPlanGenerate.ts`
+
+1. `parseGeminiJson()` — hasta 2 intentos de generación completa si falla parseo/validación.
+2. `enforceTemplateBudget()` — recorta templates únicos a máx 5–8, reasigna links `same:tX`.
+3. `enforceActiveSlots()` — inserta slots faltantes con link a template existente.
+4. Valida que cada templateId necesario tenga dish en respuesta.
+
+## 8. Post-procesamiento cliente
+
+**Archivo:** `src/services/weekPlanService.ts`
+
+1. `applyWeekdayRulesToSkeleton()` — **re-aplica** reglas flex sobre skeleton (puede forzar `full_free` con slots vacíos).
+2. `expandSkeletonToWeekPlan()` — resuelve links `prev.cena` / `same:tX`.
+3. `hydrateAiDish()` — mapea nombres de ingredientes a DB local.
+4. `normalizeHydratedAiDishToBudget()` — **reescala gramos** al presupuesto del slot (±8% tolerancia).
+5. `validateWeekPlan()` — warnings de ritmo (no bloquea).
+
+
+# Hallazgos
+
+---
+
+## H-01 — Bloque de identidad culinaria estático masivo
+
+* **Severidad:** Alta
+* **Archivo:** `api/_lib/weekPlanPrompts.ts`
+* **Función:** `buildCulinaryIdentityBlock()`
+* **Explicación:** ~30 líneas de filosofía NutriKal (fricción, familiaridad, autochequeo) idénticas en cada generación. Medido: el prompt mínimo sin personalización pesa ~3.490 caracteres (~873 tokens); este bloque es la mayor fracción del núcleo estático.
+* **Impacto en rendimiento:** Aumenta tiempo de procesamiento de contexto en cada llamada; no mejora con caché explícito en el código actual.
+* **Impacto en costo de tokens:** ~400–550 tokens fijos por generación.
+* **Recomendación:** Comprimir a 5–8 líneas operativas o mover a versión de prompt cacheable (Gemini context caching / prompt version estática). Mantener solo reglas accionables, no manifesto repetido.
+
+---
+
+## H-02 — Instrucciones calóricas extensas con validación duplicada en cliente
+
+* **Severidad:** Alta
+* **Archivo:** `api/_lib/weekPlanPrompts.ts` (`buildCalorieBlock()`) + `src/services/dishMatchService.ts` (`normalizeHydratedAiDishToBudget()`)
+* **Función:** `buildCalorieBlock()` / `normalizeHydratedAiDishToBudget()`
+* **Explicación:** El prompt incluye sección "⚠️ CRÍTICO — CALORÍAS" con reglas 90–110%, uso de kcal/100g de canasta, ajuste de gramos, flex 120%. Tras la respuesta, el cliente recalcula y escala gramos al presupuesto del slot con tolerancia ±8%.
+* **Impacto en rendimiento:** El modelo invierte capacidad de razonamiento en aritmética que el motor local corrige anyway.
+* **Impacto en costo de tokens:** ~150–250 tokens de instrucciones + tokens de output en gramos "precisos" que se reescriben.
+* **Recomendación:** Simplificar prompt a "aproximá porciones razonables por slot (~X kcal)"; delegar precisión a `normalizeHydratedAiDishToBudget()`. Mantener kcal/100g en canasta solo si se elimina normalización local (no recomendado).
+
+---
+
+## H-03 — Generación monolítica: skeleton + 5–8 platos completos con preparación
+
+* **Severidad:** Alta
+* **Archivo:** `api/_lib/weekPlanGenerate.ts`
+* **Función:** `generateWeekPlanOneShot()` + `WEEK_PLAN_RESPONSE_SCHEMA`
+* **Explicación:** Una sola llamada pide `days` (7 días × 4 slots) y `dishes` (cada uno con nombre, ingredientes con rol/gramos, preparacion, tiempo_prep, tip). Output estimado ~1.200–2.500 tokens.
+* **Impacto en rendimiento:** Latencia dominada por generación de texto largo; mayor probabilidad de timeout (cliente: 180s).
+* **Impacto en costo de tokens:** Output cost ~40–60% del costo total estimado de la operación.
+* **Recomendación:** Evaluar fase 1 solo skeleton + nombres; fase 2 ingredientes; preparacion/tip bajo demanda al aplicar comida al calendario.
+
+---
+
+## H-04 — preparacion y tip generados pero ocultos en revisión semanal
+
+* **Severidad:** Alta
+* **Archivo:** `api/_lib/weekPlanGenerate.ts` (schema) + `src/components/planner/PlanMealCell.tsx`
+* **Función:** Schema `dishes[].preparacion`, `dishes[].tip`
+* **Explicación:** El schema marca `preparacion` y `tip` como required. La UI de revisión (`PlanMealCell`) muestra nombre, ingredientes, kcal y prepMinutes; no renderiza preparacion ni tip. Esos campos se persisten al aplicar al calendario (`useCalendarStore`).
+* **Impacto en rendimiento:** Tokens y tiempo generando texto no visible en el paso crítico del funnel.
+* **Impacto en costo de tokens:** ~100–200 tokens por plato en preparacion+tip × 5–8 platos = ~500–1.600 tokens de salida evitables en revisión.
+* **Recomendación:** Hacer preparacion/tip opcionales en schema para generación semanal; generarlos lazy al aplicar o al expandir celda.
+
+---
+
+## H-05 — Restricciones alimentarias triplicadas
+
+* **Severidad:** Alta
+* **Archivo:** `src/services/ingredientFilter.ts`, `src/services/ingredientSelectionService.ts`, `api/_lib/weekPlanPrompts.ts`
+* **Función:** `filterIngredientsForUser()` → `buildWeeklyIngredientPool()` → `buildWeekPlanOneShotPrompt()`
+* **Explicación:** (1) Canasta ya excluye carnes/ gluten/ lácteos según perfil. (2) Prompt incluye `Restricciones: gluten_free, ...`. (3) Cliente agrega `EVITÁ estos ingredientes: ...` por dislikes. El modelo ve reglas que el pipeline ya aplicó.
+* **Impacto en rendimiento:** Ruido en contexto; modelo puede sobre-restringirse o gastar atención en redundancia.
+* **Impacto en costo de tokens:** ~30–80 tokens + línea de dislikes (~40–120 tokens).
+* **Recomendación:** Con canasta pre-filtrada, omitir restricciones del prompt salvo excepciones no filtrables; dislikes solo si no están ya excluidos de canasta.
+
+---
+
+## H-06 — Reglas de templates y slots repetidas en dos secciones
+
+* **Severidad:** Media
+* **Archivo:** `api/_lib/weekPlanPrompts.ts`
+* **Función:** `buildWeekStructureBlock()` + `buildOutputContractBlock()`
+* **Explicación:** `activeSlots` aparece en "Slots del menú" y en "Cada fecha incluye todos los slots". `templateBudget` (máx 5–8 templateId) aparece en planificación y en formato de salida. Links `same:tX` / `prev.cena` explicados en ritmo y en contrato JSON.
+* **Impacto en rendimiento:** Bajo directo; aumenta confusión del modelo.
+* **Impacto en costo de tokens:** ~80–120 tokens duplicados.
+* **Recomendación:** Una sola sección "Contrato operativo" con slots, templates, links y dayMode.
+
+---
+
+## H-07 — Solapamiento retórico: fricción mínima vs ritmo de repetición
+
+* **Severidad:** Media
+* **Archivo:** `api/_lib/weekPlanPrompts.ts`
+* **Función:** `buildCulinaryIdentityBlock()` + `buildWeekStructureBlock()` + `RHYTHM_RULES`
+* **Explicación:** Identidad dice "repetir comidas reduce fricción — deseable". Planificación dice "desayuno/snack: 1–2 repetidas (same:tX)". Ritmo `balanced` dice "mezclá repetición corta con días distintos". Tres formulaciones del mismo eje.
+* **Impacto en rendimiento:** Ambigüedad puede producir planes incoherentes → reintentos.
+* **Impacto en costo de tokens:** ~100 tokens.
+* **Recomendación:** Una regla de repetición por `mealRhythmMode` sin repetir filosofía en identidad.
+
+---
+
+## H-08 — Canasta serializada con ID + nombre + kcal/100g
+
+* **Severidad:** Media
+* **Archivo:** `src/services/ingredientSelectionService.ts`
+* **Función:** `formatWeeklyPoolForPrompt()`
+* **Explicación:** Formato: `ing_022: Arroz blanco (130 kcal/100g)`. 28 líneas ≈ 1.135–1.175 caracteres (~284–294 tokens). Medido: quitar IDs y kcal ahorra ~689 caracteres (~172 tokens); solo IDs en una línea ≈ 223 caracteres.
+* **Impacto en rendimiento:** Bajo.
+* **Impacto en costo de tokens:** ~170–290 tokens; kcal/100g parcialmente necesarios si el modelo calcula calorías (pero cliente normaliza).
+* **Recomendación:** Enviar solo nombres (canasta ya filtrada) o tabla compacta `id,kcal` + referencia por ID en output. Si se elimina cálculo calórico del LLM, omitir kcal/100g del prompt.
+
+---
+
+## H-09 — Lista prohibida: 96 acumulados, 15 en prompt, todos en HTTP
+
+* **Severidad:** Media
+* **Archivo:** `src/services/planRotationMemory.ts`, `src/services/weekPlanService.ts`, `api/_lib/weekPlanPrompts.ts`
+* **Función:** `mergeAvoidDishNames()` / `buildWeekStructureBlock()` (`.slice(0, 15)`)
+* **Explicación:** Memoria hasta 96 nombres; POST envía array completo; prompt usa solo 15 unidos por ` · `. Usuario con historial largo paga transporte y procesamiento de datos que no influyen.
+* **Impacto en rendimiento:** Payload HTTP ~788 tokens estimados total; forbidden puede ser 200–800 chars extra.
+* **Impacto en costo de tokens:** ~0 en prompt por items 16–96; costo de red/serialización.
+* **Recomendación:** Recortar en cliente antes del POST a 15; o resumir ("15 platos recientes + N más en rotación").
+
+---
+
+## H-10 — weekdayFlexRules duplicado respecto a weekdayRulesPrompt
+
+* **Severidad:** Media
+* **Archivo:** `src/services/weekPlanService.ts`, `api/_lib/weekPlanPrompts.ts`
+* **Función:** `weekPlanningForApi()` / `buildWeekStructureBlock()`
+* **Explicación:** Cliente envía array `weekdayFlexRules` (estructurado) y string `weekdayRulesPrompt` (formateado). El servidor **solo usa** `weekdayRulesPrompt` en el prompt; `weekdayFlexRules` no se lee en `buildWeekPlanOneShotPrompt()`. Campos deprecated `flexMealsPerWeek`, `flexMealScope`, `preferredFlexWeekdays` también viajan sin uso en prompt.
+* **Impacto en rendimiento:** Bytes extra en POST; confusión de mantenimiento.
+* **Impacto en costo de tokens:** ~50–150 tokens en body JSON (no en prompt Gemini directamente, salvo que se loguee en observability).
+* **Recomendación:** Enviar solo `weekdayRulesPrompt` + campos usados (`mealPattern`, `mealRhythmMode`, `streakDays`, `cookingTime`, `budget`); reconstruir reglas server-side si se prefiere confiar en servidor.
+
+---
+
+## H-11 — applyWeekdayRulesToSkeleton post-respuesta duplica lógica del prompt
+
+* **Severidad:** Media
+* **Archivo:** `src/services/weekPlanService.ts`
+* **Función:** `applyWeekdayRulesToSkeleton()`
+* **Explicación:** El prompt instruye dayMode `full_free` con slots `[]` para domingo. Tras respuesta, el cliente **vuelve a aplicar** reglas flex y puede sobrescribir lo que devolvió el modelo.
+* **Impacto en rendimiento:** Trabajo del modelo en dayMode potencialmente ignorado.
+* **Impacto en costo de tokens:** Tokens gastados generando slots para días que el cliente vacía.
+* **Recomendación:** Pre-computar mapa `date → dayMode` en prompt compacto; validar/forzar server-side antes de devolver; o omitir instrucciones flex del LLM y armar skeleton de días libres en código.
+
+---
+
+## H-12 — enforceTemplateBudget y enforceActiveSlots corrigen lo que el prompt exige
+
+* **Severidad:** Media
+* **Archivo:** `api/_lib/weekPlanGenerate.ts`
+* **Función:** `enforceTemplateBudget()`, `enforceActiveSlots()`
+* **Explicación:** Prompt exige máx N templates y todos los slots. Si el modelo incumple, el servidor reescribe links sin segunda llamada.
+* **Impacto en rendimiento:** Positivo (evita retry); negativo (tokens de prompt para reglas no estrictamente necesarias si siempre se corrige).
+* **Impacto en costo de tokens:** ~60–100 tokens de instrucciones que podrían ser post-validación pura.
+* **Recomendación:** Reducir énfasis en prompt; documentar que corrección es determinista server-side.
+
+---
+
+## H-13 — buildCuisineDiversityHint no conectado al flujo
+
+* **Severidad:** Baja
+* **Archivo:** `src/services/ingredientSelectionService.ts`
+* **Función:** `buildCuisineDiversityHint()`
+* **Explicación:** Función que analiza cocinas recientes del calendario y genera hint de diversidad. No es llamada desde `runWeekPlanGeneration()` ni `buildWeekPlanningContext()`.
+* **Impacto en rendimiento:** Ninguno (código muerto para week plan).
+* **Impacto en costo de tokens:** Ninguno actualmente; oportunidad perdida si se activara (+~40 tokens).
+* **Recomendación:** Integrar solo si aporta valor medible; si no, eliminar para reducir superficie.
+
+---
+
+## H-14 — variationSeed en user message de bajo valor semántico
+
+* **Severidad:** Baja
+* **Archivo:** `src/components/assistant/useChatEngine.ts`, `api/_lib/weekPlanGenerate.ts`
+* **Función:** `runWeekPlanGeneration()` / `generateWeekPlanOneShot()`
+* **Explicación:** Se envía `variationSeed: ${weekId}-${Date.now()}` como texto en user message. No es seed de API (Gemini adapter rechaza `seed`). Solo afecta vía temperature 0.4 + texto libre.
+* **Impacto en rendimiento:** Despreciable.
+* **Impacto en costo de tokens:** ~15–25 tokens.
+* **Recomendación:** Eliminar o reemplazar por instrucción concreta ("variá proteína principal respecto al plan anterior").
+
+---
+
+## H-15 — Reintentos de parseo = llamada Gemini completa duplicada
+
+* **Severidad:** Media
+* **Archivo:** `api/_lib/weekPlanGenerate.ts`
+* **Función:** `generateWeekPlanOneShot()` loop `PARSE_ATTEMPTS = 2`
+* **Explicación:** Si JSON inválido o template faltante, se repite **toda** la llamada al proveedor (mismo prompt completo).
+* **Impacto en rendimiento:** Latencia ×2 en fallos de schema.
+* **Impacto en costo de tokens:** Input+output duplicados en fallos (~100% extra).
+* **Recomendación:** Retry con prompt de corrección mínima; o repair JSON local antes de re-generar.
+
+---
+
+## H-16 — Jerga regional en prompt de planificación semanal
+
+* **Severidad:** Baja
+* **Archivo:** `api/_lib/gemini.ts`, `api/_lib/weekPlanPrompts.ts`
+* **Función:** `getJerga()` incluido en prompt
+* **Explicación:** "Tono regional (solo nombres y tips): Hablá en español argentino..." — en week plan el output principal es JSON con nombres de platos e ingredientes; tips van en campo `tip` poco visible.
+* **Impacto en rendimiento:** Mínimo.
+* **Impacto en costo de tokens:** ~25–40 tokens.
+* **Recomendación:** Acortar a "Nombres de platos en español rioplatense" o omitir si tips se difieren.
+
+---
+
+## H-17 — Comentario desactualizado: canasta "~44 ingredientes"
+
+* **Severidad:** Baja
+* **Archivo:** `src/services/ingredientSelectionService.ts`
+* **Función:** `WEEKLY_POOL_COUNTS` / comentario línea 16–17
+* **Explicación:** Conteos reales: 10+16+2=28. Medición confirma 28 líneas en prompt.
+* **Impacto en rendimiento:** Ninguno operativo; expectativa incorrecta en auditorías futuras.
+* **Impacto en costo de tokens:** N/A
+* **Recomendación:** Corregir documentación interna; evaluar si 28 es suficiente o subir conteos conscientemente.
+
+---
+
+## H-18 — Observability almacena contexto duplicado del prompt
+
+* **Severidad:** Baja
+* **Archivo:** `api/_lib/weekPlanGenerate.ts`
+* **Función:** `tracker.recordPayload('context', {...})`
+* **Explicación:** Guarda `weeklyPoolPrompt`, `forbiddenDishNames`, `weekPlanning` completos además de `system_prompt`. Duplicación en telemetría/almacenamiento, no en tokens Gemini.
+* **Impacto en rendimiento:** Storage/IO de observability.
+* **Impacto en costo de tokens:** Ninguno en API Gemini.
+* **Recomendación:** Registrar hashes + campos mínimos en modo metadata.
+
+
+# Oportunidades de optimización
+
+Ordenadas de mayor a menor impacto estimado:
+
+1. **Diferir o eliminar `preparacion`/`tip` de la generación semanal** — Ahorro: ~500–1.600 tokens output + latencia significativa. Riesgo bajo si se generan al aplicar comida.
+
+2. **Acortar bloque de identidad culinaria + fusionar secciones duplicadas** — Ahorro: ~400–600 tokens input por llamada. Riesgo medio en calidad/copy si se recorta demasiado.
+
+3. **Mover precisión calórica fuera del LLM (prompt mínimo + normalización local)** — Ahorro: ~150–250 tokens input + simplificación cognitiva; elimina kcal/100g de canasta (~100 tokens). Riesgo bajo dado que `normalizeHydratedAiDishToBudget()` ya existe.
+
+4. **Dividir en 2 fases: skeleton → platos** — Ahorro: output fase 1 ~200 tokens; fase 2 paralelizable. Latencia total puede bajar si fase 2 es batch pequeño. Riesgo: coherencia inter-platos sin plan global.
+
+5. **Comprimir canasta a nombres solos o IDs compactos** — Ahorro: ~100–200 tokens input.
+
+6. **Recortar forbidden list en cliente a 15 antes del POST** — Ahorro: payload HTTP, no tokens Gemini.
+
+7. **Eliminar restricciones/dislikes redundantes cuando canasta ya filtrada** — Ahorro: ~50–150 tokens input.
+
+8. **Pre-computar días libres/mantenimiento en código, no vía LLM** — Ahorro: tokens output en días full_free + coherencia.
+
+9. **Retry inteligente en parseo (repair vs re-generación completa)** — Ahorro: hasta 100% costo en fallos (~5–15% generaciones según telemetría típica de JSON estricto).
+
+10. **Context caching de prompt estático (Gemini)** — Ahorro: ~50% costo input en llamadas repetidas del mismo usuario/regenerar.
+
+
+# Refactor propuesto
+
+## Estado actual (arquitectura one-shot)
+
+```
+Cliente                          Servidor                         Gemini
+───────                          ────────                         ──────
+buildWeekPlanningContext()  →    fetchProfile()
+  ├ canasta filtrada        →    buildWeekPlanOneShotPrompt()  → systemInstruction (~1.760 tokens)
+  ├ fechas                  →      + weeklyPoolPrompt (cliente)
+  ├ forbidden (96→15)       →      + metabolic kcal
+  └ weekdayRulesPrompt      →    generateContent()             → JSON schema estricto
+                               ←  skeleton + 5–8 dishes full
+applyWeekdayRules()         ←
+hydrate + normalize kcal    ←
+```
+
+## Propuesta: pipeline en 3 capas (sin perder calidad)
+
+### Capa A — Determinística (0 tokens LLM)
+
+Mover fuera del prompt todo lo que el código ya resuelve:
+- Mapa `date → dayMode` y slots vacíos para días libres.
+- Presupuestos kcal por slot (tabla numérica pre-calculada, no prosa).
+- Canasta como array de IDs (filtrada).
+- Lista prohibida top-15.
+- Template budget enforcement (mantener server-side).
+
+### Capa B — LLM fase 1: Planificación (~400–600 tokens output)
+
+**Input reducido (~900–1.100 tokens):**
+- Perfil compacto: nacionalidad, objetivo, tiempo, presupuesto.
+- 8–10 líneas de reglas operativas (no manifesto).
+- Canasta compacta.
+- Ritmo + fechas + reglas día.
+
+**Output:** solo `{ days: [{ date, dayMode, slots: [{ mealType, templateId, link?, isFlexMeal? }] }] }`
+
+Schema más pequeño → menos tokens schema + output más rápido.
+
+### Capa C — LLM fase 2: Comidas (~600–900 tokens output)
+
+**Input:** skeleton fase 1 + subset canasta + presupuesto por templateId.
+
+**Output por template (batch en 1 llamada o N paralelas):**
+```json
+{ "templateId", "nombre", "ingredientes": [{ "nombre", "rol", "gramos" }], "tiempo_prep" }
+```
+
+Sin `preparacion`/`tip` hasta que el usuario abra/aplique la comida.
+
+**Post-proceso:** `hydrateAiDish` + `normalizeHydratedAiDishToBudget` (sin cambios).
+
+## Evaluación: ¿Conviene dividir en varias llamadas?
+
+| Enfoque | Pros | Contras |
+|---------|------|---------|
+| **One-shot actual** | 1 round-trip; coherencia global; links prev.cena/same resueltos con visión completa | Prompt grande; output grande; tarea compleja; fallos caros |
+| **2 fases (skeleton → platos)** | Menor output fase 1; posible percepción de velocidad (mostrar grid antes); retry más barato por fase | 2× latencia de red serial; riesgo de templates incoherentes con canasta; más orchestration |
+| **N+1 (plan + 1 llamada/plato)** | Paralelismo; fallo aislado | Latencia total alta; costo input repetido (canasta/reglas × N); overkill |
+| **Plan + validación LLM** | Mejor calidad semántica | Casi nunca justificado: validación determinística ya existe |
+
+**Conclusión:** El único split con beneficio claro es **skeleton + platos batch**, opcionalmente **lazy preparacion**. No recomendar 5 fases separadas (plan/templates/platos/validación/corrección) salvo que telemetría muestre >10% fallos de schema — hoy `enforceTemplateBudget` + `enforceActiveSlots` + normalización local cubren corrección sin LLM.
+
+## Reducción de prompt sin split (quick wins)
+
+Si se mantiene one-shot:
+1. Identidad: de ~550 a ~120 tokens.
+2. Calorías: de ~200 a ~40 tokens ("porciones orientativas; el sistema ajusta gramos").
+3. Fusionar planificación + formato salida: -~100 tokens.
+4. Canasta nombres-only: -~170 tokens.
+5. Quitar restricciones redundantes: -~80 tokens.
+
+**Total estimado one-shot optimizado:** ~1.100–1.300 tokens input (vs ~1.760 hoy) = **~25–35% menos input**, más **~40–50% menos output** si se quitan preparacion/tip.
+
+## Métricas de referencia (medidas en repo, perfil típico AR lose+gluten_free)
+
+| Componente | Caracteres | Tokens (~÷4) |
+|------------|-----------|--------------|
+| Prompt system completo | 7.043 | ~1.761 |
+| Núcleo estático mínimo | 3.490 | ~873 |
+| Canasta (28 ítems) | 1.135 | ~284 |
+| JSON response schema | 1.507 | ~377 |
+| User message | 70 | ~18 |
+| HTTP POST body | 3.151 | ~788 |
+| Output JSON ejemplo (8 platos con prep) | 4.729 | ~1.183 |
+
+## Datos que el modelo no necesita recibir
+
+- `completedAt`, `flexMealsPerWeek`, `flexMealScope`, `preferredFlexWeekdays` (deprecated, no usados en prompt).
+- `weekdayFlexRules` array (duplica `weekdayRulesPrompt`).
+- Forbidden items 16–96.
+- Restricciones ya aplicadas al filtrar canasta.
+- IDs de ingrediente si output usa nombres y hydration mapea localmente.
+- kcal/100g si normalización es 100% local post-respuesta.
+
+## Restricciones mejor validadas post-respuesta (ya parcialmente implementado)
+
+| Restricción | En prompt hoy | Mejor en código |
+|-------------|---------------|-----------------|
+| Máx templates | Sí (+ enforce server) | Solo enforce |
+| Slots activos | Sí (+ enforce server) | Solo enforce |
+| Calorías 90–110% | Sí (+ normalize client) | Solo normalize |
+| Días libres | Sí (+ apply client) | Pre-computar skeleton |
+| Ingredientes prohibidos | Canasta filtrada + texto | Solo canasta |
+| Ritmo carryover | Sí | validateWeekPlan (warning) |
+
+---
+
+*Auditoría basada en implementación existente en rama analizada. Mediciones de tokens estimadas como caracteres÷4 sobre prompts generados con `buildWeekPlanOneShotPrompt()` y datos reales de `INGREDIENTS_DB`. No se modificó código de producción.*
