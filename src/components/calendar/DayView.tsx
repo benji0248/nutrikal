@@ -224,7 +224,7 @@ export function DayView({ onNavigateToAssistant }: DayViewProps) {
   };
 
   return (
-    <div className="relative pb-28 md:pb-0">
+    <div className="relative pb-40 md:pb-0">
       {/* ——— Mobile: cabecera interactiva ——— */}
       <div className="mb-6 space-y-6 md:hidden">
         <div className="flex items-end justify-between">
