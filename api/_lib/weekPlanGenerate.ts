@@ -25,9 +25,9 @@ export interface AiDishIngredient {
 export interface AiDishResponse {
   nombre: string;
   ingredientes: AiDishIngredient[];
-  preparacion: string;
+  preparacion?: string;
   tiempo_prep: number;
-  tip: string;
+  tip?: string;
 }
 
 export interface WeekPlanSkeletonSlot {
@@ -53,7 +53,7 @@ const MAX_TEMPLATES = 8;
 const PARSE_ATTEMPTS = 2;
 
 export const WEEK_PLAN_MODEL = 'gemini-2.5-flash';
-export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v1';
+export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v2';
 export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v1';
 export const WEEK_PLAN_ALGORITHM_VERSION = 'week-plan-oneshot-v1';
 
@@ -103,11 +103,9 @@ const WEEK_PLAN_RESPONSE_SCHEMA: JsonSchema = {
               required: ['nombre', 'rol', 'gramos'],
             },
           },
-          preparacion: { type: 'string' },
           tiempo_prep: { type: 'integer' },
-          tip: { type: 'string' },
         },
-        required: ['templateId', 'nombre', 'ingredientes', 'preparacion', 'tiempo_prep', 'tip'],
+        required: ['templateId', 'nombre', 'ingredientes', 'tiempo_prep'],
       },
     },
   },
@@ -131,9 +129,9 @@ interface OneShotRawDish {
   templateId: string;
   nombre: string;
   ingredientes: AiDishIngredient[];
-  preparacion: string;
+  preparacion?: string;
   tiempo_prep: number;
-  tip: string;
+  tip?: string;
 }
 
 interface OneShotResponse {

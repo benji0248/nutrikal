@@ -113,9 +113,9 @@ export interface AiDishIngredient {
 export interface AiDishResponse {
   nombre: string;
   ingredientes: AiDishIngredient[];
-  preparacion: string;
+  preparacion?: string;
   tiempo_prep: number;
-  tip: string;
+  tip?: string;
 }
 
 export interface HydratedAiIngredient {
