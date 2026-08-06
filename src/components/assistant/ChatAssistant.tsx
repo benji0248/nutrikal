@@ -138,10 +138,14 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     return (
       <div className="flex h-[calc(100dvh-60px-64px)] flex-col items-center justify-center px-6 md:h-[calc(100dvh-60px)] -mx-4 -mt-6 -mb-24 md:-mb-6 bg-transparent text-[#191c17]">
         <div className="flex max-w-sm flex-col items-center space-y-6 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#226046]/15 shadow-sm">
-            <span className="font-heading text-3xl font-bold text-[#226046]">
-              N
-            </span>
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[2rem] shadow-sm">
+            <img
+              src="/apple-touch-icon.png"
+              alt="NutriKal"
+              className="h-full w-full object-cover"
+              width={80}
+              height={80}
+            />
           </div>
           <div className="space-y-2">
             <h2 className="font-heading text-2xl font-bold text-[#191c17]">
@@ -171,11 +175,11 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
   return (
     <div className="-mx-4 -mt-6 -mb-24 flex h-[calc(100dvh-60px-64px)] flex-col md:-mb-6 md:h-[calc(100dvh-60px)] bg-transparent text-[#191c17]">
 
-      <div className="pointer-events-none fixed left-0 right-0 top-[60px] z-30 flex justify-end px-4 pt-2 md:static md:pointer-events-auto md:justify-end md:px-4 md:pt-0">
+      <div className="z-20 flex justify-end px-4 pt-2 pb-1 md:px-4 md:pt-0">
         <button
           type="button"
           onClick={() => setShowHistory(true)}
-          className="pointer-events-auto inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#ffffff]/90 px-4 py-2 font-body text-sm font-medium text-[#226046] shadow-md ring-1 ring-[#bfcaba]/30 backdrop-blur-md transition hover:bg-[#ffffff] md:shadow-sm"
+          className="inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#ffffff]/90 px-4 py-2 font-body text-sm font-medium text-[#226046] shadow-md ring-1 ring-[#bfcaba]/30 backdrop-blur-md transition hover:bg-[#ffffff] md:shadow-sm"
           aria-label="Ver conversaciones"
         >
           <History size={18} />
@@ -186,7 +190,7 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-24 pb-32 md:pt-6 md:pb-32"
+        className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pt-4 pb-32 md:pt-6 md:pb-32"
       >
         {(isLoadingOlder || hasMoreOlder) && (
           <div className="flex justify-center py-2">
