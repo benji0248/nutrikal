@@ -1,16 +1,24 @@
 export interface PlanMemoryPayload {
   avoidDishNames: string[];
+  rejectedDishNames: string[];
   poolGeneration: number;
   lastWeekId: string | null;
   recentPoolHistory: string[][];
 }
 
 const MAX_AVOID = 96;
+const MAX_REJECTED = 32;
 const MAX_POOL_HISTORY = 5;
 
 export function normalizePlanMemory(raw: unknown): PlanMemoryPayload {
   if (!raw || typeof raw !== 'object') {
-    return { avoidDishNames: [], poolGeneration: 0, lastWeekId: null, recentPoolHistory: [] };
+    return {
+      avoidDishNames: [],
+      rejectedDishNames: [],
+      poolGeneration: 0,
+      lastWeekId: null,
+      recentPoolHistory: [],
+    };
   }
   const o = raw as Record<string, unknown>;
   const names = Array.isArray(o.avoidDishNames)
@@ -23,6 +31,17 @@ export function normalizePlanMemory(raw: unknown): PlanMemoryPayload {
     if (seen.has(t)) continue;
     seen.add(t);
     avoidDishNames.push(t);
+  }
+  const rejected = Array.isArray(o.rejectedDishNames)
+    ? o.rejectedDishNames.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+    : [];
+  const rejectedSeen = new Set<string>();
+  const rejectedDishNames: string[] = [];
+  for (const n of rejected) {
+    const t = n.trim();
+    if (rejectedSeen.has(t)) continue;
+    rejectedSeen.add(t);
+    rejectedDishNames.push(t);
   }
   const poolGeneration =
     typeof o.poolGeneration === 'number' && o.poolGeneration >= 0
@@ -37,6 +56,7 @@ export function normalizePlanMemory(raw: unknown): PlanMemoryPayload {
     : [];
   return {
     avoidDishNames: avoidDishNames.slice(-MAX_AVOID),
+    rejectedDishNames: rejectedDishNames.slice(-MAX_REJECTED),
     poolGeneration,
     lastWeekId,
     recentPoolHistory,

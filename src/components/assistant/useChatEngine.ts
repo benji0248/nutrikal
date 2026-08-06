@@ -444,15 +444,13 @@ export function useChatEngine(): ChatEngineResult {
 
     try {
       const priorPlan = useChatStore.getState().lastWeekPlan;
-      if (priorPlan) {
-        usePlanRotationStore.getState().rememberPlan(priorPlan);
-      }
 
       const weekId = getIsoWeekId(todayKey());
       const poolGeneration = usePlanRotationStore.getState().bumpPoolGeneration(weekId);
 
       const rotation = usePlanRotationStore.getState();
       const memoryAvoid = rotation.getAvoidDishNames();
+      const rejectedDishNames = rotation.getRejectedDishNames();
       const ctx = buildWeekPlanningContext(
         activeProfile,
         dayPlans,
@@ -464,6 +462,10 @@ export function useChatEngine(): ChatEngineResult {
           signals: useIngredientSignalStore.getState().entries,
           recentPoolHistory: rotation.getRecentPoolHistory(),
         },
+        {
+          rejectedDishNames,
+          lastWeekPlan: priorPlan,
+        },
       );
       const dislikedNames = resolveDislikedIngredientNames(activeProfile, customIngredients);
       const dislikeLine = dislikedNames.length
@@ -474,6 +476,7 @@ export function useChatEngine(): ChatEngineResult {
         weekPlanning: weekPlanningForApi(activeWeekPlanning),
         weeklyPoolPrompt: `${ctx.weeklyPoolPrompt}${dislikeLine}`,
         forbiddenDishNames: ctx.forbiddenDishNames,
+        dishMemory: ctx.dishMemory,
         variationSeed: `${ctx.weekId}-${Date.now()}`,
       });
 
@@ -487,7 +490,6 @@ export function useChatEngine(): ChatEngineResult {
 
       useChatStore.getState().setLastWeekPlan(plan);
       const rot = usePlanRotationStore.getState();
-      rot.rememberPlan(plan);
       rot.rememberWeeklyPool(ctx.pool);
 
       const memoryNote = buildPersonalizationNote({
@@ -667,7 +669,6 @@ export function useChatEngine(): ChatEngineResult {
               });
               const updated = { ...m.weekPlan, days };
               useChatStore.getState().setLastWeekPlan(updated);
-              usePlanRotationStore.getState().rememberPlan(updated);
               return { ...m, weekPlan: updated };
             }),
           );

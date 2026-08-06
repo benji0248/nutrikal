@@ -34,8 +34,12 @@ import {
   normalizeWeekPlanningProfile,
 } from '../utils/flexDayHelpers';
 import { INGREDIENTS_DB } from '../data/ingredients';
-import { mergeAvoidDishNames } from './planRotationMemory';
+import { collectDishNamesFromWeekPlan, mergeAvoidDishNames } from './planRotationMemory';
 import type { Ingredient } from '../types';
+
+const EXPLICIT_AVOIDS_CAP = 6;
+const RECENT_CONSUMED_CAP = 8;
+const ROTATION_HINTS_CAP = 6;
 
 function buildDishFrequencyMap(
   dayPlans: Record<string, DayPlan>,
@@ -95,6 +99,67 @@ export function buildForbiddenDishNames(
   return [...names];
 }
 
+export interface DishMemoryBuckets {
+  explicitAvoids: string[];
+  recentConsumedDishes: string[];
+  rotationHints: string[];
+}
+
+function capUnique(values: string[], cap: number, blocked: Set<string> = new Set()): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const n = raw.trim();
+    if (!n || seen.has(n) || blocked.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+function buildRecentConsumedDishNames(dayPlans: Record<string, DayPlan>, weeksBack = 3): string[] {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - weeksBack * 7);
+  const cutoffKey = format(cutoff, 'yyyy-MM-dd');
+  const freq = buildDishFrequencyMap(dayPlans);
+  return [...freq.entries()]
+    .filter(([, stats]) => stats.lastDate >= cutoffKey)
+    .sort((a, b) => {
+      if (a[1].lastDate !== b[1].lastDate) return b[1].lastDate.localeCompare(a[1].lastDate);
+      return b[1].count - a[1].count;
+    })
+    .map(([name]) => name.trim())
+    .filter(Boolean);
+}
+
+function buildDishMemoryBuckets(params: {
+  dayPlans: Record<string, DayPlan>;
+  avoidDishNames: string[];
+  rejectedDishNames: string[];
+  lastWeekPlan?: WeekPlan | null;
+  weeksBack?: number;
+}): DishMemoryBuckets {
+  const explicitAvoids = capUnique(params.rejectedDishNames, EXPLICIT_AVOIDS_CAP);
+  const recentConsumedDishes = capUnique(
+    buildRecentConsumedDishNames(params.dayPlans, params.weeksBack ?? 3),
+    RECENT_CONSUMED_CAP,
+    new Set(explicitAvoids),
+  );
+
+  const recentPlanNames =
+    params.lastWeekPlan && !params.lastWeekPlan.applied
+      ? collectDishNamesFromWeekPlan(params.lastWeekPlan)
+      : [];
+  const blocked = new Set([...explicitAvoids, ...recentConsumedDishes]);
+  const rotationHints = capUnique(
+    mergeAvoidDishNames(params.avoidDishNames, recentPlanNames),
+    ROTATION_HINTS_CAP,
+    blocked,
+  );
+  return { explicitAvoids, recentConsumedDishes, rotationHints };
+}
+
 export function buildWeekPlanningContext(
   profile: UserProfile,
   dayPlans: Record<string, DayPlan>,
@@ -106,9 +171,14 @@ export function buildWeekPlanningContext(
     signals: IngredientSignalEntry[];
     recentPoolHistory: string[][];
   },
+  dishMemoryInput?: {
+    rejectedDishNames?: string[];
+    lastWeekPlan?: WeekPlan | null;
+  },
 ): {
   weekDates: string[];
   weeklyPoolPrompt: string;
+  dishMemory: DishMemoryBuckets;
   forbiddenDishNames: string[];
   weekId: string;
   pool: WeeklyIngredientPool;
@@ -136,7 +206,13 @@ export function buildWeekPlanningContext(
     buildForbiddenDishNames(dayPlans),
     extraAvoidDishNames,
   );
-  return { weekDates, weeklyPoolPrompt, forbiddenDishNames, weekId, pool };
+  const dishMemory = buildDishMemoryBuckets({
+    dayPlans,
+    avoidDishNames: extraAvoidDishNames,
+    rejectedDishNames: dishMemoryInput?.rejectedDishNames ?? [],
+    lastWeekPlan: dishMemoryInput?.lastWeekPlan,
+  });
+  return { weekDates, weeklyPoolPrompt, dishMemory, forbiddenDishNames, weekId, pool };
 }
 
 function parseDate(s: string): Date {

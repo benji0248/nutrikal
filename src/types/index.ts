@@ -628,6 +628,8 @@ export interface WeekPlanningProfile {
 /** Memoria de rotación semanal (DB: user_profiles.plan_memory). */
 export interface PlanMemory {
   avoidDishNames: string[];
+  /** Rechazos explícitos de platos (swap/regenerar). */
+  rejectedDishNames?: string[];
   /** Incrementa en cada generación de plan; aporta variedad al shuffle. */
   poolGeneration: number;
   lastWeekId: string | null;

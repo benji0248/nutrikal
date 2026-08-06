@@ -12,6 +12,7 @@ import {
 import {
   buildWeekPlanOneShotPrompt,
   getWeekTemplateBudget,
+  type DishMemoryPromptInput,
   type WeekPlanningInput,
 } from './weekPlanPrompts.js';
 import { parseGeminiJson } from './parseGeminiJson.js';
@@ -53,7 +54,7 @@ const MAX_TEMPLATES = 8;
 const PARSE_ATTEMPTS = 2;
 
 export const WEEK_PLAN_MODEL = 'gemini-2.5-flash';
-export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v1';
+export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v1.1-memory-phase0';
 export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v1';
 export const WEEK_PLAN_ALGORITHM_VERSION = 'week-plan-oneshot-v1';
 
@@ -324,6 +325,7 @@ export async function generateWeekPlanOneShot(params: {
   weekPlanning: WeekPlanningInput;
   weeklyPoolPrompt: string;
   forbiddenDishNames: string[];
+  dishMemory?: DishMemoryPromptInput;
   weekDates: string[];
   variationSeed?: string;
 }, dependencies: WeekPlanGenerationDependencies): Promise<{
@@ -345,6 +347,7 @@ export async function generateWeekPlanOneShot(params: {
       weekPlanning: params.weekPlanning,
       weeklyPoolPrompt: params.weeklyPoolPrompt,
       forbiddenDishNames: params.forbiddenDishNames,
+      dishMemory: params.dishMemory,
       weekDates: params.weekDates,
       dailyBudgetKcal,
       maintenanceBudgetKcal,
@@ -365,6 +368,7 @@ export async function generateWeekPlanOneShot(params: {
     weekPlanning: params.weekPlanning,
     weeklyPoolPrompt: params.weeklyPoolPrompt,
     forbiddenDishNames: params.forbiddenDishNames,
+    dishMemory: params.dishMemory,
     weekDates: params.weekDates,
     dailyBudgetKcal,
     maintenanceBudgetKcal,
