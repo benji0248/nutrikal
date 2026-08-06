@@ -377,8 +377,8 @@ export function hydrateAiDish(
     humanIngredients,
     macros,
     prepMinutes: dish.tiempo_prep,
-    preparation: dish.preparacion,
-    tip: dish.tip,
+    preparation: dish.preparacion ?? '',
+    tip: dish.tip ?? '',
   };
 }
 

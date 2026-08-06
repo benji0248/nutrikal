@@ -56,11 +56,16 @@ function generationConfig(request: TextGenerationRequest): GenerationConfig {
     });
   }
 
-  const config: GenerationConfig = {
+  const config: GenerationConfig & {
+    thinkingConfig?: { thinkingBudget?: number };
+  } = {
     temperature: request.parameters?.temperature,
     maxOutputTokens: request.parameters?.maxOutputTokens,
     topP: request.parameters?.topP,
   };
+  if (request.parameters?.thinkingBudget != null) {
+    config.thinkingConfig = { thinkingBudget: request.parameters.thinkingBudget };
+  }
   if (request.output?.type === 'json') {
     config.responseMimeType = 'application/json';
     config.responseSchema = toGeminiSchema(request.output.schema);
@@ -110,9 +115,18 @@ export class GeminiTextGenerator implements TextGenerator {
         systemInstruction: systemInstruction || undefined,
       });
       const result = await model.generateContent({ contents });
-      const usage = result.response.usageMetadata;
+      const usage = result.response.usageMetadata as
+        | {
+            promptTokenCount?: number;
+            candidatesTokenCount?: number;
+            totalTokenCount?: number;
+            cachedContentTokenCount?: number;
+            thoughtsTokenCount?: number;
+          }
+        | undefined;
       const inputTokens = usage?.promptTokenCount ?? 0;
       const outputTokens = usage?.candidatesTokenCount ?? 0;
+      const reasoningTokens = usage?.thoughtsTokenCount;
 
       return {
         content: result.response.text(),
@@ -123,6 +137,7 @@ export class GeminiTextGenerator implements TextGenerator {
           outputTokens,
           totalTokens: usage?.totalTokenCount ?? inputTokens + outputTokens,
           cachedInputTokens: usage?.cachedContentTokenCount,
+          reasoningTokens,
           estimated: usage == null,
         },
         finishReason: result.response.candidates?.[0]?.finishReason,

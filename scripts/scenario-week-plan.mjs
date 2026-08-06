@@ -169,7 +169,6 @@ async function generateForScenario(scenario) {
       weekDates: dates,
       weekPlanning: wp,
       weeklyPoolPrompt: defaultPoolPrompt(scenario.user.nationality),
-      forbiddenDishNames: [],
       variationSeed: `scenario-${scenario.id}-${Date.now()}`,
     },
     token,

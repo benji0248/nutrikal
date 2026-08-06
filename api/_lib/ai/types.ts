@@ -18,6 +18,8 @@ export interface GenerationParameters {
   maxOutputTokens?: number;
   topP?: number;
   seed?: number;
+  /** Gemini 2.5+: 0 disables thinking for lower latency. */
+  thinkingBudget?: number;
 }
 
 export interface TextGenerationRequest {

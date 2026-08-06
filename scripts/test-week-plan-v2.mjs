@@ -233,7 +233,7 @@ ing_077: Manteca (717 kcal/100g)`;
   // ═══════════════ PLAN 1 ═══════════════
   add('3. PLAN 1', `Fechas: ${dates.join(', ')}`);
   const t0a = Date.now();
-  const rA = await api('POST', '/api/ai/week-plan', { weekDates: dates, weekPlanning, weeklyPoolPrompt: poolPrompt, forbiddenDishNames: [], variationSeed: `test1-${Date.now()}` }, token);
+  const rA = await api('POST', '/api/ai/week-plan', { weekDates: dates, weekPlanning, weeklyPoolPrompt: poolPrompt, variationSeed: `test1-${Date.now()}` }, token);
   const timeA = Date.now() - t0a;
   add('  Status', `OK=${rA.ok} Time=${timeA}ms`);
 
@@ -242,7 +242,7 @@ ing_077: Manteca (717 kcal/100g)`;
   // ═══════════════ PLAN 2 ═══════════════
   add('4. PLAN 2', `Llamando con variationSeed diferente...`);
   const t0b = Date.now();
-  const rB = await api('POST', '/api/ai/week-plan', { weekDates: dates, weekPlanning, weeklyPoolPrompt: poolPrompt, forbiddenDishNames: [], variationSeed: `test2-${Date.now()}` }, token);
+  const rB = await api('POST', '/api/ai/week-plan', { weekDates: dates, weekPlanning, weeklyPoolPrompt: poolPrompt, variationSeed: `test2-${Date.now()}` }, token);
   const timeB = Date.now() - t0b;
   add('  Status', `OK=${rB.ok} Time=${timeB}ms`);
 

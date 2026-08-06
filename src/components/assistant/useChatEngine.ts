@@ -443,28 +443,20 @@ export function useChatEngine(): ChatEngineResult {
     });
 
     try {
-      const priorPlan = useChatStore.getState().lastWeekPlan;
-
       const weekId = getIsoWeekId(todayKey());
       const poolGeneration = usePlanRotationStore.getState().bumpPoolGeneration(weekId);
 
       const rotation = usePlanRotationStore.getState();
-      const memoryAvoid = rotation.getAvoidDishNames();
-      const rejectedDishNames = rotation.getRejectedDishNames();
       const ctx = buildWeekPlanningContext(
         activeProfile,
         dayPlans,
         customIngredients,
         todayKey(),
-        memoryAvoid,
+        [],
         poolGeneration,
         {
           signals: useIngredientSignalStore.getState().entries,
           recentPoolHistory: rotation.getRecentPoolHistory(),
-        },
-        {
-          rejectedDishNames,
-          lastWeekPlan: priorPlan,
         },
       );
       const dislikedNames = resolveDislikedIngredientNames(activeProfile, customIngredients);
@@ -475,8 +467,6 @@ export function useChatEngine(): ChatEngineResult {
         weekDates: ctx.weekDates,
         weekPlanning: weekPlanningForApi(activeWeekPlanning),
         weeklyPoolPrompt: `${ctx.weeklyPoolPrompt}${dislikeLine}`,
-        forbiddenDishNames: ctx.forbiddenDishNames,
-        dishMemory: ctx.dishMemory,
         variationSeed: `${ctx.weekId}-${Date.now()}`,
       });
 
@@ -494,7 +484,6 @@ export function useChatEngine(): ChatEngineResult {
 
       const memoryNote = buildPersonalizationNote({
         mode: 'week_plan',
-        avoidDishNames: ctx.forbiddenDishNames,
         dislikedNames,
         dislikedCategoryLabels: resolveDislikedCategoryLabels(activeProfile),
         poolGeneration,

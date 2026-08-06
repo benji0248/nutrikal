@@ -170,7 +170,6 @@ ing_077: Manteca`;
     weekDates: dates,
     weekPlanning,
     weeklyPoolPrompt: poolPrompt,
-    forbiddenDishNames: [],
     variationSeed: `test-${TS}`,
   }, token);
   const elapsed = Date.now() - t0;
