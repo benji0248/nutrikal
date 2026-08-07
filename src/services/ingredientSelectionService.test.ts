@@ -3,7 +3,7 @@ import { formatWeeklyPoolForPrompt } from './ingredientSelectionService';
 import type { Ingredient, WeeklyIngredientPool } from '../types';
 
 describe('formatWeeklyPoolForPrompt', () => {
-  it('presents availability without forcing ingredient use', () => {
+  it('presents a flat inventory without usage-priority tiers', () => {
     const pool: WeeklyIngredientPool = {
       weekId: '2026-W32',
       structural: ['ing_001'],
@@ -41,12 +41,16 @@ describe('formatWeeklyPoolForPrompt', () => {
     ];
 
     const text = formatWeeklyPoolForPrompt(pool, ingredients);
-    expect(text).toContain('criterio culinario manda');
-    expect(text).toContain('Protagonistas habituales:');
-    expect(text).toContain('También disponibles:');
-    expect(text).toContain('Extras ocasionales:');
+    expect(text).toContain('Disponibles (kcal/100g):');
+    expect(text).toContain('ing_001: Arroz blanco');
+    expect(text).toContain('ing_038: Tomate');
+    expect(text).toContain('ing_076: Aceite de oliva');
+    expect(text).not.toMatch(/Protagonistas habituales/i);
+    expect(text).not.toMatch(/También disponibles/i);
+    expect(text).not.toMatch(/Extras ocasionales/i);
     expect(text).not.toMatch(/priorizá estructurales/i);
     expect(text).not.toMatch(/ESTRUCTURALES:/);
     expect(text).not.toMatch(/CONTEXTUALES:/);
+    expect(text).not.toMatch(/criterio culinario manda/);
   });
 });

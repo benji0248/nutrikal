@@ -208,25 +208,18 @@ export function formatWeeklyPoolForPrompt(
       .filter(Boolean)
       .join('\n');
 
+  // Flat inventory: tiers exist for pool rotation code, not as usage priority for the model.
+  const allIds = [...pool.structural, ...pool.contextual, ...pool.creative];
   const tasteNote = tasteAware
-    ? '\nSi hay señales de gusto: preferí aceptados y evitá rechazados recientes.'
+    ? ' Si hay señales de gusto: preferí aceptados y evitá rechazados recientes.'
     : '';
 
-  const sections = [
-    `Ingredientes disponibles (kcal/100g).${tasteNote}`,
-    'Son la canasta a mano: algunos suelen ser protagonistas del plato; el resto, solo cuando combinen bien.',
-    'No incluyas un ingrediente solo porque aparece acá. El criterio culinario manda.',
-    'Protagonistas habituales:',
-    idLines(pool.structural),
-    'También disponibles:',
-    idLines(pool.contextual),
-  ];
-
-  if (pool.creative.length) {
-    sections.push('Extras ocasionales:', idLines(pool.creative));
-  }
-
-  return sections.join('\n');
+  return [
+    `Disponibles (kcal/100g):${tasteNote}`,
+    idLines(allIds),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**
