@@ -53,7 +53,7 @@ const MAX_TEMPLATES = 8;
 const PARSE_ATTEMPTS = 2;
 
 export const WEEK_PLAN_MODEL = 'gemini-2.5-flash';
-export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v2-slim';
+export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v2-slim.1';
 export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v1';
 export const WEEK_PLAN_ALGORITHM_VERSION = 'week-plan-oneshot-v1';
 
