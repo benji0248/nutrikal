@@ -21,6 +21,8 @@ interface MealSlotProps {
   domId?: string;
   /** Opens NutriKal chat scoped to this meal slot. */
   onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
+  embedded?: boolean;
+  isActiveSlot?: boolean;
 }
 
 const MEAL_STYLE: Record<MealType, { icon: React.ReactNode; iconBg: string; iconColor: string; cardClass: string }> = {
@@ -50,7 +52,15 @@ const MEAL_STYLE: Record<MealType, { icon: React.ReactNode; iconBg: string; icon
   },
 };
 
-export function MealSlot({ date, mealType, meals, domId, onOpenMealChat }: MealSlotProps) {
+export function MealSlot({
+  date,
+  mealType,
+  meals,
+  domId,
+  onOpenMealChat,
+  embedded = false,
+  isActiveSlot = false,
+}: MealSlotProps) {
   const [expanded, setExpanded] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
@@ -92,12 +102,18 @@ export function MealSlot({ date, mealType, meals, domId, onOpenMealChat }: MealS
 
   const style = MEAL_STYLE[mealType];
 
+  const emptySubtitle = isActiveSlot
+    ? 'Es tu próxima comida — contale a NutriKal qué vas a comer'
+    : 'Todavía no registraste esta comida';
+
   return (
     <div
       id={domId}
       className={clsx(
-        "overflow-hidden rounded-[1.25rem] bg-surface shadow-ambient transition-all",
-        style.cardClass
+        'overflow-hidden transition-all',
+        embedded ? 'bg-transparent' : 'rounded-[1.25rem] bg-surface shadow-ambient',
+        !embedded && style.cardClass,
+        isActiveSlot && embedded && 'bg-accent/[0.03]',
       )}
     >
       <button
@@ -114,7 +130,12 @@ export function MealSlot({ date, mealType, meals, domId, onOpenMealChat }: MealS
               {MEAL_TYPE_LABELS[mealType]}
             </span>
             {meals.length === 0 ? (
-              <span className="text-[11px] font-body text-muted">Sin plato aún</span>
+              <span className={clsx(
+                'text-[11px] font-body',
+                isActiveSlot ? 'font-medium text-accent/80' : 'text-muted',
+              )}>
+                {emptySubtitle}
+              </span>
             ) : showCalories && totalCals > 0 && (
               <span className="text-[11px] font-body text-muted">{totalCals} kcal</span>
             )}
