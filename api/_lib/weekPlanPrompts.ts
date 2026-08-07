@@ -80,20 +80,16 @@ function buildIdentityBlock(): string[] {
 
 function buildContextBlock(params: {
   displayName?: string;
-  profileName?: string;
   restrictions?: string[];
   cookingTime: CookingTimePref;
   budget: BudgetPref;
 }): string[] {
   const lines = ['# Contexto'];
   if (params.displayName) {
-    lines.push(
-      `Usuario de ${params.displayName}. Cocina cotidiana de esa cultura; hablá en el español local.`,
-    );
+    lines.push(`Cocina cotidiana de ${params.displayName}.`);
   } else {
     lines.push('Cocina cotidiana de casa.');
   }
-  if (params.profileName) lines.push(`Usuario: ${params.profileName}.`);
   if (params.restrictions?.length) {
     lines.push(`Restricciones (obligatorias): ${params.restrictions.join(', ')}.`);
   }
@@ -104,7 +100,6 @@ function buildContextBlock(params: {
 }
 
 function buildCalorieBlock(params: {
-  goal?: string;
   mealPattern: MealPattern;
   activeSlots: string[];
   dailyBudgetKcal: number;
@@ -131,12 +126,9 @@ function buildCalorieBlock(params: {
       .join(' · ')}.`,
   );
   lines.push(
-    'Usá kcal/100g de la canasta. Preferí porciones humanas naturales antes que cerrar el presupuesto al gramo; un desvío chico está bien si el plato queda más creíble. El sistema ajusta después.',
+    'Usá kcal/100g del inventario. Preferí porciones humanas naturales antes que cerrar el presupuesto al gramo; un desvío chico está bien si el plato queda más creíble. El sistema ajusta después.',
   );
   lines.push('Flex (isFlexMeal): un poco más generoso.');
-  if (params.goal && GOAL_GUIDANCE[params.goal]) {
-    lines.push(GOAL_GUIDANCE[params.goal]);
-  }
   return lines;
 }
 
@@ -177,35 +169,41 @@ export function buildWeekPlanOneShotPrompt(params: {
   const cookingTime = wp.cookingTime ?? 'normal';
   const budgetPref = wp.budget ?? 'normal';
 
+  const goalLine =
+    params.goal && GOAL_GUIDANCE[params.goal] ? GOAL_GUIDANCE[params.goal] : '';
+
   const calorieBlock =
     params.dailyBudgetKcal != null && params.dailyBudgetKcal > 0
       ? buildCalorieBlock({
-          goal: params.goal,
           mealPattern: wp.mealPattern,
           activeSlots: wp.activeSlots,
           dailyBudgetKcal: params.dailyBudgetKcal,
           maintenanceBudgetKcal: params.maintenanceBudgetKcal,
         })
-      : params.goal && GOAL_GUIDANCE[params.goal]
-        ? [GOAL_GUIDANCE[params.goal]]
-        : [];
+      : [];
 
+  // Orden: decisiones del menú primero; inventario al final (referencia pasiva).
   return [
     buildIdentityBlock().join('\n'),
-    buildContextBlock({
-      displayName: displayName ?? params.nationality,
-      profileName: params.profileName,
-      restrictions: params.restrictions,
-      cookingTime,
-      budget: budgetPref,
-    }).join('\n'),
+    goalLine,
     calorieBlock.join('\n'),
     buildPlanAndOutputBlock({
       weekPlanning: wp,
       templateBudget,
       weekDates: params.weekDates,
     }).join('\n'),
-    ['# Canasta', params.weeklyPoolPrompt].join('\n'),
+    buildContextBlock({
+      displayName: displayName ?? params.nationality,
+      restrictions: params.restrictions,
+      cookingTime,
+      budget: budgetPref,
+    }).join('\n'),
+    [
+      '# Inventario (despensa disponible)',
+      'Referencia pasiva: no es una lista a repartir ni a aprovechar.',
+      'Pensá primero el plato. Después verificá si puede prepararse con el inventario. Nunca diseñes un plato para aprovechar ingredientes disponibles.',
+      params.weeklyPoolPrompt,
+    ].join('\n'),
   ]
     .filter(Boolean)
     .join('\n\n');
