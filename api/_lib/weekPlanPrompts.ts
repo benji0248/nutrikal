@@ -84,7 +84,7 @@ function buildIdentityBlock(): string[] {
   return [
     '# NutriKal',
     'Menú semanal cotidiano de casa: poca fricción, nombres cortos, ingredientes solo los necesarios.',
-    'Familiaridad > creatividad. Repetir comidas/ingredientes en la semana es deseable.',
+    'Familiaridad > creatividad. Almuerzo y cena pueden repetirse algunos días; desayuno y snack conviene alternar.',
   ];
 }
 
@@ -160,7 +160,8 @@ function buildPlanAndOutputBlock(params: {
     `Slots: ${wp.activeSlots.join(', ')}. Máx ${params.templateBudget} templateId únicos.`,
     wp.weekdayRulesPrompt ?? 'Todos los días normales.',
     RHYTHM_RULES[wp.mealRhythmMode](wp.streakDays),
-    'Desayuno y snack: 1–2 comidas repetidas (link "same:tX").',
+    'Desayuno y snack: mínimo 2 opciones distintas de cada uno. Alterná en la semana (bloques de 2–3 días con link "same:tX" ok; no la misma comida todos los días).',
+    'Almuerzo y cena: variá los principales; repetí con "prev.cena" o "same:tX" solo cuando encaje.',
     `Fechas: ${params.weekDates.join(', ')}.`,
     'JSON:',
     '- days: 7 fechas con dayMode, slots (mealType, templateId, link?, isFlexMeal?). full_free → slots [].',
