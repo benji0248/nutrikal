@@ -14,27 +14,61 @@ interface DaySummaryCardProps {
   consumedKcal: number;
   budgetKcal: number;
   showCalories: boolean;
+  filledMealsCount: number;
+  totalMealSlots: number;
 }
 
-export function DaySummaryCard({ consumedKcal, budgetKcal, showCalories }: DaySummaryCardProps) {
+export function DaySummaryCard({
+  consumedKcal,
+  budgetKcal,
+  showCalories,
+  filledMealsCount,
+  totalMealSlots,
+}: DaySummaryCardProps) {
   const quote = QUOTES[Math.abs(Math.floor(consumedKcal + budgetKcal)) % QUOTES.length];
   const remaining = Math.max(0, Math.round(budgetKcal - consumedKcal));
   const pct = getMacroPercent(consumedKcal, budgetKcal);
   const energyLevel: EnergyLevel = getEnergyLevel(consumedKcal, budgetKcal);
   const energyConfig = ENERGY_BAR[energyLevel];
   const energyRatio = budgetKcal > 0 ? Math.min(consumedKcal / budgetKcal, 1) : 0;
+  const mealProgressPct = totalMealSlots > 0 ? Math.round((filledMealsCount / totalMealSlots) * 100) : 0;
+
+  const mealProgressBlock = (
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-2xl font-extrabold tracking-tight">
+          {filledMealsCount}
+          <span className="text-lg font-semibold text-[#b1f0ce]/80"> / {totalMealSlots}</span>
+        </span>
+        <span className="font-body text-xs font-semibold uppercase tracking-wide text-[#b1f0ce]/90">
+          comidas del día
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/15">
+        <div
+          className="h-full rounded-full bg-[#b1f0ce] transition-all duration-500"
+          style={{ width: `${mealProgressPct}%` }}
+        />
+      </div>
+    </div>
+  );
+
+  const quoteBlock = (
+    <p className="border-t border-white/10 pt-4 font-body text-sm italic leading-snug text-[#b1f0ce]/75">
+      &ldquo;{quote}&rdquo;
+    </p>
+  );
 
   if (!showCalories) {
     return (
-      <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl bg-[#226046] p-8 text-white shadow-[0px_20px_40px_rgba(34,96,70,0.15)] group">
+      <div className="group relative flex h-full flex-col overflow-hidden rounded-3xl bg-[#226046] p-6 text-white shadow-[0px_20px_40px_rgba(34,96,70,0.15)]">
         <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-[#b1f0ce] opacity-20 transition-transform duration-700 group-hover:scale-110" />
-        <div className="relative z-10 flex h-full flex-col">
-          <p className="mb-4 text-sm font-bold uppercase tracking-widest text-[#b1f0ce]">
-            Resumen del día
-          </p>
-          <h3 className="mb-6 text-3xl font-bold italic leading-tight">&ldquo;{quote}&rdquo;</h3>
+        <div className="relative z-10 flex h-full flex-col gap-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-[#b1f0ce]">Resumen del día</p>
 
-          <div className="mt-auto space-y-3">
+          {mealProgressBlock}
+
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <span className="font-body text-xs font-semibold uppercase tracking-wide text-[#b1f0ce]/90">
                 Energía del día
@@ -54,28 +88,32 @@ export function DaySummaryCard({ consumedKcal, budgetKcal, showCalories }: DaySu
             </div>
             <p className="font-body text-xs text-[#b1f0ce]/80">{energyConfig.hint}</p>
           </div>
+
+          {quoteBlock}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl bg-[#226046] p-8 text-white shadow-[0px_20px_40px_rgba(34,96,70,0.15)] group">
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-3xl bg-[#226046] p-6 text-white shadow-[0px_20px_40px_rgba(34,96,70,0.15)]">
       <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-[#b1f0ce] opacity-20 transition-transform duration-700 group-hover:scale-110" />
-      <div className="relative z-10 flex h-full flex-col">
-        <p className="mb-4 text-sm font-bold uppercase tracking-widest text-[#b1f0ce]">Resumen del Día</p>
-        <h3 className="mb-8 text-3xl font-bold italic leading-tight">&ldquo;{quote}&rdquo;</h3>
-        <div className="mt-auto space-y-6">
-          <div className="flex items-end justify-between">
+      <div className="relative z-10 flex h-full flex-col gap-5">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#b1f0ce]">Resumen del día</p>
+
+        {mealProgressBlock}
+
+        <div className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
             <div>
-              <span className="text-5xl font-extrabold tracking-tighter">{remaining.toLocaleString('es-AR')}</span>
-              <span className="ml-1 font-medium text-[#b1f0ce]">kcal restantes</span>
+              <span className="text-4xl font-extrabold tracking-tighter">{remaining.toLocaleString('es-AR')}</span>
+              <span className="ml-1 text-sm font-medium text-[#b1f0ce]">kcal restantes</span>
             </div>
             <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-4 border-[#b1f0ce]/30 border-t-[#b1f0ce]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[3px] border-[#b1f0ce]/30 border-t-[#b1f0ce]"
               style={{ transform: `rotate(${(pct / 100) * 360}deg)` }}
             >
-              <span className="text-xs font-bold" style={{ transform: `rotate(-${(pct / 100) * 360}deg)` }}>
+              <span className="text-[11px] font-bold" style={{ transform: `rotate(-${(pct / 100) * 360}deg)` }}>
                 {pct}%
               </span>
             </div>
@@ -87,6 +125,8 @@ export function DaySummaryCard({ consumedKcal, budgetKcal, showCalories }: DaySu
             />
           </div>
         </div>
+
+        {quoteBlock}
       </div>
     </div>
   );

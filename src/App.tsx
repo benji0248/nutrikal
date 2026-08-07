@@ -281,7 +281,7 @@ function AuthenticatedApp() {
           </div>
         </header>
 
-        <div className="px-4 md:px-12 py-6 pb-24 md:pb-12 max-w-7xl mx-auto">
+        <div className="px-4 md:px-10 py-6 pb-24 md:pb-12 max-w-[88rem] mx-auto">
           {activeTab === 'calendar' && view === 'day' && (
             <DayView onNavigateToAssistant={goToAssistant} onOpenMealChat={openMealChat} />
           )}

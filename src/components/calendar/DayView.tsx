@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { format, getISOWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -10,7 +10,6 @@ import {
   parseDate,
   isToday,
   formatDayFull,
-  getWeekDays,
   formatDateKey,
 } from '../../utils/dateHelpers';
 import { resolveDayFlex } from '../../utils/flexDayHelpers';
@@ -23,6 +22,9 @@ import { useIngredientsStore } from '../../store/useIngredientsStore';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { getMealCalories, DAILY_REFERENCE } from '../../utils/macroHelpers';
 import { DaySummaryCard } from './DaySummaryCard';
+
+/** Secuencia cronológica del día — refuerza continuidad del plan. */
+const PLAN_DISPLAY_ORDER: MealType[] = ['desayuno', 'almuerzo', 'snack', 'cena'];
 
 const MEAL_ICONS: Record<MealType, string> = {
   desayuno: '🌅',
@@ -50,6 +52,7 @@ function MealColumn({
   today,
   activeMealType,
   onOpenMealChat,
+  embedded = false,
 }: {
   currentDate: string;
   mt: MealType;
@@ -57,6 +60,7 @@ function MealColumn({
   today: boolean;
   activeMealType: MealType | null;
   onOpenMealChat?: (date: string, mealType: MealType, existingMealName?: string) => void;
+  embedded?: boolean;
 }) {
   const isActive = today && activeMealType === mt;
   const meals = dayPlan.meals[mt];
@@ -64,8 +68,9 @@ function MealColumn({
   return (
     <div
       className={clsx(
-        'rounded-[1.25rem] transition-all',
-        isActive && 'ring-2 ring-accent/40 shadow-[0px_12px_32px_rgba(34,96,70,0.12)]',
+        'transition-all',
+        !embedded && 'rounded-[1.25rem]',
+        !embedded && isActive && 'ring-2 ring-accent/40 shadow-[0px_12px_32px_rgba(34,96,70,0.12)]',
       )}
     >
       <MealSlot
@@ -74,8 +79,10 @@ function MealColumn({
         meals={meals}
         domId={`meal-${mt}`}
         onOpenMealChat={onOpenMealChat}
+        embedded={embedded}
+        isActiveSlot={isActive}
       />
-      {isActive && meals.length === 0 && (
+      {!embedded && isActive && meals.length === 0 && (
         <p className="py-1 text-center text-[10px] font-body text-accent/80">
           Es hora de {MEAL_TYPE_LABELS[mt].toLowerCase()}
         </p>
@@ -98,7 +105,6 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
 
   const date = useMemo(() => parseDate(currentDate), [currentDate]);
   const today = isToday(date);
-  const weekDays = useMemo(() => getWeekDays(date), [date]);
 
   const flexInfo = useMemo(
     () =>
@@ -118,14 +124,8 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
   const metabolic = getMetabolicResult();
   const budgetKcal = metabolic?.budget ?? DAILY_REFERENCE.calories;
 
-  const hasAnyMealsThisWeek = useMemo(() => {
-    return weekDays.some((day) => {
-      const key = formatDateKey(day);
-      const plan = dayPlans[key];
-      if (!plan) return false;
-      return MEAL_TYPE_ORDER.some((mt) => plan.meals[mt].length > 0);
-    });
-  }, [weekDays, dayPlans]);
+  const filledMealsCount = MEAL_TYPE_ORDER.filter((mt) => dayPlan.meals[mt].length > 0).length;
+  const totalMealSlots = MEAL_TYPE_ORDER.length;
 
   const [activeMealType, setActiveMealType] = useState<MealType | null>(getCurrentMealType);
   const [notesValue, setNotesValue] = useState(dayPlan.notes);
@@ -162,25 +162,39 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
     0,
   );
 
-
+  const openAssistantChat = useCallback(() => {
+    if (onOpenMealChat) {
+      const targetMeal =
+        (today && activeMealType) ||
+        PLAN_DISPLAY_ORDER.find((mt) => dayPlan.meals[mt].length === 0) ||
+        'desayuno';
+      onOpenMealChat(currentDate, targetMeal);
+      return;
+    }
+    onNavigateToAssistant?.();
+  }, [onOpenMealChat, onNavigateToAssistant, today, activeMealType, dayPlan.meals, currentDate]);
 
   const mobileDateTitle = format(date, "d 'de' MMMM", { locale: es });
   const weekNum = getISOWeek(date);
 
-  const emptyNutriBanner =
-    !hasAnyMealsThisWeek && onNavigateToAssistant ? (
-      <div className="flex flex-col items-center gap-3 rounded-[1.5rem] bg-accent/10 px-4 py-5 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
-          <Sparkles size={20} className="text-accent" />
-        </div>
-        <div>
-          <p className="text-sm font-heading font-bold text-text-primary">¿Qué cocinamos hoy?</p>
-          <p className="mt-1 text-xs font-body text-muted">Contame qué necesitás y NutriKal te lo resuelve</p>
+  const assistantBar =
+    onNavigateToAssistant || onOpenMealChat ? (
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-accent/20 bg-accent/[0.04] px-3.5 py-2.5 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/12">
+            <Sparkles size={15} className="text-accent" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-heading font-semibold text-text-primary">¿Qué cocinamos hoy?</p>
+            <p className="truncate text-xs font-body text-muted">
+              NutriKal te ayuda con tu plan — contale qué necesitás
+            </p>
+          </div>
         </div>
         <button
           type="button"
-          onClick={onNavigateToAssistant}
-          className="min-h-[48px] rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+          onClick={openAssistantChat}
+          className="shrink-0 rounded-xl border border-accent/35 bg-transparent px-3.5 py-2 text-xs font-medium text-accent transition-colors hover:bg-accent/10 sm:px-4 sm:text-sm"
         >
           Hablar con NutriKal
         </button>
@@ -189,11 +203,11 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
 
   const activeMealBanner =
     today && activeMealType ? (
-      <div className="flex items-center gap-3 rounded-[1.25rem] bg-accent/10 px-4 py-3">
-        <span className="text-xl">{MEAL_ICONS[activeMealType]}</span>
+      <div className="flex items-center gap-3 rounded-[1.25rem] bg-accent/10 px-4 py-2.5">
+        <span className="text-lg">{MEAL_ICONS[activeMealType]}</span>
         <div>
           <p className="text-sm font-heading font-bold text-accent">
-            Ahora deberías: {MEAL_TYPE_LABELS[activeMealType]}
+            Ahora te toca: {MEAL_TYPE_LABELS[activeMealType]}
           </p>
           <p className="text-[11px] font-body text-muted">{MEAL_TIME_LABELS[activeMealType]}</p>
         </div>
@@ -224,6 +238,16 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
     </div>
   );
 
+  const summaryCard = (
+    <DaySummaryCard
+      consumedKcal={totalCals}
+      budgetKcal={budgetKcal}
+      showCalories={showCalories}
+      filledMealsCount={filledMealsCount}
+      totalMealSlots={totalMealSlots}
+    />
+  );
+
   const mealStackProps = {
     currentDate,
     dayPlan,
@@ -232,10 +256,39 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
     onOpenMealChat,
   };
 
+  const fullFreeBlock = (
+    <div className="rounded-2xl bg-[#f8faf1] px-5 py-4 text-center">
+      <p className="font-body text-sm font-medium text-[#191c17]">Día libre</p>
+      <p className="mt-1 text-xs font-body text-[#707a6c]">
+        Sin menú planificado. Comé a tu ritmo; el resto de la semana sigue armado.
+      </p>
+    </div>
+  );
+
+  const dayPlanBlock = isFullFree ? (
+    fullFreeBlock
+  ) : (
+    <div>
+      <div className="mb-2.5 flex items-baseline justify-between gap-2 px-0.5">
+        <h3 className="font-heading text-base font-bold text-text-primary">Plan del día</h3>
+        {today && activeMealType && (
+          <span className="text-xs font-body font-medium text-accent">
+            Siguiente: {MEAL_TYPE_LABELS[activeMealType]}
+          </span>
+        )}
+      </div>
+      <div className="overflow-hidden rounded-3xl border border-border/25 bg-surface shadow-ambient divide-y divide-border/20">
+        {PLAN_DISPLAY_ORDER.map((mt) => (
+          <MealColumn key={mt} mt={mt} embedded {...mealStackProps} />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative pb-6 md:pb-0">
       {/* ——— Mobile: cabecera interactiva ——— */}
-      <div className="mb-6 space-y-6 md:hidden">
+      <div className="mb-5 space-y-4 md:hidden">
         <div className="flex items-end justify-between">
           <div className="space-y-1">
             <p className="text-[#895100] font-medium text-sm uppercase tracking-widest">Hoy</p>
@@ -251,7 +304,7 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
           </div>
         </div>
 
-        <div className="flex justify-between items-center overflow-x-auto hide-scrollbar py-2">
+        <div className="flex justify-between items-center overflow-x-auto hide-scrollbar py-1">
           {[-3, -2, -1, 0, 1, 2, 3].map((offset) => {
             const d = new Date(date);
             d.setDate(d.getDate() + offset);
@@ -295,10 +348,10 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
         </div>
       </div>
 
-      {/* ——— Desktop: cabecera estilo bento ——— */}
-      <header className="mb-12 hidden items-center justify-between md:flex no-print">
+      {/* ——— Desktop: cabecera ——— */}
+      <header className="mb-6 hidden items-center justify-between md:flex no-print">
         <div>
-          <h2 className="mb-2 font-heading text-4xl font-extrabold tracking-tighter text-[#226046] capitalize">
+          <h2 className="mb-1 font-heading text-3xl font-extrabold tracking-tighter text-[#226046] capitalize">
             {formatDayFull(date)}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-[#5a6258]">
@@ -310,7 +363,7 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
             )}
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="flex bg-[#f3f5eb] rounded-full p-1 shadow-sm items-center">
             <button
@@ -335,78 +388,26 @@ export function DayView({ onNavigateToAssistant, onOpenMealChat }: DayViewProps)
         </div>
       </header>
 
-      {/* ——— Bento Grid Layout ——— */}
-      <div className="hidden gap-8 md:grid md:grid-cols-12">
-        {!hasAnyMealsThisWeek && onNavigateToAssistant && (
-          <div className="col-span-12 flex flex-col items-center gap-3 rounded-2xl border border-accent/30 bg-accent/10 px-6 py-6 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
-              <Sparkles size={20} className="text-accent" />
-            </div>
-            <div>
-              <p className="text-sm font-heading font-bold text-text-primary">¿Qué cocinamos hoy?</p>
-              <p className="mt-1 text-xs font-body text-muted">Contame qué necesitás y NutriKal te lo resuelve</p>
-            </div>
-            <button
-              type="button"
-              onClick={onNavigateToAssistant}
-              className="min-h-[48px] rounded-xl bg-accent px-5 py-2.5 text-sm font-body font-medium text-white transition-colors hover:bg-accent/90"
-            >
-              Hablar con NutriKal
-            </button>
+      {/* ——— Desktop ——— */}
+      <div className="hidden space-y-5 md:block">
+        {assistantBar}
+
+        <div className="grid gap-5 lg:grid-cols-12 lg:gap-6">
+          <div className="lg:col-span-8">
+            {dayPlanBlock}
           </div>
-        )}
-        {/* Daily Summary */}
-        <div className="col-span-12 lg:col-span-4 rounded-3xl overflow-hidden flex flex-col">
-          <DaySummaryCard consumedKcal={totalCals} budgetKcal={budgetKcal} showCalories={showCalories} />
-        </div>
-
-        {/* Breakfast */}
-        <div className="col-span-12 lg:col-span-8">
-          {isFullFree ? (
-            <div className="rounded-2xl bg-[#f8faf1] p-6 text-center">
-              <p className="font-body text-sm font-medium text-[#191c17]">Día libre</p>
-              <p className="mt-1 text-xs font-body text-[#707a6c]">
-                Sin menú planificado. Comé a tu ritmo; el resto de la semana sigue armado.
-              </p>
-            </div>
-          ) : (
-            <MealColumn mt="desayuno" {...mealStackProps} />
-          )}
-        </div>
-
-        {/* Lunch */}
-        <div className="col-span-12 lg:col-span-6">
-          {!isFullFree && <MealColumn mt="almuerzo" {...mealStackProps} />}
-        </div>
-
-        {/* Snack & Dinner Column */}
-        <div className="col-span-12 lg:col-span-6 space-y-8">
-          {!isFullFree && (
-            <>
-              <MealColumn mt="snack" {...mealStackProps} />
-              <MealColumn mt="cena" {...mealStackProps} />
-            </>
-          )}
+          <div className="lg:col-span-4">
+            {summaryCard}
+          </div>
         </div>
       </div>
 
-      {/* ——— Mobile: columna única ——— */}
-      <div className="space-y-4 md:hidden">
-        {emptyNutriBanner}
+      {/* ——— Mobile ——— */}
+      <div className="space-y-3 md:hidden">
+        {assistantBar}
         {activeMealBanner}
-        <DaySummaryCard consumedKcal={totalCals} budgetKcal={budgetKcal} showCalories={showCalories} />
-        {isFullFree ? (
-          <div className="rounded-2xl bg-[#f8faf1] p-6 text-center">
-            <p className="font-body text-sm font-medium text-[#191c17]">Día libre</p>
-            <p className="mt-1 text-xs font-body text-[#707a6c]">
-              Sin menú planificado. Comé a tu ritmo; el resto de la semana sigue armado.
-            </p>
-          </div>
-        ) : (
-          MEAL_TYPE_ORDER.map((mt) => (
-            <MealColumn key={mt} mt={mt} {...mealStackProps} />
-          ))
-        )}
+        {dayPlanBlock}
+        {summaryCard}
         {notesSection}
       </div>
     </div>
