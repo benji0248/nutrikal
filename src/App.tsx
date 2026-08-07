@@ -41,6 +41,8 @@ import { CalorieCalculator } from './components/calculator/CalorieCalculator';
 import { BottomSheet } from './components/ui/BottomSheet';
 import { Modal } from './components/ui/Modal';
 import { todayKey } from './utils/dateHelpers';
+import { mealTypeChipLabel } from './utils/mealTimeHelpers';
+import { CalendarMealChat } from './components/calendar/CalendarMealChat';
 
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
@@ -85,6 +87,8 @@ function AuthenticatedApp() {
   const [ready, setReady] = useState(false);
   const { activeTab, setActiveTab } = usePersistedAppTab();
   const goToAssistant = useCallback(() => setActiveTab('assistant'), [setActiveTab]);
+  const [mealChatOpen, setMealChatOpen] = useState(false);
+  const [mealChatTitle, setMealChatTitle] = useState('Agregar comida');
   const openMealChat = useCallback(
     (date: string, mealType: MealType, existingMealName?: string) => {
       useChatStore.getState().setCalendarMealIntent({
@@ -92,13 +96,21 @@ function AuthenticatedApp() {
         mealType,
         existingMealName,
       });
-      setActiveTab('assistant');
+      setMealChatTitle(`Agregar ${mealTypeChipLabel(mealType)}`);
+      setMealChatOpen(true);
     },
-    [setActiveTab],
+    [],
   );
+  const closeMealChat = useCallback(() => setMealChatOpen(false), []);
   const view = useCalendarStore((s) => s.view);
   const setView = useCalendarStore((s) => s.setView);
   const goToToday = useCalendarStore((s) => s.goToToday);
+
+  useEffect(() => {
+    if (activeTab !== 'calendar' && mealChatOpen) {
+      setMealChatOpen(false);
+    }
+  }, [activeTab, mealChatOpen]);
 
   const [showRecalibrate, setShowRecalibrate] = useState(false);
   const [recalibrateSource, setRecalibrateSource] = useState<'scheduled' | 'manual'>('scheduled');
@@ -290,6 +302,17 @@ function AuthenticatedApp() {
       </main>
 
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {mealChatOpen && (
+        <CalendarMealChat
+          title={mealChatTitle}
+          onClose={closeMealChat}
+          onTabChange={(tab) => {
+            closeMealChat();
+            setActiveTab(tab);
+          }}
+        />
+      )}
 
       <ProfileRecalibrate
         isOpen={showRecalibrate}
