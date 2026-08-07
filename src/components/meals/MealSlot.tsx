@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, List, Coffee, Utensils, Apple, Moon } from 'lucide-react';
+import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, Coffee, Utensils, Apple, Moon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { MealForm } from './MealForm';
@@ -61,10 +61,9 @@ export function MealSlot({
   embedded = false,
   isActiveSlot = false,
 }: MealSlotProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
-  const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
   const showCalories = useSettingsStore((s) => s.showCalories);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
@@ -72,6 +71,15 @@ export function MealSlot({
   const deleteMeal = useCalendarStore((s) => s.deleteMeal);
 
   const totalCals = meals.reduce((sum, m) => sum + (getMealCalories(m, allIngredients) ?? 0), 0);
+
+  const assignedMealLabel = useMemo(() => {
+    if (meals.length === 0) return null;
+    const names = meals.map((m) => m.name.trim()).filter(Boolean);
+    if (names.length === 0) return null;
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} · ${names[1]}`;
+    return `${names[0]} · +${names.length - 1} más`;
+  }, [meals]);
 
   const openMealChat = () => {
     const existingMealName = meals[0]?.name;
@@ -119,13 +127,17 @@ export function MealSlot({
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-4 hover:bg-surface2/60 transition-colors min-h-[56px]"
-        aria-label={`${MEAL_TYPE_LABELS[mealType]}: ${meals.length} comidas`}
+        aria-label={
+          meals.length === 0
+            ? `${MEAL_TYPE_LABELS[mealType]}: sin comidas`
+            : `${MEAL_TYPE_LABELS[mealType]}: ${assignedMealLabel ?? meals.map((m) => m.name).join(', ')}`
+        }
       >
-        <div className="flex items-center gap-3.5">
-          <div className={clsx("w-10 h-10 rounded-2xl flex items-center justify-center", style.iconBg, style.iconColor)}>
+        <div className="flex min-w-0 flex-1 items-center gap-3.5">
+          <div className={clsx("w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center", style.iconBg, style.iconColor)}>
             {style.icon}
           </div>
-          <div className="flex flex-col items-start">
+          <div className="min-w-0 flex flex-col items-start">
             <span className="font-heading font-bold text-base text-text-primary">
               {MEAL_TYPE_LABELS[mealType]}
             </span>
@@ -136,12 +148,22 @@ export function MealSlot({
               )}>
                 {emptySubtitle}
               </span>
-            ) : showCalories && totalCals > 0 && (
-              <span className="text-[11px] font-body text-muted">{totalCals} kcal</span>
+            ) : (
+              <span className="truncate text-[11px] font-body text-muted max-w-full">
+                {assignedMealLabel && (
+                  <span className="font-medium text-text-primary/85">{assignedMealLabel}</span>
+                )}
+                {showCalories && totalCals > 0 && (
+                  <span>
+                    {assignedMealLabel ? ' · ' : ''}
+                    {totalCals} kcal
+                  </span>
+                )}
+              </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {expanded ? (
             <ChevronUp size={16} className="text-muted" />
           ) : (
@@ -154,54 +176,41 @@ export function MealSlot({
         <div className="px-4 pb-4 space-y-3">
           {meals.map((meal) => {
             const hasIngredients = !!(meal.aiIngredients?.length || meal.entries?.length || meal.linkedRecipeId);
-            const hasRecipeDetail = hasIngredients || !!meal.preparation;
-            const isMealExpanded = expandedMealId === meal.id;
+            const mealKcal = getMealCalories(meal, allIngredients);
 
             return (
-              <div key={meal.id} className="bg-surface rounded-xl overflow-hidden border border-border/40 shadow-sm relative z-0">
-                <div className="flex items-start justify-between px-4 py-3 group">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="w-12 h-12 rounded-full bg-surface2 flex-shrink-0 flex items-center justify-center overflow-hidden border border-border/50">
-                       <Apple size={20} className="text-muted/50" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-heading font-bold text-text-primary truncate">{meal.name}</p>
-                      <p className="text-[11px] font-body text-muted truncate mt-0.5">
-                        {hasRecipeDetail ? 'Ver receta / porciones' : 'Porción sugerida'}
-                      </p>
-                      
-                      {showCalories && getMealCalories(meal, allIngredients) !== undefined && (
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                           <span className="text-[10px] bg-surface2 px-2 py-0.5 rounded-md font-mono text-muted">
-                             {getMealCalories(meal, allIngredients)} kcal
-                           </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-surface/90 rounded-lg p-0.5 backdrop-blur-sm">
-                    {hasRecipeDetail && (
-                      <button
-                        onClick={() => setExpandedMealId(isMealExpanded ? null : meal.id)}
-                        className="p-1.5 rounded-md hover:bg-surface2 transition-colors flex-shrink-0"
-                        title="Ver ingredientes"
-                      >
-                        <List size={14} className={isMealExpanded ? 'text-accent' : 'text-muted'} />
-                      </button>
+              <div key={meal.id} className="overflow-hidden rounded-xl border border-border/40 bg-surface2/25">
+                {meals.length > 1 && (
+                  <p className="border-b border-border/20 px-3 py-2 text-xs font-heading font-semibold text-text-primary">
+                    {meal.name}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {showCalories && mealKcal !== undefined && (
+                      <span className="rounded-md bg-surface px-2 py-0.5 font-mono text-[10px] text-muted">
+                        {mealKcal} kcal
+                      </span>
                     )}
+                    {hasIngredients && (
+                      <span className="text-[11px] font-body text-muted">Ingredientes</span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
                     <button
                       onClick={() => {
                         setEditingMeal(meal);
                         setShowForm(true);
                       }}
-                      className="p-1.5 rounded-md hover:bg-surface2 transition-colors"
+                      className="rounded-md p-1.5 transition-colors hover:bg-surface2"
                       title="Editar"
                     >
                       <Edit3 size={14} className="text-muted" />
                     </button>
                     <button
                       onClick={() => deleteMeal(date, mealType, meal.id)}
-                      className="p-1.5 rounded-md hover:bg-red-500/10 transition-colors"
+                      className="rounded-md p-1.5 transition-colors hover:bg-red-500/10"
                       title="Eliminar"
                     >
                       <Trash2 size={14} className="text-red-400" />
@@ -209,23 +218,22 @@ export function MealSlot({
                   </div>
                 </div>
 
-                {isMealExpanded && (
-                  <div className="border-t border-border/20">
-                    {hasIngredients && (
-                      <MealIngredients meal={meal} allIngredients={allIngredients} />
-                    )}
-                    {meal.preparation && (
-                      <div className="px-4 pb-3 pt-2">
-                        <p className="text-[11px] font-body font-semibold uppercase tracking-wide text-muted mb-1">
-                          Preparación
-                        </p>
-                        <p className="text-xs font-body text-text-primary leading-relaxed whitespace-pre-wrap">
-                          {meal.preparation}
-                        </p>
-                        {meal.tip && (
-                          <p className="mt-2 text-[11px] font-body text-muted italic">{meal.tip}</p>
-                        )}
-                      </div>
+                {hasIngredients ? (
+                  <MealIngredients meal={meal} allIngredients={allIngredients} />
+                ) : (
+                  <p className="px-3 pb-3 text-xs font-body text-muted">Sin detalle de ingredientes</p>
+                )}
+
+                {meal.preparation && (
+                  <div className="border-t border-border/20 px-3 pb-3 pt-2">
+                    <p className="mb-1 text-[11px] font-body font-semibold uppercase tracking-wide text-muted">
+                      Preparación
+                    </p>
+                    <p className="whitespace-pre-wrap text-xs font-body leading-relaxed text-text-primary">
+                      {meal.preparation}
+                    </p>
+                    {meal.tip && (
+                      <p className="mt-2 text-[11px] font-body italic text-muted">{meal.tip}</p>
                     )}
                   </div>
                 )}
@@ -302,7 +310,7 @@ function MealIngredients({ meal, allIngredients }: { meal: Meal; allIngredients:
   if (ingredients.length === 0) return null;
 
   return (
-    <div className="px-3 pb-3 pt-1 border-t border-border/20">
+    <div className="px-3 pb-3 pt-1">
       <ul className="space-y-1">
         {ingredients.map((ing, idx) => (
           <li key={idx} className="flex items-baseline justify-between gap-2 text-xs font-body">
