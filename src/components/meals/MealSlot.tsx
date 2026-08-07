@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, List, Coffee, Utensils, Apple, Moon, Camera } from 'lucide-react';
+import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, List, Coffee, Utensils, Apple, Moon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCalendarStore } from '../../store/useCalendarStore';
 import { MealForm } from './MealForm';
@@ -212,30 +212,14 @@ export function MealSlot({ date, mealType, meals, domId, onOpenMealChat }: MealS
             );
           })}
 
-          {meals.length === 0 && mealType === 'almuerzo' ? (
-             <div className="w-full rounded-2xl border-2 border-dashed border-border/60 bg-surface2/30 p-6 flex flex-col items-center justify-center text-center gap-3">
-               <div className="w-12 h-12 rounded-full bg-surface2 flex items-center justify-center">
-                 <Camera size={20} className="text-muted/40" />
-               </div>
-               <p className="text-sm font-body text-text-primary">¿Qué tienes planeado para hoy?</p>
-               <button
-                 type="button"
-                 onClick={openMealChat}
-                 className="px-5 py-2.5 rounded-full bg-accent text-white font-semibold text-xs hover:bg-accent/90 transition-colors"
-               >
-                 Agregar Comida
-               </button>
-             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openMealChat}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-[1rem] bg-accent text-white hover:bg-accent/90 transition-all min-h-[48px]"
-            >
-              <Plus size={16} />
-              <span className="text-xs font-body font-bold">Agregar Comida</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={openMealChat}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-[1rem] bg-accent text-white hover:bg-accent/90 transition-all min-h-[48px]"
+          >
+            <Plus size={16} />
+            <span className="text-xs font-body font-bold">Agregar Comida</span>
+          </button>
         </div>
       )}
 
