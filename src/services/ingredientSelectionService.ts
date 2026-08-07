@@ -208,19 +208,25 @@ export function formatWeeklyPoolForPrompt(
       .filter(Boolean)
       .join('\n');
 
-  const tasteNote = tasteAware ? ' Priorizá aceptados; evitá rechazados recientes.' : '';
+  const tasteNote = tasteAware
+    ? '\nSi hay señales de gusto: preferí aceptados y evitá rechazados recientes.'
+    : '';
 
-  return [
-    `Usá estos ingredientes (priorizá estructurales/contextuales).${tasteNote}`,
-    'ESTRUCTURALES:',
+  const sections = [
+    `Ingredientes disponibles (kcal/100g).${tasteNote}`,
+    'Son la canasta a mano: algunos suelen ser protagonistas del plato; el resto, solo cuando combinen bien.',
+    'No incluyas un ingrediente solo porque aparece acá. El criterio culinario manda.',
+    'Protagonistas habituales:',
     idLines(pool.structural),
-    'CONTEXTUALES:',
+    'También disponibles:',
     idLines(pool.contextual),
-    pool.creative.length ? 'OPCIONALES:' : '',
-    pool.creative.length ? idLines(pool.creative) : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ];
+
+  if (pool.creative.length) {
+    sections.push('Extras ocasionales:', idLines(pool.creative));
+  }
+
+  return sections.join('\n');
 }
 
 /**
