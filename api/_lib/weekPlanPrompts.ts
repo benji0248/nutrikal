@@ -1,4 +1,4 @@
-import { normalizeNationality, getJerga } from './gemini.js';
+import { normalizeNationality } from './gemini.js';
 import { getMealSlotBudgetForPattern, type MealType } from './metabolic.js';
 
 export type MealRhythmMode =
@@ -43,73 +43,63 @@ export function getWeekTemplateBudget(weekPlanning: Pick<WeekPlanningInput, 'mea
 }
 
 const GOAL_GUIDANCE: Record<string, string> = {
-  lose: 'Bajar de peso: comidas saciantes, buena proteína, porciones al presupuesto.',
-  maintain: 'Mantener peso: comidas equilibradas dentro del presupuesto.',
-  gain: 'Ganar masa: buena densidad calórica y proteína, respetando el presupuesto.',
+  lose: 'Objetivo: bajar de peso — saciantes, buena proteína.',
+  maintain: 'Objetivo: mantener peso — equilibrado.',
+  gain: 'Objetivo: ganar masa — buena densidad calórica y proteína.',
 };
 
-const EVERYDAY_EATING_PATTERNS: Record<string, string> = {
-  ar: 'proteína a la plancha/horno + arroz/papa/puré; pastas simples; huevo; ensalada; guiso de olla.',
-  uy: 'carne/pollo con acompañamiento; pastas; huevos; guisos; ensalada.',
-  mx: 'proteína + arroz/frijoles; huevo; sopas; verdura; desayunos rápidos.',
-  co: 'arroz; pollo/carne; legumbres; sopas; verdura.',
-  cl: 'arroz + proteína; legumbres; olla; huevo; ensalada.',
-  pe: 'arroz + proteína; legumbres; saltado/olla; sopa; pescado a la plancha.',
-  es: 'huevo/tortilla; pasta/legumbres; pollo/pescado al horno; ensalada.',
-  ve: 'arroz + proteína; pasta; sopas; arepa/pan ocasional.',
-  us: 'proteína + acompañamiento; pasta; ensalada; huevo; sopas.',
-  de: 'proteína con papa/pasta; sopas; ensalada; huevo; una sartén/horno.',
+/** Preferencias de resultado, no microinstrucciones de cocina. */
+const COOKING_PREF: Record<CookingTimePref, string> = {
+  rapido: 'comidas rápidas de entre semana',
+  normal: 'comidas caseras simples',
+  elaborado: 'puede tomarse un poco más si sigue siendo casera',
 };
 
-const PRACTICAL_COOKING: Record<CookingTimePref, string> = {
-  rapido: '≤15 min, una sartén o hervir',
-  normal: '15–25 min, sartén/hervido/horno básico',
-  elaborado: 'Hasta ~40 min si sigue siendo doméstica',
+const BUDGET_PREF: Record<BudgetPref, string> = {
+  economico: 'prioridad a lo barato del súper',
+  normal: 'ingredientes cotidianos del súper',
+  premium: 'algún upgrade menor, sin salir de lo doméstico',
 };
 
-const PRACTICAL_BUDGET: Record<BudgetPref, string> = {
-  economico: 'Ingredientes baratos del súper',
-  normal: 'Ingredientes cotidianos del súper',
-  premium: 'Algún ingrediente un poco mejor, sin salir de lo doméstico',
-};
-
+/** Ritmo estructural (links / carryover). El criterio culinario define cuándo repetir. */
 const RHYTHM_RULES: Record<MealRhythmMode, (streakDays?: number) => string> = {
-  carryover_dinner_to_lunch: () => 'Ritmo: cena D → almuerzo D+1 con link "prev.cena".',
-  streak: (n) => `Ritmo: bloques de ${n ?? 3} días iguales con link "same:ID".`,
-  max_variety: () => 'Ritmo: alterná principales; repetí solo con link.',
-  balanced: () => 'Ritmo: mezcla repetición corta (link "same:tX") con días distintos.',
+  carryover_dinner_to_lunch: () => 'Ritmo estructural: cena D → almuerzo D+1 con link "prev.cena".',
+  streak: (n) => `Ritmo estructural: bloques de ${n ?? 3} días iguales con link "same:ID".`,
+  max_variety: () => 'Ritmo estructural: más variedad en principales; repetí con link cuando sea natural.',
+  balanced: () => 'Ritmo estructural: mezcla días distintos con repetición corta (link "same:tX") cuando encaje.',
 };
 
 function buildIdentityBlock(): string[] {
   return [
     '# NutriKal',
-    'Menú semanal cotidiano de casa: poca fricción, nombres cortos, ingredientes solo los necesarios.',
-    'Familiaridad > creatividad. Almuerzo y cena pueden repetirse algunos días; desayuno y snack conviene alternar.',
+    'Menú semanal de comidas caseras simples, como las de cualquier día de la semana.',
+    'Usá tu criterio culinario. El prompt marca el resultado y las reglas estructurales; no reemplaza tu juicio de cocina.',
+    'Si una preferencia de estilo choca con un plato más natural, priorizá la naturalidad (sin romper JSON, slots, links ni dayMode).',
   ];
 }
 
 function buildContextBlock(params: {
-  code: string;
   displayName?: string;
   profileName?: string;
   restrictions?: string[];
-  jerga: string;
   cookingTime: CookingTimePref;
   budget: BudgetPref;
 }): string[] {
-  const lines = [
-    '# Contexto',
-    params.displayName
-      ? `Usuario de ${params.displayName}. Comidas de casa entre semana, no típicos de guía.`
-      : 'Comidas de casa entre semana, no carta de restaurante.',
-  ];
-  const patterns = EVERYDAY_EATING_PATTERNS[params.code];
-  if (patterns) lines.push(`Patrones: ${patterns}`);
+  const lines = ['# Contexto'];
+  if (params.displayName) {
+    lines.push(
+      `Usuario de ${params.displayName}. Cocina cotidiana de esa cultura; hablá en el español local.`,
+    );
+  } else {
+    lines.push('Cocina cotidiana de casa.');
+  }
   if (params.profileName) lines.push(`Usuario: ${params.profileName}.`);
-  if (params.restrictions?.length) lines.push(`Restricciones: ${params.restrictions.join(', ')}.`);
-  lines.push(`Tono: ${params.jerga}`);
-  lines.push(`Tiempo: ${PRACTICAL_COOKING[params.cookingTime]}. Presupuesto: ${PRACTICAL_BUDGET[params.budget]}.`);
-  lines.push('Sin técnicas avanzadas (nada de panizado casero ni cocciones finas).');
+  if (params.restrictions?.length) {
+    lines.push(`Restricciones (obligatorias): ${params.restrictions.join(', ')}.`);
+  }
+  lines.push(
+    `Preferencias: ${COOKING_PREF[params.cookingTime]}; ${BUDGET_PREF[params.budget]}.`,
+  );
   return lines;
 }
 
@@ -141,8 +131,9 @@ function buildCalorieBlock(params: {
       .join(' · ')}.`,
   );
   lines.push(
-    'Usá kcal/100g de la canasta. Gramos domésticos razonables; el sistema ajusta después. Flex (isFlexMeal): un poco más generoso.',
+    'Usá kcal/100g de la canasta. Preferí porciones humanas naturales antes que cerrar el presupuesto al gramo; un desvío chico está bien si el plato queda más creíble. El sistema ajusta después.',
   );
+  lines.push('Flex (isFlexMeal): un poco más generoso.');
   if (params.goal && GOAL_GUIDANCE[params.goal]) {
     lines.push(GOAL_GUIDANCE[params.goal]);
   }
@@ -160,8 +151,7 @@ function buildPlanAndOutputBlock(params: {
     `Slots: ${wp.activeSlots.join(', ')}. Máx ${params.templateBudget} templateId únicos.`,
     wp.weekdayRulesPrompt ?? 'Todos los días normales.',
     RHYTHM_RULES[wp.mealRhythmMode](wp.streakDays),
-    'Desayuno y snack: mínimo 2 opciones distintas de cada uno. Alterná en la semana (bloques de 2–3 días con link "same:tX" ok; no la misma comida todos los días).',
-    'Almuerzo y cena: variá los principales; repetí con "prev.cena" o "same:tX" solo cuando encaje.',
+    'Repetición: desayuno y snack suelen rotar entre pocas opciones; almuerzo y cena con más variedad. Reutilizar una cena como almuerzo siguiente es natural. Repetí o variá según criterio, no por obligación mecánica.',
     `Fechas: ${params.weekDates.join(', ')}.`,
     'JSON:',
     '- days: 7 fechas con dayMode, slots (mealType, templateId, link?, isFlexMeal?). full_free → slots [].',
@@ -183,8 +173,7 @@ export function buildWeekPlanOneShotPrompt(params: {
 }): string {
   const wp = params.weekPlanning;
   const templateBudget = getWeekTemplateBudget(wp);
-  const { code, displayName } = normalizeNationality(params.nationality);
-  const jerga = getJerga(code);
+  const { displayName } = normalizeNationality(params.nationality);
   const cookingTime = wp.cookingTime ?? 'normal';
   const budgetPref = wp.budget ?? 'normal';
 
@@ -204,11 +193,9 @@ export function buildWeekPlanOneShotPrompt(params: {
   return [
     buildIdentityBlock().join('\n'),
     buildContextBlock({
-      code,
       displayName: displayName ?? params.nationality,
       profileName: params.profileName,
       restrictions: params.restrictions,
-      jerga,
       cookingTime,
       budget: budgetPref,
     }).join('\n'),

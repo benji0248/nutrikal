@@ -80,8 +80,10 @@ function defaultPoolPrompt(nationality) {
           ? '\nPriorizá ingredientes comunes en España (huevo, legumbres, arroz, verduras, queso).'
           : '\nPriorizá ingredientes de súper argentino/uruguayo cotidianos.';
 
-  return `CANASTA SEMANAL — usá estos ingredientes (kcal/100g).${regionalNote}
-ESTRUCTURALES:
+  return `Ingredientes disponibles (kcal/100g).${regionalNote}
+Son la canasta a mano: algunos suelen ser protagonistas; el resto, solo cuando combinen bien.
+No incluyas un ingrediente solo porque aparece acá.
+Protagonistas habituales:
 ing_001: Arroz blanco (130)
 ing_005: Fideos (131)
 ing_006: Papa (77)
@@ -89,7 +91,7 @@ ing_010: Pan blanco (265)
 ing_022: Pechuga de pollo (165)
 ing_036: Carne picada común (250)
 ing_015: Huevo (143)
-CONTEXTUALES:
+También disponibles:
 ing_038: Tomate (18)
 ing_039: Cebolla (40)
 ing_042: Lechuga (15)
@@ -100,7 +102,7 @@ ing_066: Naranja (47)
 ing_032: Queso cremoso (290)
 ing_avena: Avena (389)
 ing_yogur: Yogur natural (61)
-OPCIONALES:
+Extras ocasionales:
 ing_076: Aceite de oliva (884)
 ing_077: Manteca (717)`;
 }

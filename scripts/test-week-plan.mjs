@@ -113,8 +113,10 @@ async function main() {
   add('3. RESULT', `OK=${r3.ok} status=${r3.status}`);
 
   // 4. Build weekly pool prompt (canasta semanal simplificada para el test)
-  const poolPrompt = `CANASTA SEMANAL — usá estos ingredientes (priorizá estructurales y contextuales):
-ESTRUCTURALES:
+  const poolPrompt = `Ingredientes disponibles.
+Son la canasta a mano: algunos suelen ser protagonistas; el resto, solo cuando combinen bien.
+No incluyas un ingrediente solo porque aparece acá.
+Protagonistas habituales:
 ing_001: Arroz blanco
 ing_002: Arroz integral
 ing_005: Fideos
@@ -125,7 +127,7 @@ ing_013: Harina de trigo
 ing_022: Pechuga de pollo
 ing_036: Carne picada
 ing_037: Bife de chorizo
-CONTEXTUALES:
+También disponibles:
 ing_015: Huevo
 ing_032: Queso cremoso
 ing_038: Tomate
@@ -142,7 +144,7 @@ ing_052: Palta
 ing_059: Manzana
 ing_065: Banana
 ing_066: Naranja
-OPCIONALES:
+Extras ocasionales:
 ing_076: Aceite de oliva
 ing_077: Manteca`;
 

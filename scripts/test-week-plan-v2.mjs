@@ -181,8 +181,10 @@ async function main() {
   add('2. PROFILE', `OK=${r3.ok}`);
 
   // ── Pool ──
-  const poolPrompt = `CANASTA SEMANAL — usá estos ingredientes (priorizá estructurales y contextuales). Cada uno incluye sus kcal/100g:
-ESTRUCTURALES:
+  const poolPrompt = `Ingredientes disponibles (kcal/100g).
+Son la canasta a mano: algunos suelen ser protagonistas; el resto, solo cuando combinen bien.
+No incluyas un ingrediente solo porque aparece acá.
+Protagonistas habituales:
 ing_001: Arroz blanco (130 kcal/100g)
 ing_002: Arroz integral (123 kcal/100g)
 ing_005: Fideos (131 kcal/100g)
@@ -193,7 +195,7 @@ ing_013: Harina de trigo (364 kcal/100g)
 ing_022: Pechuga de pollo (165 kcal/100g)
 ing_036: Carne picada común (250 kcal/100g)
 ing_037: Bife de chorizo (250 kcal/100g)
-CONTEXTUALES:
+También disponibles:
 ing_015: Huevo (143 kcal/100g)
 ing_032: Queso cremoso (290 kcal/100g)
 ing_038: Tomate (18 kcal/100g)
@@ -210,7 +212,7 @@ ing_052: Palta (160 kcal/100g)
 ing_059: Manzana (52 kcal/100g)
 ing_065: Banana (89 kcal/100g)
 ing_066: Naranja (47 kcal/100g)
-OPCIONALES:
+Extras ocasionales:
 ing_076: Aceite de oliva (884 kcal/100g)
 ing_077: Manteca (717 kcal/100g)`;
 
