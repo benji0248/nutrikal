@@ -13,6 +13,8 @@ import {
   CHAT_MESSAGES_PAGE_SIZE,
   CHAT_CONVERSATIONS_PAGE_SIZE,
 } from '../_lib/chatConversation.js';
+import { mapStudySummary } from '../_lib/medicalStudyMapper.js';
+import type { MedicalStudyRow } from '../_lib/medicalStudyTypes.js';
 
 interface AuthenticatedRequest {
   userId: string;
@@ -302,6 +304,7 @@ const handlers: Record<string, RouteHandler> = {
       signalsRes,
       progressRes,
       chatConversation,
+      medicalStudiesRes,
     ] = await Promise.all([
       supabase.from('meals').select('*').eq('user_id', uid).gte('date', dateFrom).order('date', { ascending: true }),
       supabase.from('day_notes').select('*').eq('user_id', uid).gte('date', dateFrom),
@@ -316,6 +319,7 @@ const handlers: Record<string, RouteHandler> = {
       supabase.from('ingredient_signals').select('*').eq('user_id', uid).order('fecha', { ascending: false }).limit(Number(req.query.signalLimit) || 800),
       supabase.from('body_check_ins').select('*').eq('user_id', uid).order('recorded_at', { ascending: true }),
       loadActiveChatConversation(uid),
+      supabase.from('medical_studies').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
     ]);
 
     const parseWeekPlanning = (raw: unknown) => {
@@ -474,6 +478,23 @@ const handlers: Record<string, RouteHandler> = {
       mapProgressCheckIn(row as Record<string, unknown>),
     );
 
+    const medicalStudyRows = (medicalStudiesRes.data ?? []) as MedicalStudyRow[];
+    const medicalParameterCounts = new Map<string, number>();
+    if (medicalStudyRows.length > 0) {
+      const { data: paramRows } = await supabase
+        .from('medical_study_parameters')
+        .select('study_id')
+        .eq('user_id', uid)
+        .in('study_id', medicalStudyRows.map((r) => r.id));
+      for (const row of paramRows ?? []) {
+        const id = row.study_id as string;
+        medicalParameterCounts.set(id, (medicalParameterCounts.get(id) ?? 0) + 1);
+      }
+    }
+    const medicalStudies = medicalStudyRows.map((row) =>
+      mapStudySummary(row, medicalParameterCounts.get(row.id) ?? 0),
+    );
+
     return res.status(200).json({
       meals,
       dayNotes,
@@ -490,6 +511,7 @@ const handlers: Record<string, RouteHandler> = {
       planMemory,
       progressCheckIns,
       chatConversation,
+      medicalStudies,
     });
   },
 

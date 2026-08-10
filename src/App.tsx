@@ -20,6 +20,7 @@ import { useWeekPlanningStore } from './store/useWeekPlanningStore';
 import { usePlanRotationStore } from './store/usePlanRotationStore';
 import { useProgressStore } from './store/useProgressStore';
 import { useChatStore } from './store/useChatStore';
+import { useMedicalStudiesStore } from './store/useMedicalStudiesStore';
 import {
   batchLoadAllData,
   loadProfile,
@@ -42,6 +43,7 @@ import { BottomSheet } from './components/ui/BottomSheet';
 import { Modal } from './components/ui/Modal';
 import { todayKey } from './utils/dateHelpers';
 import { mealTypeChipLabel } from './utils/mealTimeHelpers';
+import { MisEstudiosView } from './components/estudios/MisEstudiosView';
 import { CalendarMealChat } from './components/calendar/CalendarMealChat';
 
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -163,6 +165,7 @@ function AuthenticatedApp() {
         usePlanRotationStore.getState().hydrate(data.planMemory ?? undefined);
         useProgressStore.getState().hydrateCheckIns(data.progressCheckIns ?? []);
         useChatStore.getState().hydrate(data.chatConversation ?? null);
+        useMedicalStudiesStore.getState().hydrateStudies(data.medicalStudies ?? []);
       } catch (e) {
         console.error('Init data load error:', e);
         useChatStore.getState().hydrate(null);
@@ -291,6 +294,7 @@ function AuthenticatedApp() {
           {activeTab === 'calendar' && view === 'month' && <MonthView onNavigateToAssistant={goToAssistant} />}
           {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
           {activeTab === 'historial' && <HistorialView />}
+          {activeTab === 'estudios' && <MisEstudiosView />}
           {activeTab === 'shopping' && <ShoppingListView />}
           {activeTab === 'settings' && (
             <SettingsView

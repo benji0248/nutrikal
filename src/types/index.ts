@@ -1,7 +1,7 @@
 export type MealType = 'desayuno' | 'almuerzo' | 'cena' | 'snack';
 export type Theme = 'dark' | 'light';
 export type ViewMode = 'day' | 'week' | 'month';
-export type AppTab = 'calendar' | 'historial' | 'assistant' | 'shopping' | 'settings';
+export type AppTab = 'calendar' | 'historial' | 'assistant' | 'shopping' | 'settings' | 'estudios';
 
 export type IngredientCategory =
   | 'carnes'
@@ -765,4 +765,105 @@ export const SHOPPING_SECTION_LABELS: Record<ShoppingSection, string> = {
   bebidas: 'Bebidas',
   congelados: 'Congelados',
   otros: 'Otros',
+};
+
+// ── Medical studies (Mis estudios) ──
+
+export type MedicalStudyStatus =
+  | 'uploaded'
+  | 'extracting'
+  | 'extracted'
+  | 'structuring'
+  | 'structured'
+  | 'explaining'
+  | 'completed'
+  | 'failed';
+
+export type MedicalStudyExtractionMethod = 'pdf_text' | 'ocr_gemini';
+
+export type MedicalParameterFlag = 'normal' | 'high' | 'low' | 'critical' | 'unknown';
+
+export interface MedicalStudyParameter {
+  id: string;
+  parameterKey: string;
+  parameterName: string;
+  valueNumeric?: number;
+  valueText?: string;
+  unit?: string;
+  referenceRange?: string;
+  referenceMin?: number;
+  referenceMax?: number;
+  flag?: MedicalParameterFlag;
+  section?: string;
+  sortOrder: number;
+}
+
+export interface MedicalStudyStructuredData {
+  studyType?: string;
+  studyDate?: string;
+  laboratory?: string;
+  observations?: string;
+  parameters: Array<{
+    parameterKey: string;
+    parameterName: string;
+    value?: string;
+    valueNumeric?: number;
+    unit?: string;
+    referenceRange?: string;
+    referenceMin?: number;
+    referenceMax?: number;
+    flag?: MedicalParameterFlag;
+    section?: string;
+  }>;
+}
+
+export interface MedicalStudySummary {
+  id: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  status: MedicalStudyStatus;
+  processingError?: string;
+  studyType?: string;
+  studyDate?: string;
+  laboratory?: string;
+  parameterCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicalStudyDetail extends MedicalStudySummary {
+  storagePath: string;
+  extractedText?: string;
+  extractionMethod?: MedicalStudyExtractionMethod;
+  extractedAt?: string;
+  structuredData?: MedicalStudyStructuredData;
+  structuredModel?: string;
+  structuredAt?: string;
+  patientExplanation?: string;
+  explanationModel?: string;
+  explainedAt?: string;
+  parameters: MedicalStudyParameter[];
+}
+
+export interface ParameterTimelinePoint {
+  studyId: string;
+  studyDate?: string;
+  studyType?: string;
+  laboratory?: string;
+  valueNumeric?: number;
+  valueText?: string;
+  unit?: string;
+  referenceRange?: string;
+  flag?: MedicalParameterFlag;
+  recordedAt: string;
+}
+
+export type MedicalStudyProcessingStage = 'upload' | 'extract' | 'structure' | 'explain';
+
+export const MEDICAL_STUDY_STAGE_MESSAGES: Record<MedicalStudyProcessingStage, string[]> = {
+  upload: ['Guardando tu estudio...', 'Archivando documento original...'],
+  extract: ['Leyendo el estudio...', 'Extrayendo texto del documento...', 'Analizando páginas...'],
+  structure: ['Analizando parámetros...', 'Identificando valores y rangos...', 'Organizando resultados...'],
+  explain: ['Preparando explicación...', 'Traduciendo a un lenguaje claro...', 'Generando resumen para vos...'],
 };
