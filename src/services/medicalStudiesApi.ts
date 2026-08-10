@@ -41,15 +41,43 @@ export async function getMedicalStudy(id: string): Promise<MedicalStudyDetail> {
 }
 
 export async function uploadMedicalStudy(file: File): Promise<MedicalStudyDetail> {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch('/api/medical-studies/upload', {
+  const mimeType = file.type === 'image/jpg' ? 'image/jpeg' : (file.type || 'application/octet-stream');
+
+  const initRes = await fetch('/api/medical-studies/upload-init', {
     method: 'POST',
-    headers: authHeaders(),
-    body: form,
+    headers: authHeaders('application/json'),
+    body: JSON.stringify({
+      filename: file.name,
+      mimeType,
+      fileSizeBytes: file.size,
+    }),
   });
-  const data = await handleJson<{ study: MedicalStudySummary }>(res);
-  return { ...data.study, storagePath: '', parameters: [] };
+
+  const init = await handleJson<{
+    study: MedicalStudySummary;
+    upload: { signedUrl: string; token: string; path: string };
+  }>(initRes);
+
+  const uploadRes = await fetch(init.upload.signedUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': mimeType },
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error('Error al subir el archivo a storage');
+  }
+
+  const completeRes = await fetch(
+    `/api/medical-studies/${encodeURIComponent(init.study.id)}/upload-complete`,
+    {
+      method: 'POST',
+      headers: authHeaders('application/json'),
+    },
+  );
+
+  const complete = await handleJson<{ study: MedicalStudyDetail }>(completeRes);
+  return complete.study;
 }
 
 export async function extractMedicalStudy(id: string): Promise<MedicalStudyDetail> {

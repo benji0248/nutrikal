@@ -15,6 +15,7 @@ import {
 } from '../_lib/chatConversation.js';
 import { mapStudySummary } from '../_lib/medicalStudyMapper.js';
 import type { MedicalStudyRow } from '../_lib/medicalStudyTypes.js';
+import { medicalStudyHandlers, normalizeMedicalStudyKey } from '../_lib/medicalStudyHandlers.js';
 
 interface AuthenticatedRequest {
   userId: string;
@@ -1657,9 +1658,14 @@ const handlers: Record<string, RouteHandler> = {
     if (error) return res.status(500).json({ error: 'Error al guardar señales' });
     return res.status(200).json({ ok: true, count: rows.length });
   },
+
+  ...medicalStudyHandlers,
 };
 
 function normalizeKey(method: string | undefined, segments: string[]): string {
+  const medicalKey = normalizeMedicalStudyKey(method, segments);
+  if (medicalKey) return medicalKey;
+
   const s = [...segments];
 
   if (s[0] === 'dishes' && s[1] === 'custom' && s[2]) s[2] = ':id';
