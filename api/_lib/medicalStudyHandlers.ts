@@ -2,13 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabase } from './supabase.js';
 import { mapStudyDetail, mapStudySummary } from './medicalStudyMapper.js';
-import {
-  createSignedFileUrl,
-  getStudyRow,
-  runExplainStage,
-  runExtractStage,
-  runStructureStage,
-} from './medicalStudyPipeline.js';
+import { createSignedFileUrl, getStudyRow } from './medicalStudyStorage.js';
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_BYTES,
@@ -144,59 +138,73 @@ export const medicalStudyHandlers: Record<string, MedicalRouteHandler> = {
   },
 
   'POST medical-studies/upload-init': async (req, res, auth) => {
-    const body = req.body ?? {};
-    const filename = typeof body.filename === 'string' ? body.filename.trim() : '';
-    const rawMime = typeof body.mimeType === 'string' ? body.mimeType.trim() : '';
-    const mimeType = rawMime === 'image/jpg' ? 'image/jpeg' : rawMime;
-    const fileSizeBytes = Number(body.fileSizeBytes ?? 0);
+    try {
+      const body = req.body ?? {};
+      const filename = typeof body.filename === 'string' ? body.filename.trim() : '';
+      const rawMime = typeof body.mimeType === 'string' ? body.mimeType.trim() : '';
+      const mimeType = rawMime === 'image/jpg' ? 'image/jpeg' : rawMime;
+      const fileSizeBytes = Number(body.fileSizeBytes ?? 0);
 
-    if (!filename) return res.status(400).json({ error: 'filename requerido' });
-    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-      return res.status(400).json({ error: 'Formato no soportado. Usá PDF, JPG, PNG o WebP.' });
+      if (!filename) return res.status(400).json({ error: 'filename requerido' });
+      if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+        return res.status(400).json({ error: 'Formato no soportado. Usá PDF, JPG, PNG o WebP.' });
+      }
+      if (!fileSizeBytes || fileSizeBytes > MAX_FILE_BYTES) {
+        return res.status(400).json({ error: 'Tamaño de archivo inválido (máx. 50 MB).' });
+      }
+
+      const studyId = randomUUID();
+      const ext = filename.includes('.') ? filename.split('.').pop() : 'bin';
+      const storagePath = `${auth.userId}/${studyId}.${ext}`;
+      const supabase = getSupabase();
+
+      const { data: signed, error: signedError } = await supabase.storage
+        .from(MEDICAL_STUDIES_BUCKET)
+        .createSignedUploadUrl(storagePath);
+
+      if (signedError || !signed) {
+        return res.status(500).json({
+          error: 'Error al preparar subida',
+          detail: signedError?.message ?? 'No se pudo crear URL firmada',
+        });
+      }
+
+      const { data, error } = await supabase
+        .from('medical_studies')
+        .insert({
+          id: studyId,
+          user_id: auth.userId,
+          original_filename: filename,
+          mime_type: mimeType,
+          file_size_bytes: fileSizeBytes,
+          storage_path: storagePath,
+          status: 'uploaded',
+        })
+        .select('*')
+        .single();
+
+      if (error || !data) {
+        return res.status(500).json({
+          error: 'Error al registrar estudio',
+          detail: error?.message ?? null,
+        });
+      }
+
+      return res.status(201).json({
+        study: mapStudySummary(data as MedicalStudyRow, 0),
+        upload: {
+          signedUrl: signed.signedUrl,
+          token: signed.token,
+          path: signed.path,
+        },
+      });
+    } catch (err) {
+      console.error('[medical-studies] upload-init error:', err);
+      return res.status(500).json({
+        error: 'Error al iniciar subida',
+        detail: err instanceof Error ? err.message : 'Error desconocido',
+      });
     }
-    if (!fileSizeBytes || fileSizeBytes > MAX_FILE_BYTES) {
-      return res.status(400).json({ error: 'Tamaño de archivo inválido (máx. 50 MB).' });
-    }
-
-    const studyId = randomUUID();
-    const ext = filename.includes('.') ? filename.split('.').pop() : 'bin';
-    const storagePath = `${auth.userId}/${studyId}.${ext}`;
-    const supabase = getSupabase();
-
-    const { data: signed, error: signedError } = await supabase.storage
-      .from(MEDICAL_STUDIES_BUCKET)
-      .createSignedUploadUrl(storagePath);
-
-    if (signedError || !signed) {
-      return res.status(500).json({ error: 'Error al preparar subida', detail: signedError?.message });
-    }
-
-    const { data, error } = await supabase
-      .from('medical_studies')
-      .insert({
-        id: studyId,
-        user_id: auth.userId,
-        original_filename: filename,
-        mime_type: mimeType,
-        file_size_bytes: fileSizeBytes,
-        storage_path: storagePath,
-        status: 'uploaded',
-      })
-      .select('*')
-      .single();
-
-    if (error || !data) {
-      return res.status(500).json({ error: 'Error al registrar estudio' });
-    }
-
-    return res.status(201).json({
-      study: mapStudySummary(data as MedicalStudyRow, 0),
-      upload: {
-        signedUrl: signed.signedUrl,
-        token: signed.token,
-        path: signed.path,
-      },
-    });
   },
 
   'POST medical-studies/:id/upload-complete': async (_req, res, auth, segments) => {
@@ -227,6 +235,7 @@ export const medicalStudyHandlers: Record<string, MedicalRouteHandler> = {
   'POST medical-studies/:id/extract': async (_req, res, auth, segments) => {
     const studyId = segments[1];
     try {
+      const { runExtractStage } = await import('./medicalStudyPipeline.js');
       await runExtractStage(auth.userId, studyId);
       const detail = await loadStudyDetail(auth.userId, studyId);
       return res.status(200).json({ study: detail });
@@ -239,6 +248,7 @@ export const medicalStudyHandlers: Record<string, MedicalRouteHandler> = {
   'POST medical-studies/:id/structure': async (_req, res, auth, segments) => {
     const studyId = segments[1];
     try {
+      const { runStructureStage } = await import('./medicalStudyPipeline.js');
       await runStructureStage(auth.userId, studyId);
       const detail = await loadStudyDetail(auth.userId, studyId);
       return res.status(200).json({ study: detail });
@@ -251,6 +261,7 @@ export const medicalStudyHandlers: Record<string, MedicalRouteHandler> = {
   'POST medical-studies/:id/explain': async (_req, res, auth, segments) => {
     const studyId = segments[1];
     try {
+      const { runExplainStage } = await import('./medicalStudyPipeline.js');
       await runExplainStage(auth.userId, studyId);
       const detail = await loadStudyDetail(auth.userId, studyId);
       return res.status(200).json({ study: detail });
@@ -265,6 +276,7 @@ export const medicalStudyHandlers: Record<string, MedicalRouteHandler> = {
     const stages = Array.isArray(req.body?.stages) ? req.body.stages as string[] : [];
 
     try {
+      const { runExtractStage, runStructureStage, runExplainStage } = await import('./medicalStudyPipeline.js');
       if (stages.includes('extract')) await runExtractStage(auth.userId, studyId);
       if (stages.includes('structure')) await runStructureStage(auth.userId, studyId);
       if (stages.includes('explain')) await runExplainStage(auth.userId, studyId);

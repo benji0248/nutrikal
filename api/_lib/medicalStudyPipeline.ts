@@ -1,37 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabase } from './supabase.js';
-import { extractStudyText } from './medicalStudyExtract.js';
-import { explainStructuredStudy, structureStudyText } from './medicalStudyAi.js';
+import { downloadStudyFile, getStudyRow } from './medicalStudyStorage.js';
 import {
   MEDICAL_STUDIES_BUCKET,
-  type MedicalStudyRow,
   type MedicalStudyStructuredData,
 } from './medicalStudyTypes.js';
-
-export async function downloadStudyFile(storagePath: string): Promise<Buffer> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase.storage.from(MEDICAL_STUDIES_BUCKET).download(storagePath);
-  if (error || !data) {
-    throw new Error(error?.message ?? 'No se pudo descargar el archivo original');
-  }
-  const arrayBuffer = await data.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
-
-export async function getStudyRow(userId: string, studyId: string): Promise<MedicalStudyRow> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('medical_studies')
-    .select('*')
-    .eq('id', studyId)
-    .eq('user_id', userId)
-    .single();
-
-  if (error || !data) {
-    throw new Error('Estudio no encontrado');
-  }
-  return data as MedicalStudyRow;
-}
 
 async function updateStudy(studyId: string, userId: string, patch: Record<string, unknown>) {
   const supabase = getSupabase();
@@ -75,6 +48,7 @@ async function replaceParameters(
 }
 
 export async function runExtractStage(userId: string, studyId: string) {
+  const { extractStudyText } = await import('./medicalStudyExtract.js');
   const row = await getStudyRow(userId, studyId);
   await updateStudy(studyId, userId, { status: 'extracting', processing_error: null });
 
@@ -102,6 +76,7 @@ export async function runExtractStage(userId: string, studyId: string) {
 }
 
 export async function runStructureStage(userId: string, studyId: string) {
+  const { structureStudyText } = await import('./medicalStudyAi.js');
   const row = await getStudyRow(userId, studyId);
   if (!row.extracted_text?.trim()) {
     throw new Error('El estudio no tiene texto extraído. Ejecutá extracción primero.');
@@ -132,6 +107,7 @@ export async function runStructureStage(userId: string, studyId: string) {
 }
 
 export async function runExplainStage(userId: string, studyId: string) {
+  const { explainStructuredStudy } = await import('./medicalStudyAi.js');
   const row = await getStudyRow(userId, studyId);
   const structured = row.structured_data as MedicalStudyStructuredData | null;
   if (!structured) {
@@ -158,14 +134,4 @@ export async function runExplainStage(userId: string, studyId: string) {
   }
 }
 
-export async function createSignedFileUrl(storagePath: string, expiresInSeconds = 3600): Promise<string> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase.storage
-    .from(MEDICAL_STUDIES_BUCKET)
-    .createSignedUrl(storagePath, expiresInSeconds);
-
-  if (error || !data?.signedUrl) {
-    throw new Error(error?.message ?? 'No se pudo generar URL del archivo');
-  }
-  return data.signedUrl;
-}
+export { getStudyRow, createSignedFileUrl, downloadStudyFile } from './medicalStudyStorage.js';
