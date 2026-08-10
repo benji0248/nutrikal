@@ -57,7 +57,7 @@ export interface MedicalStudyRow {
 }
 
 export const MEDICAL_STUDIES_BUCKET = 'medical-studies';
-export const GEMINI_MEDICAL_MODEL = 'gemini-2.0-flash';
+export const GEMINI_MEDICAL_MODEL = 'gemini-2.5-flash';
 
 export const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
