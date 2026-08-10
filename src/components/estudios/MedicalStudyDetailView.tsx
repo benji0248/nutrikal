@@ -11,7 +11,7 @@ import {
 import { clsx } from 'clsx';
 import { Button } from '../ui/Button';
 import { useMedicalStudiesStore } from '../../store/useMedicalStudiesStore';
-import { getMedicalStudyFileUrl } from '../../services/medicalStudiesApi';
+import { getMedicalStudyFileUrl } from '../../services/apiService';
 import type { MedicalParameterFlag } from '../../types';
 
 interface MedicalStudyDetailViewProps {

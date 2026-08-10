@@ -19,6 +19,8 @@ import type {
   ChatMessage,
   WeekPlan,
   MedicalStudySummary,
+  MedicalStudyDetail,
+  ParameterTimelinePoint,
 } from '../types';
 
 const JWT_KEY = 'nutrikal-jwt';
@@ -427,4 +429,101 @@ export async function removeFavorite(dishName: string): Promise<void> {
 
 export async function batchCreateSignals(signals: IngredientSignalEntry[]): Promise<void> {
   await post('/api/signals', { signals });
+}
+
+// ── Medical studies (Mis estudios) ──
+
+export async function listMedicalStudies(): Promise<MedicalStudySummary[]> {
+  const data = await get<{ studies: MedicalStudySummary[] }>('/api/medical-studies');
+  return data.studies;
+}
+
+export async function getMedicalStudy(id: string): Promise<MedicalStudyDetail> {
+  const data = await get<{ study: MedicalStudyDetail }>(`/api/medical-studies/${encodeURIComponent(id)}`);
+  return data.study;
+}
+
+export async function uploadMedicalStudy(file: File): Promise<MedicalStudyDetail> {
+  const mimeType = file.type === 'image/jpg' ? 'image/jpeg' : (file.type || 'application/octet-stream');
+
+  const init = await post<{
+    study: MedicalStudySummary;
+    upload: { signedUrl: string; token: string; path: string };
+  }>('/api/medical-studies/upload-init', {
+    filename: file.name,
+    mimeType,
+    fileSizeBytes: file.size,
+  });
+
+  const uploadRes = await fetch(init.upload.signedUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': mimeType },
+  });
+
+  if (!uploadRes.ok) {
+    throw new ApiAuthError('Error al subir el archivo a storage', uploadRes.status);
+  }
+
+  const complete = await post<{ study: MedicalStudyDetail }>(
+    `/api/medical-studies/${encodeURIComponent(init.study.id)}/upload-complete`,
+    {},
+  );
+  return complete.study;
+}
+
+export async function extractMedicalStudy(id: string): Promise<MedicalStudyDetail> {
+  const data = await post<{ study: MedicalStudyDetail }>(
+    `/api/medical-studies/${encodeURIComponent(id)}/extract`,
+    {},
+  );
+  return data.study;
+}
+
+export async function structureMedicalStudy(id: string): Promise<MedicalStudyDetail> {
+  const data = await post<{ study: MedicalStudyDetail }>(
+    `/api/medical-studies/${encodeURIComponent(id)}/structure`,
+    {},
+  );
+  return data.study;
+}
+
+export async function explainMedicalStudy(id: string): Promise<MedicalStudyDetail> {
+  const data = await post<{ study: MedicalStudyDetail }>(
+    `/api/medical-studies/${encodeURIComponent(id)}/explain`,
+    {},
+  );
+  return data.study;
+}
+
+export async function reprocessMedicalStudy(
+  id: string,
+  stages: Array<'extract' | 'structure' | 'explain'>,
+): Promise<MedicalStudyDetail> {
+  const data = await post<{ study: MedicalStudyDetail }>(
+    `/api/medical-studies/${encodeURIComponent(id)}/reprocess`,
+    { stages },
+  );
+  return data.study;
+}
+
+export async function deleteMedicalStudy(id: string): Promise<void> {
+  await del(`/api/medical-studies/${encodeURIComponent(id)}`);
+}
+
+export async function getMedicalStudyFileUrl(id: string): Promise<{
+  url: string;
+  mimeType: string;
+  filename: string;
+}> {
+  return get(`/api/medical-studies/${encodeURIComponent(id)}/file-url`);
+}
+
+export async function getParameterTimeline(parameterKey: string): Promise<{
+  parameterKey: string;
+  points: ParameterTimelinePoint[];
+}> {
+  return get(
+    `/api/medical-studies/parameters/timeline?parameterKey=${encodeURIComponent(parameterKey)}`,
+  );
 }

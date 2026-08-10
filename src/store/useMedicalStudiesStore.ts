@@ -4,7 +4,7 @@ import type {
   MedicalStudySummary,
   ParameterTimelinePoint,
 } from '../types';
-import * as api from '../services/medicalStudiesApi';
+import * as api from '../services/apiService';
 
 interface MedicalStudiesState {
   studies: MedicalStudySummary[];

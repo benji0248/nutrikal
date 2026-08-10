@@ -1,86 +1,31 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifyToken } from '../_lib/jwt.js';
-import { getSupabase } from '../_lib/supabase.js';
-import { parseMultipartUpload } from '../_lib/multipart.js';
-import { mapStudyDetail, mapStudySummary } from '../_lib/medicalStudyMapper.js';
+import { getSupabase } from './supabase.js';
+import { mapStudyDetail, mapStudySummary } from './medicalStudyMapper.js';
 import {
   createSignedFileUrl,
   getStudyRow,
   runExplainStage,
   runExtractStage,
   runStructureStage,
-} from '../_lib/medicalStudyPipeline.js';
+} from './medicalStudyPipeline.js';
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_BYTES,
   MEDICAL_STUDIES_BUCKET,
   type MedicalStudyRow,
-} from '../_lib/medicalStudyTypes.js';
+} from './medicalStudyTypes.js';
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-interface AuthContext {
+interface MedicalAuth {
   userId: string;
 }
 
-async function readRawBody(req: VercelRequest): Promise<Buffer> {
-  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
-    return Buffer.from(JSON.stringify(req.body));
-  }
-  if (typeof req.body === 'string') {
-    return Buffer.from(req.body);
-  }
-  if (Buffer.isBuffer(req.body)) {
-    return req.body;
-  }
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
-}
-
-async function readJsonBody(req: VercelRequest): Promise<Record<string, unknown>> {
-  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
-    return req.body as Record<string, unknown>;
-  }
-  const raw = await readRawBody(req);
-  if (!raw.length) return {};
-  try {
-    return JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-async function withAuth(
+type MedicalRouteHandler = (
   req: VercelRequest,
   res: VercelResponse,
-  handler: (auth: AuthContext, segments: string[]) => Promise<VercelResponse | void>,
-) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-  try {
-    const payload = verifyToken(header.slice(7));
-    return handler({ userId: payload.userId }, getSegments(req));
-  } catch {
-    return res.status(401).json({ error: 'Token inválido' });
-  }
-}
-
-function getSegments(req: VercelRequest): string[] {
-  const route = req.query.route;
-  if (typeof route === 'string') return route.split('/').filter(Boolean);
-  if (Array.isArray(route)) return route.flatMap((r) => String(r).split('/')).filter(Boolean);
-  return [];
-}
+  auth: MedicalAuth,
+  segments: string[],
+) => Promise<VercelResponse | void>;
 
 async function countParameters(studyIds: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
@@ -120,14 +65,7 @@ async function loadStudyDetail(userId: string, studyId: string) {
   return mapStudyDetail(row as MedicalStudyRow, params ?? []);
 }
 
-type RouteHandler = (
-  req: VercelRequest,
-  res: VercelResponse,
-  auth: AuthContext,
-  segments: string[],
-) => Promise<VercelResponse | void>;
-
-const handlers: Record<string, RouteHandler> = {
+export const medicalStudyHandlers: Record<string, MedicalRouteHandler> = {
   'GET medical-studies': async (_req, res, auth) => {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -165,26 +103,28 @@ const handlers: Record<string, RouteHandler> = {
     if (error) return res.status(500).json({ error: 'Error al cargar evolución' });
 
     const points = (data ?? []).map((row) => {
-      const study = row.medical_studies as {
+      const rawStudy = row.medical_studies;
+      const studyRow = (Array.isArray(rawStudy) ? rawStudy[0] : rawStudy) as {
         id: string;
         study_date: string | null;
         study_type: string | null;
         laboratory: string | null;
         created_at: string;
-      };
+      } | null;
+      if (!studyRow) return null;
       return {
-        studyId: study.id,
-        studyDate: study.study_date ?? undefined,
-        studyType: study.study_type ?? undefined,
-        laboratory: study.laboratory ?? undefined,
+        studyId: studyRow.id,
+        studyDate: studyRow.study_date ?? undefined,
+        studyType: studyRow.study_type ?? undefined,
+        laboratory: studyRow.laboratory ?? undefined,
         valueNumeric: row.value_numeric != null ? Number(row.value_numeric) : undefined,
         valueText: row.value_text ?? undefined,
         unit: row.unit ?? undefined,
         referenceRange: row.reference_range ?? undefined,
         flag: row.flag ?? undefined,
-        recordedAt: study.study_date ?? study.created_at,
+        recordedAt: studyRow.study_date ?? studyRow.created_at,
       };
-    });
+    }).filter((point): point is NonNullable<typeof point> => point !== null);
 
     return res.status(200).json({ parameterKey, points });
   },
@@ -203,29 +143,32 @@ const handlers: Record<string, RouteHandler> = {
     return res.status(200).json({ url, mimeType: row.mime_type, filename: row.original_filename });
   },
 
-  'POST medical-studies/upload': async (req, res, auth) => {
-    const rawBody = await readRawBody(req);
-    const upload = await parseMultipartUpload(rawBody, req.headers);
+  'POST medical-studies/upload-init': async (req, res, auth) => {
+    const body = req.body ?? {};
+    const filename = typeof body.filename === 'string' ? body.filename.trim() : '';
+    const rawMime = typeof body.mimeType === 'string' ? body.mimeType.trim() : '';
+    const mimeType = rawMime === 'image/jpg' ? 'image/jpeg' : rawMime;
+    const fileSizeBytes = Number(body.fileSizeBytes ?? 0);
 
-    const mimeType = upload.mimeType === 'image/jpg' ? 'image/jpeg' : upload.mimeType;
+    if (!filename) return res.status(400).json({ error: 'filename requerido' });
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
       return res.status(400).json({ error: 'Formato no soportado. Usá PDF, JPG, PNG o WebP.' });
     }
-    if (upload.buffer.length > MAX_FILE_BYTES) {
-      return res.status(400).json({ error: 'El archivo supera el límite de 50 MB.' });
+    if (!fileSizeBytes || fileSizeBytes > MAX_FILE_BYTES) {
+      return res.status(400).json({ error: 'Tamaño de archivo inválido (máx. 50 MB).' });
     }
 
     const studyId = randomUUID();
-    const ext = upload.filename.includes('.') ? upload.filename.split('.').pop() : 'bin';
+    const ext = filename.includes('.') ? filename.split('.').pop() : 'bin';
     const storagePath = `${auth.userId}/${studyId}.${ext}`;
-
     const supabase = getSupabase();
-    const { error: uploadError } = await supabase.storage
-      .from(MEDICAL_STUDIES_BUCKET)
-      .upload(storagePath, upload.buffer, { contentType: mimeType, upsert: false });
 
-    if (uploadError) {
-      return res.status(500).json({ error: 'Error al guardar archivo', detail: uploadError.message });
+    const { data: signed, error: signedError } = await supabase.storage
+      .from(MEDICAL_STUDIES_BUCKET)
+      .createSignedUploadUrl(storagePath);
+
+    if (signedError || !signed) {
+      return res.status(500).json({ error: 'Error al preparar subida', detail: signedError?.message });
     }
 
     const { data, error } = await supabase
@@ -233,9 +176,9 @@ const handlers: Record<string, RouteHandler> = {
       .insert({
         id: studyId,
         user_id: auth.userId,
-        original_filename: upload.filename,
+        original_filename: filename,
         mime_type: mimeType,
-        file_size_bytes: upload.buffer.length,
+        file_size_bytes: fileSizeBytes,
         storage_path: storagePath,
         status: 'uploaded',
       })
@@ -246,7 +189,39 @@ const handlers: Record<string, RouteHandler> = {
       return res.status(500).json({ error: 'Error al registrar estudio' });
     }
 
-    return res.status(201).json({ study: mapStudySummary(data as MedicalStudyRow, 0) });
+    return res.status(201).json({
+      study: mapStudySummary(data as MedicalStudyRow, 0),
+      upload: {
+        signedUrl: signed.signedUrl,
+        token: signed.token,
+        path: signed.path,
+      },
+    });
+  },
+
+  'POST medical-studies/:id/upload-complete': async (_req, res, auth, segments) => {
+    const studyId = segments[1];
+    const row = await getStudyRow(auth.userId, studyId);
+    const supabase = getSupabase();
+
+    const folder = row.storage_path.split('/').slice(0, -1).join('/');
+    const name = row.storage_path.split('/').pop() ?? '';
+    const { data: listed, error: listError } = await supabase.storage
+      .from(MEDICAL_STUDIES_BUCKET)
+      .list(folder || undefined, { search: name });
+
+    if (listError || !listed?.some((item) => item.name === name)) {
+      return res.status(400).json({ error: 'El archivo aún no está disponible en storage' });
+    }
+
+    await supabase
+      .from('medical_studies')
+      .update({ status: 'uploaded', updated_at: new Date().toISOString() })
+      .eq('id', studyId)
+      .eq('user_id', auth.userId);
+
+    const detail = await loadStudyDetail(auth.userId, studyId);
+    return res.status(200).json({ study: detail });
   },
 
   'POST medical-studies/:id/extract': async (_req, res, auth, segments) => {
@@ -287,8 +262,7 @@ const handlers: Record<string, RouteHandler> = {
 
   'POST medical-studies/:id/reprocess': async (req, res, auth, segments) => {
     const studyId = segments[1];
-    const body = await readJsonBody(req);
-    const stages = Array.isArray(body.stages) ? body.stages as string[] : [];
+    const stages = Array.isArray(req.body?.stages) ? req.body.stages as string[] : [];
 
     try {
       if (stages.includes('extract')) await runExtractStage(auth.userId, studyId);
@@ -320,11 +294,11 @@ const handlers: Record<string, RouteHandler> = {
   },
 };
 
-function normalizeKey(method: string | undefined, segments: string[]): string {
+export function normalizeMedicalStudyKey(method: string | undefined, segments: string[]): string | null {
   const s = [...segments];
-  if (s[0] !== 'medical-studies') return routeKey(method, s);
+  if (s[0] !== 'medical-studies') return null;
 
-  if (s[1] === 'upload' && !s[2]) return routeKey(method, ['medical-studies', 'upload']);
+  if (s[1] === 'upload-init' && !s[2]) return routeKey(method, ['medical-studies', 'upload-init']);
   if (s[1] === 'parameters' && s[2] === 'timeline') {
     return routeKey(method, ['medical-studies', 'parameters', 'timeline']);
   }
@@ -332,7 +306,7 @@ function normalizeKey(method: string | undefined, segments: string[]): string {
     s[1] = ':id';
     return routeKey(method, s);
   }
-  if (s[1] && ['extract', 'structure', 'explain', 'reprocess'].includes(s[2] ?? '')) {
+  if (s[1] && ['extract', 'structure', 'explain', 'reprocess', 'upload-complete'].includes(s[2] ?? '')) {
     s[1] = ':id';
     return routeKey(method, s);
   }
@@ -346,15 +320,4 @@ function normalizeKey(method: string | undefined, segments: string[]): string {
 
 function routeKey(method: string | undefined, segments: string[]): string {
   return `${method ?? 'GET'} ${segments.join('/')}`;
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  return withAuth(req, res, async (auth, segments) => {
-    const key = normalizeKey(req.method, segments);
-    const handlerFn = handlers[key];
-    if (!handlerFn) {
-      return res.status(404).json({ error: 'Route not found', key });
-    }
-    return handlerFn(req, res, auth, segments);
-  });
 }
