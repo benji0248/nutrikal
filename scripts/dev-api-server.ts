@@ -14,6 +14,7 @@ import rawHandler from '../api/ai/raw.ts';
 import weekPlanHandler from '../api/ai/week-plan.ts';
 import observabilityAdminHandler from '../api/admin/observability.ts';
 import businessHandler from '../api/business/[...route].ts';
+import medicalStudiesHandler from '../api/medical-studies/[...route].ts';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void | VercelResponse>;
 
@@ -44,12 +45,16 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   if (req.method === 'GET' || req.method === 'HEAD') return {};
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  const raw = Buffer.concat(chunks).toString('utf8');
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
+  const raw = Buffer.concat(chunks);
+  const contentType = String(req.headers['content-type'] ?? '');
+  if (contentType.includes('multipart/form-data')) {
     return raw;
+  }
+  if (!raw.length) return {};
+  try {
+    return JSON.parse(raw.toString('utf8'));
+  } catch {
+    return raw.toString('utf8');
   }
 }
 
@@ -122,6 +127,16 @@ function resolveHandler(method: string, pathname: string): {
 } | null {
   const key = `${method} ${pathname}`;
   if (exactRoutes[key]) return { handler: exactRoutes[key], query: {} };
+
+  if (
+    pathname.startsWith('/api/medical-studies')
+  ) {
+    const route = pathname.replace(/^\/api\/?/, '');
+    return {
+      handler: medicalStudiesHandler,
+      query: { route },
+    };
+  }
 
   if (
     pathname.startsWith('/api/')

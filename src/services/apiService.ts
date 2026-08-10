@@ -18,6 +18,7 @@ import type {
   ProgressCheckInSource,
   ChatMessage,
   WeekPlan,
+  MedicalStudySummary,
 } from '../types';
 
 const JWT_KEY = 'nutrikal-jwt';
@@ -196,6 +197,7 @@ export interface BatchLoadResponse {
     hasMoreOlder?: boolean;
     olderCursor?: string | null;
   } | null;
+  medicalStudies?: MedicalStudySummary[];
 }
 
 export async function batchLoadAllData(): Promise<BatchLoadResponse> {

@@ -4,7 +4,7 @@ import type { AppTab } from '../types';
 const APP_TAB_STORAGE_KEY = 'nutrikal_active_tab';
 const DEFAULT_TAB: AppTab = 'assistant';
 
-const VALID_TABS: AppTab[] = ['calendar', 'historial', 'assistant', 'shopping', 'settings'];
+const VALID_TABS: AppTab[] = ['calendar', 'historial', 'assistant', 'shopping', 'settings', 'estudios'];
 
 function readPersistedAppTab(): AppTab {
   try {

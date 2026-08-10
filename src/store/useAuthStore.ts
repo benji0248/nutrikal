@@ -95,6 +95,16 @@ export const useAuthStore = create<AuthStoreState>()(
         import('./useChatStore').then(({ useChatStore }) =>
           useChatStore.getState().resetConversation({ sync: false }),
         );
+        import('./useMedicalStudiesStore').then(({ useMedicalStudiesStore }) =>
+          useMedicalStudiesStore.setState({
+            studies: [],
+            selectedStudy: null,
+            parameterTimeline: [],
+            timelineKey: null,
+            loading: false,
+            error: null,
+          }),
+        );
         import('./useSettingsStore').then(({ useSettingsStore }) => {
           useSettingsStore.setState({ showCalories: false, useGrams: false, theme: 'dark' });
           localStorage.removeItem('nutrikal-use-grams');
