@@ -59,7 +59,18 @@ function authHeaders(): Record<string, string> {
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
+  const raw = await res.text();
+  let data: unknown = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      if (!res.ok) {
+        throw new ApiAuthError(raw.slice(0, 180) || 'Error del servidor', res.status);
+      }
+      throw new ApiAuthError('Respuesta inválida del servidor', res.status);
+    }
+  }
   if (res.status === 401) {
     const hadToken = !!localStorage.getItem(JWT_KEY);
     localStorage.removeItem(JWT_KEY);
@@ -74,7 +85,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
   }
   if (!res.ok) {
     const err = data as ApiError;
-    const detail = err.dbMessage ? `: ${err.dbMessage}` : '';
+    const detail = err.dbMessage ? `: ${err.dbMessage}` : (typeof (err as { detail?: string }).detail === 'string' ? `: ${(err as { detail?: string }).detail}` : '');
     throw new ApiAuthError(`${err.error || 'Error inesperado'}${detail}`, res.status, err.field);
   }
   return data as T;
