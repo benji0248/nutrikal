@@ -1,12 +1,17 @@
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+import { PDFParse } from 'pdf-parse';
 import { getGeminiClient } from './gemini.js';
 import { GEMINI_MEDICAL_MODEL } from './medicalStudyTypes.js';
 
 const MIN_NATIVE_TEXT_CHARS = 120;
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const result = await pdf(buffer);
-  return (result.text ?? '').trim();
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return (result.text ?? '').trim();
+  } finally {
+    await parser.destroy();
+  }
 }
 
 async function extractWithGeminiOcr(buffer: Buffer, mimeType: string): Promise<string> {

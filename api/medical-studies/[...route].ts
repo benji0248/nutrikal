@@ -69,7 +69,7 @@ async function withAuth(
   }
   try {
     const payload = verifyToken(header.slice(7));
-    return handler({ userId: payload.userId }, getSegments(req));
+    return handler({ userId: payload.sub }, getSegments(req));
   } catch {
     return res.status(401).json({ error: 'Token inválido' });
   }
@@ -165,26 +165,30 @@ const handlers: Record<string, RouteHandler> = {
     if (error) return res.status(500).json({ error: 'Error al cargar evolución' });
 
     const points = (data ?? []).map((row) => {
-      const study = row.medical_studies as {
+      const rawStudy = row.medical_studies;
+      const studyRow = (Array.isArray(rawStudy) ? rawStudy[0] : rawStudy) as {
         id: string;
         study_date: string | null;
         study_type: string | null;
         laboratory: string | null;
         created_at: string;
-      };
+      } | null;
+      if (!studyRow) {
+        return null;
+      }
       return {
-        studyId: study.id,
-        studyDate: study.study_date ?? undefined,
-        studyType: study.study_type ?? undefined,
-        laboratory: study.laboratory ?? undefined,
+        studyId: studyRow.id,
+        studyDate: studyRow.study_date ?? undefined,
+        studyType: studyRow.study_type ?? undefined,
+        laboratory: studyRow.laboratory ?? undefined,
         valueNumeric: row.value_numeric != null ? Number(row.value_numeric) : undefined,
         valueText: row.value_text ?? undefined,
         unit: row.unit ?? undefined,
         referenceRange: row.reference_range ?? undefined,
         flag: row.flag ?? undefined,
-        recordedAt: study.study_date ?? study.created_at,
+        recordedAt: studyRow.study_date ?? studyRow.created_at,
       };
-    });
+    }).filter((point): point is NonNullable<typeof point> => point !== null);
 
     return res.status(200).json({ parameterKey, points });
   },
