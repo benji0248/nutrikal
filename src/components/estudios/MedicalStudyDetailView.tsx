@@ -7,12 +7,16 @@ import {
   Trash2,
   RefreshCw,
   TrendingUp,
+  Loader2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Button } from '../ui/Button';
 import { useMedicalStudiesStore } from '../../store/useMedicalStudiesStore';
 import { getMedicalStudyFileUrl } from '../../services/apiService';
-import type { MedicalParameterFlag } from '../../types';
+import { MedicalStudyParameterGrid } from './MedicalStudyParameterGrid';
+import { MedicalStudyExplanation } from './MedicalStudyExplanation';
+import { MedicalStudyProcessingStepper } from './MedicalStudyProcessingStepper';
+import { isProcessingStatus, sortParameters } from '../../utils/medicalStudyHelpers';
 
 interface MedicalStudyDetailViewProps {
   studyId: string;
@@ -20,22 +24,6 @@ interface MedicalStudyDetailViewProps {
 }
 
 type DetailTab = 'resumen' | 'parametros' | 'explicacion' | 'texto';
-
-const FLAG_LABELS: Record<MedicalParameterFlag, string> = {
-  normal: 'Normal',
-  high: 'Alto',
-  low: 'Bajo',
-  critical: 'Crítico',
-  unknown: '—',
-};
-
-const FLAG_TONE: Record<MedicalParameterFlag, string> = {
-  normal: 'bg-[#226046]/10 text-[#226046]',
-  high: 'bg-amber-100 text-amber-800',
-  low: 'bg-sky-100 text-sky-800',
-  critical: 'bg-red-100 text-red-800',
-  unknown: 'bg-[#edefe6] text-[#707a6c]',
-};
 
 function formatDate(value?: string) {
   if (!value) return 'Fecha no detectada';
@@ -58,17 +46,48 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
   const selectedStudy = useMedicalStudiesStore((s) => s.selectedStudy);
   const parameterTimeline = useMedicalStudiesStore((s) => s.parameterTimeline);
   const timelineKey = useMedicalStudiesStore((s) => s.timelineKey);
+  const backgroundJobs = useMedicalStudiesStore((s) => s.backgroundJobs);
   const loading = useMedicalStudiesStore((s) => s.loading);
 
   const [tab, setTab] = useState<DetailTab>('resumen');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
 
+  const study = selectedStudy?.id === studyId ? selectedStudy : null;
+  const isBackground = !!backgroundJobs[studyId];
+  const processing = study ? isProcessingStatus(study.status) || isBackground : isBackground;
+
   useEffect(() => {
     void loadStudy(studyId);
   }, [studyId, loadStudy]);
 
-  const study = selectedStudy?.id === studyId ? selectedStudy : null;
+  useEffect(() => {
+    if (!processing) return undefined;
+    const timer = setInterval(() => {
+      void loadStudy(studyId);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [processing, studyId, loadStudy]);
+
+  useEffect(() => {
+    if (study && study.parameters.length > 0 && tab === 'resumen' && processing) {
+      setTab('parametros');
+    }
+  }, [study, processing, tab]);
+
+  const { abnormal } = useMemo(
+    () => (study ? sortParameters(study.parameters) : { abnormal: [], normal: [] }),
+    [study],
+  );
+
+  const uniqueParameterKeys = useMemo(() => {
+    if (!study) return [];
+    const keys = new Map<string, string>();
+    for (const p of study.parameters) {
+      keys.set(p.parameterKey, p.parameterName);
+    }
+    return [...keys.entries()];
+  }, [study]);
 
   const openOriginal = async () => {
     const { url } = await getMedicalStudyFileUrl(studyId);
@@ -83,7 +102,7 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
         await navigator.share({ title: filename, url });
         return;
       } catch {
-        // fallback to open
+        /* fallback */
       }
     }
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -105,15 +124,6 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
   const handleReprocess = async (stages: Array<'extract' | 'structure' | 'explain'>) => {
     await reprocessStudy(studyId, stages);
   };
-
-  const uniqueParameterKeys = useMemo(() => {
-    if (!study) return [];
-    const keys = new Map<string, string>();
-    for (const p of study.parameters) {
-      keys.set(p.parameterKey, p.parameterName);
-    }
-    return [...keys.entries()];
-  }, [study]);
 
   if (!study && loading) {
     return (
@@ -155,6 +165,32 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
         </div>
       </div>
 
+      {processing && (
+        <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50/80 px-4 py-3">
+          <div className="mb-2 flex items-center gap-2 font-body text-sm font-semibold text-amber-900">
+            <Loader2 size={16} className="animate-spin" />
+            Analizando tu estudio…
+          </div>
+          <MedicalStudyProcessingStepper status={study.status} explainPending={isBackground} />
+          <p className="mt-2 font-body text-xs text-amber-800/80">
+            Los parámetros aparecen apenas estén listos. La explicación llega al final.
+          </p>
+        </div>
+      )}
+
+      {abnormal.length > 0 && tab !== 'parametros' && (
+        <button
+          type="button"
+          onClick={() => setTab('parametros')}
+          className="w-full rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-left"
+        >
+          <p className="font-body text-sm font-bold text-amber-900">
+            {abnormal.length} parámetro{abnormal.length === 1 ? '' : 's'} fuera de rango
+          </p>
+          <p className="mt-0.5 font-body text-xs text-amber-800">Tocá para ver el detalle</p>
+        </button>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button type="button" tone="journal" onClick={() => void openOriginal()}>
           <Eye size={16} className="mr-1 inline" /> Ver original
@@ -194,6 +230,11 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
             )}
           >
             {label}
+            {key === 'parametros' && abnormal.length > 0 && (
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-950">
+                {abnormal.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -219,11 +260,7 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="font-body text-sm text-[#707a6c]">{study.parameters.length} parámetros detectados</p>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setShowTimeline((v) => !v)}
-            >
+            <Button type="button" variant="ghost" onClick={() => setShowTimeline((v) => !v)}>
               <TrendingUp size={16} className="mr-1 inline" />
               {showTimeline ? 'Ocultar evolución' : 'Ver evolución'}
             </Button>
@@ -268,39 +305,19 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
             </div>
           )}
 
-          {study.parameters.map((param) => (
-            <div key={param.id} className="rounded-[1.25rem] bg-[#f3f5eb] px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-body font-semibold text-[#191c17]">{param.parameterName}</p>
-                  {param.section && (
-                    <p className="font-body text-xs text-[#707a6c]">{param.section}</p>
-                  )}
-                </div>
-                {param.flag && (
-                  <span className={clsx('rounded-full px-2.5 py-0.5 text-xs font-semibold', FLAG_TONE[param.flag])}>
-                    {FLAG_LABELS[param.flag]}
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 font-heading text-xl font-bold text-[#226046]">
-                {param.valueText ?? param.valueNumeric ?? '—'}
-                {param.unit ? <span className="ml-1 text-sm font-medium text-[#707a6c]">{param.unit}</span> : null}
-              </p>
-              {param.referenceRange && (
-                <p className="mt-1 font-body text-xs text-[#707a6c]">Referencia: {param.referenceRange}</p>
-              )}
-            </div>
-          ))}
+          <MedicalStudyParameterGrid parameters={study.parameters} />
         </div>
       )}
 
       {tab === 'explicacion' && (
-        <div className="rounded-[2rem] bg-[#f3f5eb] p-5">
+        <div className="rounded-[2rem] bg-white p-6 shadow-[0px_8px_24px_rgba(25,28,23,0.04)]">
           {study.patientExplanation ? (
-            <p className="whitespace-pre-line font-body text-sm leading-relaxed text-[#40493d]">
-              {study.patientExplanation}
-            </p>
+            <MedicalStudyExplanation text={study.patientExplanation} />
+          ) : processing ? (
+            <div className="flex items-center gap-3 font-body text-sm text-[#707a6c]">
+              <Loader2 size={18} className="animate-spin text-[#226046]" />
+              Generando explicación en segundo plano…
+            </div>
           ) : (
             <p className="font-body text-sm text-[#707a6c]">Todavía no hay explicación generada.</p>
           )}
@@ -312,9 +329,15 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
           <p className="mb-2 font-body text-xs font-semibold uppercase tracking-wide text-[#707a6c]">
             Texto extraído · {study.extractionMethod === 'pdf_text' ? 'PDF nativo' : 'OCR'}
           </p>
-          <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap font-body text-xs leading-relaxed text-[#40493d]">
-            {study.extractedText ?? 'Sin texto extraído.'}
-          </pre>
+          {study.extractedText ? (
+            <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap font-body text-xs leading-relaxed text-[#40493d]">
+              {study.extractedText}
+            </pre>
+          ) : processing ? (
+            <p className="font-body text-sm text-[#707a6c]">Extrayendo texto del documento…</p>
+          ) : (
+            <p className="font-body text-sm text-[#707a6c]">Sin texto extraído.</p>
+          )}
         </div>
       )}
 

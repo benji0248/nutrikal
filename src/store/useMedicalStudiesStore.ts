@@ -5,6 +5,9 @@ import type {
   ParameterTimelinePoint,
 } from '../types';
 import * as api from '../services/apiService';
+import { summaryFromDetail } from '../utils/medicalStudyHelpers';
+
+export type BackgroundStage = 'extract' | 'structure' | 'explain' | null;
 
 interface MedicalStudiesState {
   studies: MedicalStudySummary[];
@@ -13,11 +16,14 @@ interface MedicalStudiesState {
   timelineKey: string | null;
   loading: boolean;
   error: string | null;
+  /** Estudios procesándose en background (id → etapa actual) */
+  backgroundJobs: Record<string, BackgroundStage>;
 
   hydrateStudies: (studies: MedicalStudySummary[]) => void;
   loadStudies: () => Promise<void>;
   loadStudy: (id: string) => Promise<MedicalStudyDetail | null>;
-  uploadAndProcess: (file: File, onStage?: (stage: string) => void) => Promise<MedicalStudyDetail | null>;
+  uploadStudy: (file: File) => Promise<MedicalStudySummary | null>;
+  processStudyInBackground: (id: string) => Promise<void>;
   deleteStudy: (id: string) => Promise<boolean>;
   reprocessStudy: (id: string, stages: Array<'extract' | 'structure' | 'explain'>) => Promise<MedicalStudyDetail | null>;
   loadParameterTimeline: (parameterKey: string) => Promise<void>;
@@ -32,20 +38,10 @@ function upsertSummary(list: MedicalStudySummary[], study: MedicalStudySummary):
   return next;
 }
 
-function summaryFromDetail(detail: MedicalStudyDetail): MedicalStudySummary {
+function applyDetail(state: MedicalStudiesState, study: MedicalStudyDetail): Partial<MedicalStudiesState> {
   return {
-    id: detail.id,
-    originalFilename: detail.originalFilename,
-    mimeType: detail.mimeType,
-    fileSizeBytes: detail.fileSizeBytes,
-    status: detail.status,
-    processingError: detail.processingError,
-    studyType: detail.studyType,
-    studyDate: detail.studyDate,
-    laboratory: detail.laboratory,
-    parameterCount: detail.parameterCount,
-    createdAt: detail.createdAt,
-    updatedAt: detail.updatedAt,
+    studies: upsertSummary(state.studies, summaryFromDetail(study)),
+    selectedStudy: state.selectedStudy?.id === study.id ? study : state.selectedStudy,
   };
 }
 
@@ -56,6 +52,7 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
   timelineKey: null,
   loading: false,
   error: null,
+  backgroundJobs: {},
 
   hydrateStudies: (studies) => set({ studies }),
 
@@ -77,8 +74,7 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
     try {
       const study = await api.getMedicalStudy(id);
       set((state) => ({
-        selectedStudy: study,
-        studies: upsertSummary(state.studies, summaryFromDetail(study)),
+        ...applyDetail(state, study),
         loading: false,
       }));
       return study;
@@ -91,33 +87,54 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
     }
   },
 
-  uploadAndProcess: async (file, onStage) => {
-    set({ loading: true, error: null });
+  uploadStudy: async (file) => {
+    set({ error: null });
     try {
-      onStage?.('upload');
-      let study = await api.uploadMedicalStudy(file);
-
-      onStage?.('extract');
-      study = await api.extractMedicalStudy(study.id);
-
-      onStage?.('structure');
-      study = await api.structureMedicalStudy(study.id);
-
-      onStage?.('explain');
-      study = await api.explainMedicalStudy(study.id);
-
+      const study = await api.uploadMedicalStudy(file);
+      const summary = summaryFromDetail(study);
       set((state) => ({
-        studies: upsertSummary(state.studies, summaryFromDetail(study)),
-        selectedStudy: study,
-        loading: false,
+        studies: upsertSummary(state.studies, summary),
+        backgroundJobs: { ...state.backgroundJobs, [study.id]: 'extract' },
       }));
-      return study;
+      return summary;
     } catch (err) {
-      set({
-        loading: false,
-        error: err instanceof Error ? err.message : 'Error al procesar estudio',
-      });
+      set({ error: err instanceof Error ? err.message : 'Error al subir estudio' });
       return null;
+    }
+  },
+
+  processStudyInBackground: async (id) => {
+    const setStage = (stage: BackgroundStage) =>
+      set((state) => ({
+        backgroundJobs: stage
+          ? { ...state.backgroundJobs, [id]: stage }
+          : Object.fromEntries(Object.entries(state.backgroundJobs).filter(([k]) => k !== id)),
+      }));
+
+    try {
+      setStage('extract');
+      let study = await api.extractMedicalStudy(id);
+      set((state) => applyDetail(state, study));
+
+      setStage('structure');
+      study = await api.structureMedicalStudy(id);
+      set((state) => applyDetail(state, study));
+
+      // Explicación en background — el usuario ya puede ver parámetros
+      setStage('explain');
+      study = await api.explainMedicalStudy(id);
+      set((state) => applyDetail(state, study));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al procesar estudio';
+      set({ error: message });
+      try {
+        const study = await api.getMedicalStudy(id);
+        set((state) => applyDetail(state, study));
+      } catch {
+        /* ignore refresh error */
+      }
+    } finally {
+      setStage(null);
     }
   },
 
@@ -127,6 +144,9 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
       set((state) => ({
         studies: state.studies.filter((s) => s.id !== id),
         selectedStudy: state.selectedStudy?.id === id ? null : state.selectedStudy,
+        backgroundJobs: Object.fromEntries(
+          Object.entries(state.backgroundJobs).filter(([k]) => k !== id),
+        ),
       }));
       return true;
     } catch (err) {
@@ -140,8 +160,7 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
     try {
       const study = await api.reprocessMedicalStudy(id, stages);
       set((state) => ({
-        studies: upsertSummary(state.studies, summaryFromDetail(study)),
-        selectedStudy: study,
+        ...applyDetail(state, study),
         loading: false,
       }));
       return study;

@@ -1,33 +1,25 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Upload, FileText } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { MedicalStudyLoader } from './MedicalStudyLoader';
 import { useMedicalStudiesStore } from '../../store/useMedicalStudiesStore';
-import type { MedicalStudyProcessingStage } from '../../types';
 
 interface MedicalStudyUploadFlowProps {
-  onComplete: (studyId: string) => void;
+  onUploaded: (studyId: string) => void;
   onCancel: () => void;
 }
 
-export function MedicalStudyUploadFlow({ onComplete, onCancel }: MedicalStudyUploadFlowProps) {
+export function MedicalStudyUploadFlow({ onUploaded, onCancel }: MedicalStudyUploadFlowProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const uploadAndProcess = useMedicalStudiesStore((s) => s.uploadAndProcess);
+  const uploadStudy = useMedicalStudiesStore((s) => s.uploadStudy);
+  const processStudyInBackground = useMedicalStudiesStore((s) => s.processStudyInBackground);
   const error = useMedicalStudiesStore((s) => s.error);
-  const loading = useMedicalStudiesStore((s) => s.loading);
-  const [currentStage, setCurrentStage] = useState<'idle' | MedicalStudyProcessingStage>('idle');
 
   const handleFile = async (file: File) => {
-    setCurrentStage('upload');
-    const study = await uploadAndProcess(file, (nextStage) => {
-      setCurrentStage(nextStage as MedicalStudyProcessingStage);
-    });
+    const summary = await uploadStudy(file);
+    if (!summary) return;
 
-    if (study) {
-      onComplete(study.id);
-    } else {
-      setCurrentStage('idle');
-    }
+    onUploaded(summary.id);
+    void processStudyInBackground(summary.id);
   };
 
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,10 +27,6 @@ export function MedicalStudyUploadFlow({ onComplete, onCancel }: MedicalStudyUpl
     if (file) void handleFile(file);
     e.target.value = '';
   };
-
-  if (loading && currentStage !== 'idle') {
-    return <MedicalStudyLoader stage={currentStage} />;
-  }
 
   return (
     <div className="space-y-6">
@@ -48,10 +36,10 @@ export function MedicalStudyUploadFlow({ onComplete, onCancel }: MedicalStudyUpl
         </div>
         <h3 className="font-heading text-xl font-bold text-[#191c17]">Subir estudio médico</h3>
         <p className="mt-2 font-body text-sm leading-relaxed text-[#707a6c]">
-          PDF o imagen (JPG, PNG, WebP). Guardamos el original y analizamos los resultados con IA.
+          PDF o imagen (JPG, PNG, WebP). Guardamos el original y analizamos en segundo plano.
         </p>
         <p className="mt-3 font-body text-xs text-[#707a6c]">
-          La explicación es orientativa y no reemplaza la consulta con un profesional de salud.
+          El análisis puede tardar 1–2 minutos. Podés seguir usando la app mientras procesamos.
         </p>
       </div>
 

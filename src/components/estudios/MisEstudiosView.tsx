@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, FileText, ChevronRight, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Button } from '../ui/Button';
@@ -6,7 +6,9 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 import { MedicalStudyUploadFlow } from './MedicalStudyUploadFlow';
 import { MedicalStudyDetailView } from './MedicalStudyDetailView';
+import { MedicalStudyProcessingStepper } from './MedicalStudyProcessingStepper';
 import { useMedicalStudiesStore } from '../../store/useMedicalStudiesStore';
+import { isProcessingStatus } from '../../utils/medicalStudyHelpers';
 import type { MedicalStudySummary } from '../../types';
 
 function formatStudyDate(value?: string) {
@@ -22,24 +24,35 @@ function formatStudyDate(value?: string) {
   }
 }
 
-function statusLabel(status: MedicalStudySummary['status']) {
-  switch (status) {
+function statusLabel(study: MedicalStudySummary, isBackground: boolean) {
+  if (isBackground || isProcessingStatus(study.status)) return 'Analizando';
+  switch (study.status) {
     case 'completed':
       return 'Listo';
     case 'failed':
       return 'Error';
-    case 'uploaded':
-      return 'Subido';
     default:
-      return 'Procesando';
+      return 'Subido';
   }
 }
 
 export function MisEstudiosView() {
   const studies = useMedicalStudiesStore((s) => s.studies);
+  const backgroundJobs = useMedicalStudiesStore((s) => s.backgroundJobs);
   const loadStudies = useMedicalStudiesStore((s) => s.loadStudies);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const hasProcessing = studies.some(
+      (s) => isProcessingStatus(s.status) || backgroundJobs[s.id],
+    );
+    if (!hasProcessing) return undefined;
+    const timer = setInterval(() => {
+      void loadStudies();
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [studies, backgroundJobs, loadStudies]);
 
   if (selectedId) {
     return (
@@ -78,65 +91,74 @@ export function MisEstudiosView() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {studies.map((study) => (
-            <li key={study.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(study.id)}
-                className="flex w-full items-center gap-4 rounded-[1.5rem] bg-[#f3f5eb] px-4 py-4 text-left transition-colors hover:bg-[#edefe6]"
-              >
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#226046]/10 text-[#226046]">
-                  <FileText size={20} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-body font-semibold text-[#191c17]">
-                    {study.studyType ?? study.originalFilename}
-                  </p>
-                  <p className="mt-0.5 font-body text-xs text-[#707a6c]">
-                    {formatStudyDate(study.studyDate) ?? 'Sin fecha'} · {study.laboratory ?? study.originalFilename}
-                  </p>
-                  <p className="mt-1 font-body text-xs text-[#707a6c]">
-                    {study.parameterCount} parámetros
-                  </p>
-                </div>
-                <div className="flex flex-shrink-0 flex-col items-end gap-1">
-                  <span
-                    className={clsx(
-                      'rounded-full px-2.5 py-0.5 font-body text-[10px] font-bold uppercase tracking-wide',
-                      study.status === 'completed' && 'bg-[#226046]/10 text-[#226046]',
-                      study.status === 'failed' && 'bg-red-100 text-red-700',
-                      study.status !== 'completed' && study.status !== 'failed' && 'bg-amber-100 text-amber-800',
-                    )}
-                  >
-                    {statusLabel(study.status)}
-                  </span>
-                  {study.status === 'failed' && (
-                    <AlertCircle size={16} className="text-red-500" aria-label="Error de procesamiento" />
+          {studies.map((study) => {
+            const isBackground = !!backgroundJobs[study.id];
+            const processing = isBackground || isProcessingStatus(study.status);
+
+            return (
+              <li key={study.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(study.id)}
+                  className="flex w-full flex-col gap-3 rounded-[1.5rem] bg-[#f3f5eb] px-4 py-4 text-left transition-colors hover:bg-[#edefe6]"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#226046]/10 text-[#226046]">
+                      <FileText size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-body font-semibold text-[#191c17]">
+                        {study.studyType ?? study.originalFilename}
+                      </p>
+                      <p className="mt-0.5 font-body text-xs text-[#707a6c]">
+                        {formatStudyDate(study.studyDate) ?? 'Sin fecha'} · {study.laboratory ?? study.originalFilename}
+                      </p>
+                      <p className="mt-1 font-body text-xs text-[#707a6c]">
+                        {study.parameterCount > 0
+                          ? `${study.parameterCount} parámetros`
+                          : processing
+                            ? 'Procesando resultados…'
+                            : 'Sin parámetros aún'}
+                      </p>
+                    </div>
+                    <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                      <span
+                        className={clsx(
+                          'rounded-full px-2.5 py-0.5 font-body text-[10px] font-bold uppercase tracking-wide',
+                          study.status === 'completed' && !processing && 'bg-[#226046]/10 text-[#226046]',
+                          study.status === 'failed' && 'bg-red-100 text-red-700',
+                          processing && 'bg-amber-100 text-amber-800',
+                          !processing && study.status !== 'completed' && study.status !== 'failed' && 'bg-[#edefe6] text-[#707a6c]',
+                        )}
+                      >
+                        {statusLabel(study, isBackground)}
+                      </span>
+                      {study.status === 'failed' && (
+                        <AlertCircle size={16} className="text-red-500" aria-label="Error de procesamiento" />
+                      )}
+                      <ChevronRight size={18} className="text-[#707a6c]" />
+                    </div>
+                  </div>
+                  {processing && (
+                    <MedicalStudyProcessingStepper status={study.status} compact explainPending={isBackground} />
                   )}
-                  <ChevronRight size={18} className="text-[#707a6c]" />
-                </div>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       <BottomSheet isOpen={showUpload} onClose={() => setShowUpload(false)} title="Nuevo estudio" tone="journal">
         <MedicalStudyUploadFlow
-          onComplete={(id) => {
-            setShowUpload(false);
-            setSelectedId(id);
-          }}
+          onUploaded={() => setShowUpload(false)}
           onCancel={() => setShowUpload(false)}
         />
       </BottomSheet>
 
       <Modal isOpen={showUpload} onClose={() => setShowUpload(false)} title="Nuevo estudio" tone="journal">
         <MedicalStudyUploadFlow
-          onComplete={(id) => {
-            setShowUpload(false);
-            setSelectedId(id);
-          }}
+          onUploaded={() => setShowUpload(false)}
           onCancel={() => setShowUpload(false)}
         />
       </Modal>
