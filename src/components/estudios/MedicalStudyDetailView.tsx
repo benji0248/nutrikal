@@ -48,6 +48,7 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
   const timelineKey = useMedicalStudiesStore((s) => s.timelineKey);
   const backgroundJobs = useMedicalStudiesStore((s) => s.backgroundJobs);
   const loading = useMedicalStudiesStore((s) => s.loading);
+  const error = useMedicalStudiesStore((s) => s.error);
 
   const [tab, setTab] = useState<DetailTab>('resumen');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
@@ -135,11 +136,17 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
 
   if (!study) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 pb-8">
         <Button type="button" variant="ghost" onClick={onBack}>
           <ArrowLeft size={18} className="mr-2 inline" /> Volver
         </Button>
-        <p className="font-body text-[#707a6c]">No se pudo cargar el estudio.</p>
+        <div className="rounded-[1.5rem] bg-red-50 px-4 py-4">
+          <p className="font-body font-semibold text-red-800">No se pudo cargar el estudio.</p>
+          {error && <p className="mt-1 font-body text-sm text-red-700">{error}</p>}
+          <Button type="button" variant="secondary" className="mt-3" onClick={() => void loadStudy(studyId)}>
+            Reintentar
+          </Button>
+        </div>
       </div>
     );
   }

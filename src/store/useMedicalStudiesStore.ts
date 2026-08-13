@@ -75,6 +75,7 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
       const study = await api.getMedicalStudy(id);
       set((state) => ({
         ...applyDetail(state, study),
+        selectedStudy: study,
         loading: false,
       }));
       return study;
@@ -82,6 +83,7 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
       set({
         loading: false,
         error: err instanceof Error ? err.message : 'Error al cargar estudio',
+        selectedStudy: null,
       });
       return null;
     }
@@ -161,6 +163,7 @@ export const useMedicalStudiesStore = create<MedicalStudiesState>((set) => ({
       const study = await api.reprocessMedicalStudy(id, stages);
       set((state) => ({
         ...applyDetail(state, study),
+        selectedStudy: study,
         loading: false,
       }));
       return study;
