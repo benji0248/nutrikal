@@ -40,34 +40,42 @@ function ParameterCard({ param }: { param: MedicalStudyParameter }) {
   return (
     <div
       className={clsx(
-        'flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5',
+        'min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2.5',
         FLAG_CARD[flag],
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <p className="truncate font-body text-sm font-semibold text-[#191c17]">{param.parameterName}</p>
-          {param.section && (
-            <span className="hidden shrink-0 truncate font-body text-[10px] text-[#707a6c] sm:inline">
-              · {param.section}
-            </span>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 break-words font-body text-sm font-semibold leading-snug text-[#191c17]">
+          {param.parameterName}
+        </p>
+        <span
+          className={clsx(
+            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+            FLAG_BADGE[flag],
           )}
-        </div>
-        {param.referenceRange && (
-          <p className="mt-0.5 truncate font-body text-[11px] text-[#707a6c]">Ref: {param.referenceRange}</p>
-        )}
-        {param.section && (
-          <p className="mt-0.5 truncate font-body text-[10px] text-[#707a6c] sm:hidden">{param.section}</p>
-        )}
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
-        <span className={clsx('rounded-full px-2 py-0.5 text-[10px] font-bold uppercase', FLAG_BADGE[flag])}>
+        >
           {FLAG_LABELS[flag]}
         </span>
-        <p className={clsx('whitespace-nowrap font-heading text-base font-bold leading-tight', FLAG_VALUE[flag])}>
-          {formatParameterValue(param)}
-        </p>
       </div>
+
+      {param.section && (
+        <p className="mt-0.5 break-words font-body text-[10px] text-[#707a6c]">{param.section}</p>
+      )}
+
+      {param.referenceRange && (
+        <p className="mt-1 break-words font-body text-[11px] leading-snug text-[#707a6c]">
+          Ref: {param.referenceRange}
+        </p>
+      )}
+
+      <p
+        className={clsx(
+          'mt-1.5 break-words text-right font-heading text-base font-bold leading-tight',
+          FLAG_VALUE[flag],
+        )}
+      >
+        {formatParameterValue(param)}
+      </p>
     </div>
   );
 }
@@ -84,16 +92,16 @@ export function MedicalStudyParameterGrid({ parameters }: MedicalStudyParameterG
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
       {abnormal.length > 0 && (
-        <section>
+        <section className="min-w-0 max-w-full">
           <div className="mb-2 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden />
+            <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden />
             <h3 className="font-body text-sm font-bold text-amber-900">
               Fuera de rango ({abnormal.length})
             </h3>
           </div>
-          <div className="grid gap-2 lg:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
             {abnormal.map((param) => (
               <ParameterCard key={param.id} param={param} />
             ))}
@@ -102,16 +110,16 @@ export function MedicalStudyParameterGrid({ parameters }: MedicalStudyParameterG
       )}
 
       {normal.length > 0 && (
-        <section>
+        <section className="min-w-0 max-w-full">
           {abnormal.length > 0 && (
             <div className="mb-2 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#226046]" aria-hidden />
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[#226046]" aria-hidden />
               <h3 className="font-body text-sm font-bold text-[#226046]">
                 Dentro de rango ({normal.length})
               </h3>
             </div>
           )}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {normal.map((param) => (
               <ParameterCard key={param.id} param={param} />
             ))}

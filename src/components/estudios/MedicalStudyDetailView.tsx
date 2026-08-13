@@ -152,7 +152,7 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
   }
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden pb-8">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -264,17 +264,19 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
       )}
 
       {tab === 'parametros' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="font-body text-sm text-[#707a6c]">{study.parameters.length} parámetros detectados</p>
-            <Button type="button" variant="ghost" onClick={() => setShowTimeline((v) => !v)}>
+        <div className="min-w-0 max-w-full space-y-3 overflow-x-hidden">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 font-body text-sm text-[#707a6c]">
+              {study.parameters.length} parámetros detectados
+            </p>
+            <Button type="button" variant="ghost" className="shrink-0" onClick={() => setShowTimeline((v) => !v)}>
               <TrendingUp size={16} className="mr-1 inline" />
               {showTimeline ? 'Ocultar evolución' : 'Ver evolución'}
             </Button>
           </div>
 
           {showTimeline && (
-            <div className="rounded-[1.5rem] bg-[#edefe6] p-4">
+            <div className="min-w-0 max-w-full overflow-hidden rounded-[1.5rem] bg-[#edefe6] p-4">
               <p className="mb-3 font-body text-sm font-semibold text-[#191c17]">Comparar parámetro</p>
               <div className="flex flex-wrap gap-2">
                 {uniqueParameterKeys.map(([key, name]) => (
