@@ -5,7 +5,6 @@ import {
   Printer,
   Eye,
   Trash2,
-  RefreshCw,
   TrendingUp,
   Loader2,
 } from 'lucide-react';
@@ -23,7 +22,7 @@ interface MedicalStudyDetailViewProps {
   onBack: () => void;
 }
 
-type DetailTab = 'resumen' | 'parametros' | 'explicacion' | 'texto';
+type DetailTab = 'resumen' | 'parametros' | 'explicacion';
 
 function formatDate(value?: string) {
   if (!value) return 'Fecha no detectada';
@@ -41,7 +40,6 @@ function formatDate(value?: string) {
 export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailViewProps) {
   const loadStudy = useMedicalStudiesStore((s) => s.loadStudy);
   const deleteStudy = useMedicalStudiesStore((s) => s.deleteStudy);
-  const reprocessStudy = useMedicalStudiesStore((s) => s.reprocessStudy);
   const loadParameterTimeline = useMedicalStudiesStore((s) => s.loadParameterTimeline);
   const selectedStudy = useMedicalStudiesStore((s) => s.selectedStudy);
   const parameterTimeline = useMedicalStudiesStore((s) => s.parameterTimeline);
@@ -120,10 +118,6 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
     if (!confirm('¿Eliminar este estudio? Se borrará el archivo original y todos los datos.')) return;
     const ok = await deleteStudy(studyId);
     if (ok) onBack();
-  };
-
-  const handleReprocess = async (stages: Array<'extract' | 'structure' | 'explain'>) => {
-    await reprocessStudy(studyId, stages);
   };
 
   if (!study && loading) {
@@ -225,7 +219,6 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
           ['resumen', 'Resumen'],
           ['parametros', 'Parámetros'],
           ['explicacion', 'Explicación'],
-          ['texto', 'Texto OCR'],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -332,38 +325,6 @@ export function MedicalStudyDetailView({ studyId, onBack }: MedicalStudyDetailVi
           )}
         </div>
       )}
-
-      {tab === 'texto' && (
-        <div className="rounded-[2rem] bg-[#edefe6] p-5">
-          <p className="mb-2 font-body text-xs font-semibold uppercase tracking-wide text-[#707a6c]">
-            Texto extraído · {study.extractionMethod === 'pdf_text' ? 'PDF nativo' : 'OCR'}
-          </p>
-          {study.extractedText ? (
-            <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap font-body text-xs leading-relaxed text-[#40493d]">
-              {study.extractedText}
-            </pre>
-          ) : processing ? (
-            <p className="font-body text-sm text-[#707a6c]">Extrayendo texto del documento…</p>
-          ) : (
-            <p className="font-body text-sm text-[#707a6c]">Sin texto extraído.</p>
-          )}
-        </div>
-      )}
-
-      <div className="rounded-[1.5rem] border border-dashed border-[#d8ddd0] p-4">
-        <p className="mb-3 font-body text-sm font-semibold text-[#191c17]">Reprocesar etapas</p>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" onClick={() => void handleReprocess(['extract', 'structure', 'explain'])}>
-            <RefreshCw size={14} className="mr-1 inline" /> Todo
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => void handleReprocess(['structure', 'explain'])}>
-            Estructura + explicación
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => void handleReprocess(['explain'])}>
-            Solo explicación
-          </Button>
-        </div>
-      </div>
 
       <Button type="button" variant="ghost" onClick={() => void handleDelete()} className="text-red-600">
         <Trash2 size={16} className="mr-1 inline" /> Eliminar estudio
