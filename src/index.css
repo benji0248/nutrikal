@@ -90,6 +90,10 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  /** Bottom nav: base padding + home-indicator / notch safe area */
+  .safe-bottom-nav {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  }
   .font-heading {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
