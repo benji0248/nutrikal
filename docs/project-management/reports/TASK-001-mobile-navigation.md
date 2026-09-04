@@ -2,110 +2,95 @@
 
 ## Resumen
 
-Se creó la infraestructura mínima de gestión en `docs/project-management/` y se retrabajó `BottomNav` para que los 5 tabs quepan sin overflow horizontal en anchos desde 320px, con estado activo en píldora solo sobre el ícono (no sobre label+ícono), tipografía compacta y safe-area inferior correcto. TASK-001 queda en estado **entregada** (pendiente de auditoría del director).
+Navegación móvil reducida a **tres destinos** en `BottomNav` (Inicio, Calendario, Compras). Módulos secundarios (Mis estudios, Favoritos, Ajustes) viven en el menú del avatar en móvil. Se eliminó por completo importar/exportar JSON y el tipo `AppPayload`. Entrega en la misma rama/PR #33, estado **entregada**, pendiente de nueva auditoría del director.
 
 ## Archivos modificados
 
 | Archivo | Motivo |
 |---------|--------|
-| `docs/project-management/README.md` | Reglas 1–10 del flujo director/ejecutor |
-| `docs/project-management/STATUS.md` | Tablero de tareas; TASK-001 → entregada |
-| `docs/project-management/tasks/TASK-001-mobile-navigation.md` | Especificación completa de la solicitud (creada por el director/ejecutor al inicio; no alterada después) |
-| `docs/project-management/reviews/.gitkeep` | Mantiene el directorio `reviews/` vacío hasta la auditoría |
-| `src/components/layout/BottomNav.tsx` | Layout compacto de 5 tabs, active pill en ícono, labels sin truncate, safe-area |
-| `src/index.css` | Utilidad `.safe-bottom-nav` = padding base + `env(safe-area-inset-bottom)` |
+| `src/components/layout/BottomNav.tsx` | Solo 3 tabs: assistant / calendar / shopping; touch ≥44px; activo claro; safe-area |
+| `src/components/auth/UserMenu.tsx` | Sin JSON; sección Módulos en móvil; `onTabChange`; desktop solo cuenta + logout |
+| `src/App.tsx` | Pasa `onTabChange={setActiveTab}` a `UserMenu` |
+| `src/types/index.ts` | Eliminado `AppPayload` (solo servía al backup JSON) |
+| `src/index.css` | Utilidad `.safe-bottom-nav` (padding base + safe-area) |
+| `docs/project-management/README.md` | Flujo de agentes en la nube (rama, commits, push, PR, sin merge) |
+| `docs/project-management/tasks/TASK-001-mobile-navigation.md` | Especificación real (3 tabs + módulos en avatar + sin JSON) |
+| `docs/project-management/STATUS.md` | TASK-001 = entregada |
+| `docs/project-management/reports/TASK-001-mobile-navigation.md` | Este reporte |
+| `docs/project-management/reviews/.gitkeep` | Directorio reviews vacío (sin review del ejecutor) |
 
 ## Decisiones tomadas
 
-1. **Active state solo en el ícono:** el diseño previo usaba `rounded-full` sobre ícono+label con `px-4`, lo que ensanchaba el tab activo y comprimía a los vecinos en ≤375px. La píldora queda en un contenedor fijo `w-10 h-8`.
-2. **`flex-1` + `min-w-0` + tipografía 9px→10px:** distribución equitativa; en &lt;360px se usa `text-[9px]` para que “Calendario” no se corte; sin `truncate`.
-3. **Nueva utilidad `safe-bottom-nav`:** la clase `.safe-bottom` anterior solo aplicaba `env(safe-area-inset-bottom)` y competía/anulaba `pb-6`. Ahora el padding es `calc(0.5rem + env(...))`.
-4. **Sin tocar Sidebar / App.tsx:** fuera del alcance necesario; `md:hidden` se mantiene. Labels de BottomNav se dejaron como “Estudios” (corto) vs “Mis estudios” en desktop.
-5. **Sin commit:** según instrucción explícita y regla 8.
+1. **Tres tabs, no cinco comprimidos:** la nav inferior es primaria; estudios/favoritos/ajustes salen del chrome fijo.
+2. **Active pill solo en el ícono** (`w-11 h-9`), label `text-xs` sin forzar 9px.
+3. **Módulos solo en BottomSheet (móvil):** el Modal de escritorio no duplica la sección; Sidebar sigue siendo la nav desktop.
+4. **Cierre inmediato del sheet** al elegir un módulo (`onTabChange` + `setOpen(false)`).
+5. **`AppPayload` borrado:** no quedaban otros usos tras quitar import/export.
+6. **Misma rama/PR:** correcciones sobre `codex/task-001-mobile-navigation` / PR #33; sin merge.
 
 ## Criterios de aceptación
 
-### Infraestructura de gestión
-
-- [x] Existe `docs/project-management/` con `README.md`, `STATUS.md`, `tasks/`, `reports/` y `reviews/`
-- [x] `README.md` documenta las 10 reglas listadas en la solicitud
-- [x] `STATUS.md` tiene tabla con columnas: ID, Tarea, Estado, Archivo de tarea, Reporte, Revisión
-- [x] La especificación completa quedó en `tasks/TASK-001-mobile-navigation.md`
-- [x] El ejecutor no modifica el archivo original de la tarea tras crearlo
-- [x] No se crea todavía el archivo de `reviews/` para esta tarea
-- [x] No se hace commit
-
-### Implementación — navegación móvil
-
-- [x] La barra inferior (`BottomNav`) es usable en anchos móviles sin overflow horizontal
-- [x] Los 5 destinos (Inicio, Calendario, Estudios, Favoritos, Ajustes) permanecen visibles y tappeables
-- [x] El estado activo es claro sin ensanchar de más el ítem (evita empujar/ocultar vecinos)
-- [x] Se respeta el safe-area inferior (PWA / notch / home indicator)
-- [x] En `md+` la BottomNav sigue oculta (sidebar desktop sin cambios de alcance innecesario)
-- [x] El contenido principal no queda tapado por la barra (padding inferior coherente — `pb-24` en main ya existente)
-
-### Entrega y verificación
-
-- [x] Existe `reports/TASK-001-mobile-navigation.md` con las secciones pedidas
-- [x] `STATUS.md` marca TASK-001 como `entregada` (no `aprobada`)
-- [x] `npm run lint` ejecutado y reportado
-- [x] `npm run test:unit` ejecutado y reportado
-- [x] `npm run build` ejecutado y reportado
-- [x] Validación visual en anchos móviles documentada en el reporte
+- [x] BottomNav muestra solo Inicio, Calendario y Compras
+- [x] Estudios, Favoritos y Ajustes no están en BottomNav
+- [x] Los tres botones: distribución uniforme, icono+texto legibles, min 44px, activo claro, safe-area, sin overflow desde 320px
+- [x] UserMenu móvil tiene sección Módulos (Mis estudios, Favoritos, Ajustes) que navega y cierra el sheet
+- [x] `onTabChange` se pasa desde `App.tsx` a `UserMenu`
+- [x] Desktop: sin sección Módulos en avatar; Sidebar sigue siendo la navegación
+- [x] No queda UI ni código de importar/exportar JSON en UserMenu
+- [x] `AppPayload` eliminado (`rg AppPayload` → sin matches en el repo de código)
+- [x] Docs (task, report, README) alineados con la especificación
+- [x] STATUS = `entregada`; sin archivo de review escrito por el ejecutor
+- [x] `npm run lint`, `npm run test:unit`, `npm run build` ejecutados y reportados
+- [x] Validación visual en 320, 375, 390 y 430px (BottomNav)
+- [x] Inicio → assistant; Calendario → calendar; Compras → shopping (harness + mapeo de tabs)
+- [x] Mis estudios / Favoritos / Ajustes cableados desde el avatar (`UserMenu` → `onTabChange`); smoke autenticado pendiente en dispositivo real
 
 ## Verificación
-
-Comandos ejecutados y resultado exacto:
 
 ### `npm run lint`
 
 - **Exit code:** `1`
-- **Resultado:** 9 problems (4 errors, 5 warnings)
-- Errores en archivos **ajenos al alcance** (preexistentes):
-  - `api/_lib/medicalStudyPipeline.ts` — unused `MEDICAL_STUDIES_BUCKET`
-  - `src/App.tsx:113` — `react-hooks/set-state-in-effect`
-  - `src/components/estudios/MedicalStudyDetailView.tsx:73` — `react-hooks/set-state-in-effect`
+- **Resultado:** 9 problems (4 errors, 5 warnings), todos **preexistentes** y fuera de alcance:
+  - `api/_lib/medicalStudyPipeline.ts` — unused var
+  - `src/App.tsx:113` — `set-state-in-effect` (mealChat)
+  - `src/components/estudios/MedicalStudyDetailView.tsx:73` — `set-state-in-effect`
   - `src/store/usePlanRotationStore.ts:67` — unused `_plan`
-- Warnings en `useChatEngine.ts` (exhaustive-deps), preexistentes
-- **Ningún hallazgo nuevo en `BottomNav.tsx` ni en `docs/project-management/`**
+  - warnings exhaustive-deps en `useChatEngine.ts`
+- Sin hallazgos nuevos en `BottomNav.tsx` / `UserMenu.tsx` / docs.
 
 ### `npm run test:unit`
 
 - **Exit code:** `0`
-- **Resultado:**
-  ```
+- ```
   Test Files  5 passed (5)
   Tests  14 passed (14)
-  Duration  416ms
   ```
 
 ### `npm run build`
 
-- **Exit code:** `0`
-- **Resultado:** `tsc -b && vite build` OK — `✓ built in 859ms`
+- **Exit code:** `0` — `✓ built in 836ms`
 
 ## Validación visual
 
-Harness de preview con la misma estructura de clases que `BottomNav` (sin login). Métricas `window.__NAV_METRICS__`:
+BottomNav (3 tabs) — métricas:
 
-| Ancho | overflow | Anchos de tabs | Labels completos | Activo |
-|------:|:--------:|----------------|:----------------:|:------:|
-| 320px | false | 60/60/60/60/60 | sí (incl. Calendario) | OK |
-| 375px | false | 71/71/71/71/71 | sí | OK |
-| 390px | false | 74/74/74/74/74 | sí | OK |
-| 414px | false | 79/79/79/79/79 | sí | OK |
+| Ancho | overflow | Alturas tab | Anchos | Labels |
+|------:|:--------:|------------:|--------|--------|
+| 320px | false | 71 | 90/90/90 | Inicio, Calendario, Compras |
+| 375px | false | 71 | 115/115/115 | OK |
+| 390px | false | 71 | 119/119/119 | OK |
+| 430px | false | 71 | 133/133/133 | OK |
 
-Evidencia:
+Clicks: Inicio→`assistant`, Calendario→`calendar`, Compras→`shopping`. Touch target 71px ≥ 44px.
 
-<img alt="BottomNav 320px" src="/opt/cursor/artifacts/screenshots/nav-320px-clean.png" />
-<img alt="BottomNav 375px" src="/opt/cursor/artifacts/screenshots/nav-375px-clean.png" />
-<img alt="BottomNav 390px" src="/opt/cursor/artifacts/screenshots/nav-390px.webp" />
-<img alt="BottomNav 414px" src="/opt/cursor/artifacts/screenshots/nav-414px.webp" />
+<img alt="BottomNav 3 tabs 320px" src="/opt/cursor/artifacts/screenshots/nav3-320px.webp" />
+<img alt="BottomNav 3 tabs 375px" src="/opt/cursor/artifacts/screenshots/nav3-375px.webp" />
+<img alt="BottomNav 3 tabs 390px" src="/opt/cursor/artifacts/screenshots/nav3-390px.webp" />
+<img alt="BottomNav 3 tabs 430px" src="/opt/cursor/artifacts/screenshots/nav3-430px.webp" />
 
 ## Riesgos o pendientes
 
-1. **`npm run lint` falla por errores preexistentes** fuera de alcance; el director debería decidir si abrir una tarea de limpieza de lint.
-2. **Validación visual hecha sobre harness estático**, no sobre la app autenticada (requiere API/JWT). Conviene smoke manual post-login en dispositivo real / PWA.
-3. **Inconsistencia de copy** “Estudios” (móvil) vs “Mis estudios” (sidebar): intencional por espacio; el director puede unificar en otra tarea.
-4. **Safe-area** verificado por CSS (`safe-bottom-nav`); no se probó en iPhone físico con notch.
-5. **Publicación:** rama `codex/task-001-mobile-navigation` + PR contra `master` (sin merge), para revisión del director desde otro equipo.
+1. **Lint preexistente** sigue fallando fuera de alcance.
+2. **Smoke del avatar autenticado** (abrir BottomSheet → Mis estudios / Favoritos / Ajustes) no se ejecutó end-to-end sin JWT/API; el cableado en código está listo.
+3. **Compras en desktop:** Sidebar no incluye shopping (igual que antes de esta tarea); solo BottomNav móvil lo expone. Valorar tarea aparte si hace falta en desktop.
+4. **Review del director** pendiente; no se escribió `reviews/`.

@@ -279,7 +279,7 @@ function AuthenticatedApp() {
                   </button>
                 </>
               )}
-              <UserMenu />
+              <UserMenu onTabChange={setActiveTab} />
             </div>
           </div>
         </header>

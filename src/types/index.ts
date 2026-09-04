@@ -292,27 +292,6 @@ export interface AppUser {
 
 export type AuthView = 'login' | 'register';
 
-/** Payload serializado para exportar/importar como backup JSON */
-export interface AppPayload {
-  version: number;
-  lastModified: string;
-  dayPlans: Record<string, DayPlan>;
-  savedRecipes: CalculatorRecipe[];
-  customIngredients: Ingredient[];
-  notifications: Notification[];
-  settings: {
-    theme: Theme;
-    showCalories?: boolean;
-    useGrams?: boolean;
-  };
-  profile?: UserProfile;
-  shoppingLists?: ShoppingList[];
-  customDishes?: Dish[];
-  favoriteDishes?: string[];
-  /** Señales implícitas para el motor de selección futuro (sin fricción) */
-  ingredientSignalLog?: IngredientSignalEntry[];
-}
-
 export type AuthState =
   | 'unauthenticated'
   | 'authenticating'

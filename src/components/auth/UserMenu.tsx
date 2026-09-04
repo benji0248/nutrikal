@@ -1,18 +1,20 @@
-import { useState, useRef } from 'react';
-import { Download, Upload, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { FlaskConical, Heart, LogOut, Settings } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useCalendarStore } from '../../store/useCalendarStore';
-import { useCalculatorStore } from '../../store/useCalculatorStore';
-import { useIngredientsStore } from '../../store/useIngredientsStore';
-import { useProfileStore } from '../../store/useProfileStore';
-import { useShoppingStore } from '../../store/useShoppingStore';
-import { useRecipesStore } from '../../store/useRecipesStore';
-import { useHistorialStore } from '../../store/useHistorialStore';
-import { useSettingsStore } from '../../store/useSettingsStore';
-import { useIngredientSignalStore } from '../../store/useIngredientSignalStore';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
-import type { AppPayload } from '../../types';
+import type { AppTab } from '../../types';
+
+interface UserMenuProps {
+  onTabChange: (tab: AppTab) => void;
+}
+
+const MOBILE_MODULES: { tab: AppTab; label: string; icon: LucideIcon }[] = [
+  { tab: 'estudios', label: 'Mis estudios', icon: FlaskConical },
+  { tab: 'historial', label: 'Favoritos', icon: Heart },
+  { tab: 'settings', label: 'Ajustes', icon: Settings },
+];
 
 function getInitials(name: string): string {
   return name
@@ -34,124 +36,20 @@ function getAvatarColor(username: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function buildExportPayload(): AppPayload {
-  const calendar = useCalendarStore.getState();
-  const calculator = useCalculatorStore.getState();
-  const ingredients = useIngredientsStore.getState();
-  const profile = useProfileStore.getState().profile;
-  const shopping = useShoppingStore.getState();
-  const recipes = useRecipesStore.getState();
-  const historial = useHistorialStore.getState();
-  const settings = useSettingsStore.getState();
-  const signals = useIngredientSignalStore.getState();
-
-  return {
-    version: 1,
-    lastModified: new Date().toISOString(),
-    dayPlans: calendar.dayPlans,
-    savedRecipes: calculator.savedRecipes,
-    customIngredients: ingredients.customIngredients,
-    notifications: calendar.notifications,
-    settings: {
-      theme: settings.theme,
-      showCalories: settings.showCalories,
-      useGrams: settings.useGrams,
-    },
-    profile: profile ?? undefined,
-    shoppingLists: shopping.lists,
-    customDishes: recipes.customDishes,
-    favoriteDishes: historial.favorites,
-    ingredientSignalLog: signals.entries,
-  };
-}
-
-function hydrateFromImport(payload: AppPayload) {
-  useCalendarStore.setState({
-    dayPlans: payload.dayPlans ?? {},
-    notifications: payload.notifications ?? [],
-  });
-  useCalculatorStore.setState({
-    savedRecipes: payload.savedRecipes ?? [],
-  });
-  useIngredientsStore.setState({
-    customIngredients: payload.customIngredients ?? [],
-  });
-  useProfileStore.setState({
-    profile: payload.profile ?? null,
-  });
-  useShoppingStore.setState({
-    lists: payload.shoppingLists ?? [],
-  });
-  useRecipesStore.setState({
-    customDishes: payload.customDishes ?? [],
-  });
-  useHistorialStore.setState({
-    favorites: payload.favoriteDishes ?? [],
-  });
-  useSettingsStore.getState().hydrateSettings({
-    theme: payload.settings?.theme ?? 'dark',
-    showCalories: payload.settings?.showCalories ?? false,
-    useGrams: payload.settings?.useGrams ?? false,
-  });
-  useIngredientSignalStore.setState({
-    entries: payload.ingredientSignalLog ?? [],
-  });
-}
-
-export const UserMenu = () => {
+export const UserMenu = ({ onTabChange }: UserMenuProps) => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
   const [open, setOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [confirmImport, setConfirmImport] = useState(false);
-  const [importPayload, setImportPayload] = useState<AppPayload | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!user) return null;
 
   const initials = getInitials(user.displayName || user.username);
   const avatarColor = getAvatarColor(user.username);
 
-  const handleExport = () => {
-    const payload = buildExportPayload();
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `nutrikal-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setOpen(false);
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const raw = JSON.parse(reader.result as string) as AppPayload;
-        setImportPayload(raw);
-        setConfirmImport(true);
-      } catch {
-        alert('Archivo JSON inválido');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const handleConfirmImport = () => {
-    if (importPayload) {
-      hydrateFromImport(importPayload);
-    }
-    setConfirmImport(false);
-    setImportPayload(null);
+  const handleModule = (tab: AppTab) => {
+    onTabChange(tab);
     setOpen(false);
   };
 
@@ -161,64 +59,64 @@ export const UserMenu = () => {
     setOpen(false);
   };
 
-  const menuContent = (
-    <div className="space-y-1">
-      {/* User info */}
-      <div className="flex items-center gap-3 px-3 py-2 mb-2">
-        <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center`}>
-          <span className="text-white font-heading font-bold text-sm">{initials}</span>
-        </div>
-        <div>
-          <p className="text-sm font-body font-medium text-text-primary">@{user.username}</p>
-          <p className="text-[10px] font-body text-muted">{user.email}</p>
-        </div>
+  const userHeader = (
+    <div className="flex items-center gap-3 px-3 py-2 mb-2">
+      <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center`}>
+        <span className="text-white font-heading font-bold text-sm">{initials}</span>
       </div>
+      <div>
+        <p className="text-sm font-body font-medium text-text-primary">@{user.username}</p>
+        <p className="text-[10px] font-body text-muted">{user.email}</p>
+      </div>
+    </div>
+  );
 
+  const logoutButton = (
+    <button
+      type="button"
+      onClick={() => setConfirmLogout(true)}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 transition-colors text-left min-h-[44px]"
+    >
+      <LogOut size={16} className="text-red-400" />
+      <span className="text-sm font-body text-red-400">Cerrar sesión</span>
+    </button>
+  );
+
+  const mobileMenu = (
+    <div className="space-y-1">
+      {userHeader}
       <div className="border-t border-border/40 my-2" />
-
-      {/* Export */}
-      <button
-        onClick={handleExport}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface2/60 transition-colors text-left min-h-[44px]"
-      >
-        <Download size={16} className="text-muted" />
-        <span className="text-sm font-body text-text-primary">Exportar datos (JSON)</span>
-      </button>
-
-      {/* Import */}
-      <button
-        onClick={handleImportClick}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface2/60 transition-colors text-left min-h-[44px]"
-      >
-        <Upload size={16} className="text-muted" />
-        <span className="text-sm font-body text-text-primary">Importar datos (JSON)</span>
-      </button>
-
+      <p className="px-3 pt-1 pb-1 text-[10px] font-body font-semibold uppercase tracking-widest text-muted">
+        Módulos
+      </p>
+      {MOBILE_MODULES.map(({ tab, label, icon: Icon }) => (
+        <button
+          key={tab}
+          type="button"
+          onClick={() => handleModule(tab)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface2/60 transition-colors text-left min-h-[44px]"
+        >
+          <Icon size={16} className="text-muted" />
+          <span className="text-sm font-body text-text-primary">{label}</span>
+        </button>
+      ))}
       <div className="border-t border-border/40 my-2" />
+      {logoutButton}
+    </div>
+  );
 
-      {/* Logout */}
-      <button
-        onClick={() => setConfirmLogout(true)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 transition-colors text-left min-h-[44px]"
-      >
-        <LogOut size={16} className="text-red-400" />
-        <span className="text-sm font-body text-red-400">Cerrar sesión</span>
-      </button>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
+  const desktopMenu = (
+    <div className="space-y-1">
+      {userHeader}
+      <div className="border-t border-border/40 my-2" />
+      {logoutButton}
     </div>
   );
 
   return (
     <>
-      {/* Avatar trigger */}
       <button
+        type="button"
         onClick={() => setOpen(true)}
         className="flex items-center gap-2 p-1 rounded-xl hover:bg-surface2/60 transition-colors"
         aria-label="Menú de usuario"
@@ -231,15 +129,13 @@ export const UserMenu = () => {
         </span>
       </button>
 
-      {/* Menu — BottomSheet on mobile, Modal on desktop */}
       <BottomSheet isOpen={open} onClose={() => setOpen(false)} title="Cuenta">
-        {menuContent}
+        {mobileMenu}
       </BottomSheet>
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Cuenta">
-        {menuContent}
+        {desktopMenu}
       </Modal>
 
-      {/* Confirm logout */}
       <BottomSheet
         isOpen={confirmLogout}
         onClose={() => setConfirmLogout(false)}
@@ -260,30 +156,6 @@ export const UserMenu = () => {
           message="Tu información está guardada en la nube. Podés volver a entrar cuando quieras."
           onConfirm={handleLogout}
           onCancel={() => setConfirmLogout(false)}
-        />
-      </Modal>
-
-      {/* Confirm import */}
-      <BottomSheet
-        isOpen={confirmImport}
-        onClose={() => setConfirmImport(false)}
-        title="Importar datos"
-      >
-        <ConfirmDialog
-          message="¿Reemplazar todos tus datos actuales?"
-          onConfirm={handleConfirmImport}
-          onCancel={() => setConfirmImport(false)}
-        />
-      </BottomSheet>
-      <Modal
-        isOpen={confirmImport}
-        onClose={() => setConfirmImport(false)}
-        title="Importar datos"
-      >
-        <ConfirmDialog
-          message="¿Reemplazar todos tus datos actuales?"
-          onConfirm={handleConfirmImport}
-          onCancel={() => setConfirmImport(false)}
         />
       </Modal>
     </>
@@ -304,12 +176,14 @@ function ConfirmDialog({
       <p className="text-sm font-body text-muted">{message}</p>
       <div className="flex gap-3">
         <button
+          type="button"
           onClick={onCancel}
           className="flex-1 px-4 py-2.5 rounded-2xl text-sm font-body font-medium bg-surface2 text-text-primary hover:bg-surface2/80 border border-border transition-all min-h-[48px]"
         >
           Cancelar
         </button>
         <button
+          type="button"
           onClick={onConfirm}
           className="flex-1 px-4 py-2.5 rounded-2xl text-sm font-body font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all min-h-[48px]"
         >

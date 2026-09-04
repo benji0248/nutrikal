@@ -3,143 +3,115 @@
 | Campo | Valor |
 |-------|-------|
 | **ID** | TASK-001 |
-| **Estado inicial** | en progreso |
+| **Estado** | entregada (pendiente de nueva auditoría tras correcciones) |
+| **Rama** | `codex/task-001-mobile-navigation` |
+| **PR** | #33 (mismo PR; no abrir otro) |
 | **Archivo de reporte** | `docs/project-management/reports/TASK-001-mobile-navigation.md` |
 | **Archivo de revisión** | `docs/project-management/reviews/TASK-001-mobile-navigation.md` (lo completa el director) |
 
 ---
 
-## Especificación completa de la solicitud
+## Objetivo
 
-Antes de implementar, prepará la infraestructura mínima de gestión del proyecto.
+Reducir la navegación principal móvil a **tres destinos** y trasladar los módulos secundarios al menú del avatar. Eliminar importar/exportar JSON del menú de cuenta.
 
-Creá:
+---
 
-```
-docs/project-management/
-├── README.md
-├── STATUS.md
-├── tasks/
-├── reports/
-└── reviews/
-```
+## Especificación
 
-En README.md documentá estas reglas:
+### BottomNav (móvil)
 
-1. El director del proyecto define tareas en `tasks/`.
-2. El agente ejecutor no modifica el archivo original de la tarea.
-3. Cada tarea tiene un identificador correlativo: TASK-001, TASK-002, etc.
-4. El ejecutor registra su entrega en `reports/` usando el mismo nombre del archivo.
-5. El director registra la auditoría en `reviews/`.
-6. Ninguna tarea se considera terminada hasta que tenga revisión aprobada.
-7. Los estados permitidos son:
-   - pendiente
-   - en progreso
-   - entregada
-   - requiere correcciones
-   - aprobada
-8. El agente no debe hacer commits salvo instrucción explícita.
-9. No debe modificar archivos ajenos al alcance sin justificarlo.
-10. Los reportes deben incluir archivos modificados, decisiones, pruebas ejecutadas, resultados y riesgos pendientes.
+Únicamente tres destinos:
 
-Creá `docs/project-management/STATUS.md` con una tabla que incluya:
-- ID
-- Tarea
-- Estado
-- Archivo de tarea
-- Reporte
-- Revisión
+| Label | Tab |
+|-------|-----|
+| Inicio | `assistant` |
+| Calendario | `calendar` |
+| Compras | `shopping` |
 
-Registrá inicialmente TASK-001 como “en progreso”.
+No conservar en la barra inferior: Estudios, Favoritos ni Ajustes.
 
-Guardá la especificación completa de esta solicitud en:
-`docs/project-management/tasks/TASK-001-mobile-navigation.md`
+Los tres botones deben:
 
-No reduzcas ni reemplaces los criterios de aceptación proporcionados en el prompt.
+- Distribuirse uniformemente.
+- Mantener icono y texto legibles (sin comprimir artificialmente ni forzar texto de 9px).
+- Tener área táctil mínima de 44px.
+- Mostrar claramente el estado activo.
+- Respetar safe-area inferior.
+- Funcionar desde 320px sin overflow horizontal.
 
-Después implementá TASK-001.
+### Menú del avatar (`UserMenu`)
 
-Al terminar, creá:
-`docs/project-management/reports/TASK-001-mobile-navigation.md`
+Eliminar completamente:
 
-El reporte debe contener:
+- Exportar datos (JSON)
+- Importar datos (JSON)
+- Selector de archivos
+- Confirmación de importación
+- `buildExportPayload` / `hydrateFromImport`
+- Estados, refs, imports e iconos asociados
 
-```
-# TASK-001 — Reporte de implementación
+Si `AppPayload` solo existía para importar/exportar JSON, eliminar también su definición en `src/types/index.ts`.
 
-## Resumen
-Descripción concreta del resultado.
+En **móvil**, añadir sección **Módulos** con:
 
-## Archivos modificados
-Lista de archivos y motivo de cada cambio.
+| Label | Tab |
+|-------|-----|
+| Mis estudios | `estudios` |
+| Favoritos | `historial` |
+| Ajustes | `settings` |
 
-## Decisiones tomadas
-Decisiones técnicas o visuales no triviales.
+Cada opción debe cambiar la pestaña activa (`onTabChange`) y cerrar inmediatamente el BottomSheet.
 
-## Criterios de aceptación
-Checklist con cada criterio original marcado como cumplido o pendiente.
+Pasar `onTabChange` desde `App.tsx` a `UserMenu`.
 
-## Verificación
-Comandos ejecutados y resultado exacto:
-- npm run lint
-- npm run test:unit
-- npm run build
+En **escritorio**:
 
-## Validación visual
-Anchos móviles comprobados y resultado observado.
+- La navegación continúa en Sidebar.
+- No duplicar la sección “Módulos” en el menú del avatar.
+- Importar/exportar JSON también debe desaparecer.
 
-## Riesgos o pendientes
-Problemas conocidos, supuestos o aspectos que deberían revisarse.
-```
+### Documentación / proceso
 
-Actualizá TASK-001 en STATUS.md de “en progreso” a “entregada”.
-No crees todavía el archivo de `reviews/`: lo completará el director después de auditar la entrega.
-No hagas commit.
+- Actualizar esta tarea y el reporte para reflejar la especificación real (3 tabs + módulos en avatar + sin JSON).
+- README de project-management: agentes en la nube trabajan en rama por tarea, hacen commits, push y PR; no merge; correcciones en la misma rama/PR.
+- Estado de TASK-001: `entregada` (no `aprobada`). No escribir la review del director.
 
 ---
 
 ## Criterios de aceptación
 
-> Criterios de aceptación del prompt (sin reducir ni reemplazar). Incluyen la infraestructura de gestión y la entrega de TASK-001 (navegación móvil), más la verificación y el reporte exigidos.
-
-### Infraestructura de gestión
-
-- [ ] Existe `docs/project-management/` con `README.md`, `STATUS.md`, `tasks/`, `reports/` y `reviews/`
-- [ ] `README.md` documenta las 10 reglas listadas en la solicitud
-- [ ] `STATUS.md` tiene tabla con columnas: ID, Tarea, Estado, Archivo de tarea, Reporte, Revisión
-- [ ] La especificación completa quedó en `tasks/TASK-001-mobile-navigation.md`
-- [ ] El ejecutor no modifica el archivo original de la tarea tras crearlo
-- [ ] No se crea todavía el archivo de `reviews/` para esta tarea
-- [ ] No se hace commit
-
-### Implementación — navegación móvil
-
-- [ ] La barra inferior (`BottomNav`) es usable en anchos móviles sin overflow horizontal
-- [ ] Los 5 destinos (Inicio, Calendario, Estudios, Favoritos, Ajustes) permanecen visibles y tappeables
-- [ ] El estado activo es claro sin ensanchar de más el ítem (evita empujar/ocultar vecinos)
-- [ ] Se respeta el safe-area inferior (PWA / notch / home indicator)
-- [ ] En `md+` la BottomNav sigue oculta (sidebar desktop sin cambios de alcance innecesario)
-- [ ] El contenido principal no queda tapado por la barra (padding inferior coherente)
-
-### Entrega y verificación
-
-- [ ] Existe `reports/TASK-001-mobile-navigation.md` con las secciones pedidas
-- [ ] `STATUS.md` marca TASK-001 como `entregada` (no `aprobada`)
-- [ ] `npm run lint` ejecutado y reportado
-- [ ] `npm run test:unit` ejecutado y reportado
-- [ ] `npm run build` ejecutado y reportado
-- [ ] Validación visual en anchos móviles documentada en el reporte
+- [ ] BottomNav muestra solo Inicio, Calendario y Compras
+- [ ] Estudios, Favoritos y Ajustes no están en BottomNav
+- [ ] Los tres botones: distribución uniforme, icono+texto legibles, min 44px, activo claro, safe-area, sin overflow desde 320px
+- [ ] UserMenu móvil tiene sección Módulos (Mis estudios, Favoritos, Ajustes) que navega y cierra el sheet
+- [ ] `onTabChange` se pasa desde `App.tsx` a `UserMenu`
+- [ ] Desktop: sin sección Módulos en avatar; Sidebar sigue siendo la navegación
+- [ ] No queda UI ni código de importar/exportar JSON en UserMenu
+- [ ] `AppPayload` eliminado si solo servía para JSON
+- [ ] Docs (task, report, README) alineados con esta especificación
+- [ ] STATUS = `entregada`; sin archivo de review escrito por el ejecutor
+- [ ] `npm run lint`, `npm run test:unit`, `npm run build` ejecutados y reportados
+- [ ] Validación visual en 320, 375, 390 y 430px
+- [ ] Inicio → assistant; Calendario → calendar; Compras → shopping
+- [ ] Mis estudios / Favoritos / Ajustes funcionan desde el avatar (móvil)
 
 ---
 
-## Alcance de implementación
+## Alcance
 
-- `src/components/layout/BottomNav.tsx` (y CSS/utilidades estrictamente necesarias para safe-area / overflow)
-- Documentación bajo `docs/project-management/` según la solicitud
+```
+src/components/layout/BottomNav.tsx
+src/components/auth/UserMenu.tsx
+src/App.tsx
+src/types/index.ts          (solo si AppPayload queda sin usos)
+src/index.css               (safe-area de la nav, si aplica)
+docs/project-management/**
+```
 
 ## Fuera de alcance
 
-- Rediseño del Sidebar desktop salvo alineación mínima de labels si hace falta consistencia
-- Cambios de IA, stores o módulos de negocio
-- Crear archivo de revisión
-- Commits / PR (salvo instrucción explícita posterior)
+- Rediseño del Sidebar (salvo lo ya existente)
+- Merge del PR
+- Escribir `reviews/` en nombre del director
+- Marcar la tarea como `aprobada`
