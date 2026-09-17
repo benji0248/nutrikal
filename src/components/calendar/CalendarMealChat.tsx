@@ -35,7 +35,7 @@ export function CalendarMealChat({ title, onClose, onTabChange }: CalendarMealCh
     isLoading,
     hasWeekPlanningProfile,
     runWeekPlanGeneration,
-  } = useChatEngine();
+  } = useChatEngine({ mode: 'calendar_overlay' });
 
   const scrollIntent = useChatStore((s) => s.scrollIntent);
   const clearScrollIntent = useChatStore((s) => s.clearScrollIntent);

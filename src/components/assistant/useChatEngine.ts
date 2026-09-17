@@ -61,64 +61,21 @@ import {
   mealTypeChipLabel,
   mealTypeToPromptLabel,
 } from '../../utils/mealTimeHelpers';
+import { buildCalendarSlotIntro } from '../../utils/calendarMealChat';
 import {
-  buildCalendarSlotIntro,
-  buildCalendarSlotOptions,
-} from '../../utils/calendarMealChat';
+  type ChatSurface,
+  buildActionsForSurface,
+  buildWelcomeText,
+  buildFreshProfileWelcomeText,
+  buildNoProfileWelcomeText,
+  planChatLifecycle,
+  shouldAppendSurfaceOptions,
+} from '../../utils/chatLifecycle';
 
 export { AI_CONVERSATION_HISTORY_LIMIT };
 
 function makeId(): string {
   return crypto.randomUUID();
-}
-
-function buildWelcomeText(name?: string): string {
-  const greeting = name ? `¡Hola, ${name}!` : '¡Hola!';
-  const current = getCurrentMealType();
-  if (current) {
-    return `${greeting} ¿Qué comemos hoy? Puedo armarte el ${mealTypeToPromptLabel(current)} o planificarte la semana entera — contame qué necesitás.`;
-  }
-  return `${greeting} ¿Qué comemos hoy? Contame qué necesitás y me ocupo yo.`;
-}
-
-function buildWelcomeOptions(): ChatOption[] {
-  return [
-    {
-      id: 'cook_now',
-      label: 'No sé qué cocinar ahora',
-      action: 'start_cook_now',
-      icon: 'UtensilsCrossed',
-    },
-    {
-      id: 'week_plan',
-      label: 'Planificá mi semana',
-      action: 'week_plan',
-      icon: 'CalendarDays',
-    },
-    {
-      id: 'rescue',
-      label: 'Comí algo que no debía',
-      action: 'rescue',
-      icon: 'AlertCircle',
-    },
-  ];
-}
-
-function buildMealTypeOptions(): ChatOption[] {
-  const icons: Record<MealType, string> = {
-    desayuno: 'Coffee',
-    almuerzo: 'UtensilsCrossed',
-    cena: 'Moon',
-    snack: 'Cookie',
-  };
-
-  return MEAL_TYPE_ORDER.map((mt) => ({
-    id: `meal_${mt}`,
-    label: mealTypeChipLabel(mt),
-    action: 'pick_meal_type',
-    payload: mt,
-    icon: icons[mt],
-  }));
 }
 
 function buildCookNowPrompt(mealType: MealType, dailyBudget: number): string {
@@ -139,134 +96,53 @@ function buildCookNowInferPrompt(mealType: MealType): string {
   return `Te armo tu ${mealTypeToPromptLabel(mealType)} de hoy.`;
 }
 
-function buildFreshProfileWelcomeText(name?: string): string {
-  const greeting = name ? `¡Listo, ${name}!` : '¡Listo!';
-  const current = getCurrentMealType();
-  if (current) {
-    return `${greeting} ¿Armamos tu ${mealTypeToPromptLabel(current)}?`;
-  }
-  return `${greeting} ¿Qué comemos primero?`;
-}
-
-function buildFreshProfileWelcomeOptions(): ChatOption[] {
-  const current = getCurrentMealType();
-  if (current) {
-    return [
-      {
-        id: 'cook_now_meal',
-        label: `Armá mi ${mealTypeChipLabel(current)}`,
-        action: 'start_cook_now',
-        icon: 'UtensilsCrossed',
-      },
-      {
-        id: 'week_plan',
-        label: 'Planificá mi semana',
-        action: 'week_plan',
-        icon: 'CalendarDays',
-      },
-    ];
-  }
-  return buildWelcomeOptions();
-}
-
 function buildWelcomeMessagesForProfile(
   profile: NonNullable<ReturnType<typeof useProfileStore.getState>['profile']>,
   justOnboarded: boolean,
 ): ChatMessage[] {
-  if (justOnboarded) {
-    return [
-      {
-        id: makeId(),
-        type: 'assistant-text',
-        text: buildFreshProfileWelcomeText(profile.name),
-        timestamp: new Date().toISOString(),
-      },
-      {
-        id: makeId(),
-        type: 'assistant-options',
-        options: buildFreshProfileWelcomeOptions(),
-        timestamp: new Date().toISOString(),
-      },
-    ];
-  }
-
+  const surface: ChatSurface = justOnboarded ? 'home_fresh' : 'home';
   return [
     {
       id: makeId(),
       type: 'assistant-text',
-      text: buildWelcomeText(profile.name),
+      text: justOnboarded
+        ? buildFreshProfileWelcomeText(profile.name)
+        : buildWelcomeText(profile.name),
       timestamp: new Date().toISOString(),
     },
     {
       id: makeId(),
       type: 'assistant-options',
-      options: buildWelcomeOptions(),
+      options: buildActionsForSurface(surface),
       timestamp: new Date().toISOString(),
     },
   ];
 }
 
-function buildRescueOptions(): ChatOption[] {
+function buildNoProfileWelcomeMessages(): ChatMessage[] {
   return [
     {
-      id: 'rescue_rebalance',
-      label: 'Ajustá el resto del día',
-      action: 'rescue_rebalance',
-      icon: 'UtensilsCrossed',
+      id: makeId(),
+      type: 'assistant-text',
+      text: buildNoProfileWelcomeText(),
+      timestamp: new Date().toISOString(),
     },
     {
-      id: 'rescue_mark_flex',
-      label: 'Marcá hoy como flex',
-      action: 'rescue_mark_flex',
-      icon: 'CalendarDays',
-    },
-    {
-      id: 'rescue_continue',
-      label: 'Seguí normal',
-      action: 'rescue_continue',
-      icon: 'Check',
+      id: makeId(),
+      type: 'assistant-options',
+      options: buildActionsForSurface('no_profile'),
+      timestamp: new Date().toISOString(),
     },
   ];
 }
 
-function buildPostApplyPlanOptions(): ChatOption[] {
-  return [
-    {
-      id: 'go_shopping',
-      label: 'Ver lista de compras',
-      action: 'go_shopping',
-      icon: 'ShoppingCart',
-    },
-    {
-      id: 'go_calendar',
-      label: 'Ver en calendario',
-      action: 'go_calendar',
-      icon: 'CalendarDays',
-    },
-    {
-      id: 'cook_again',
-      label: 'Cocinar otra cosa',
-      action: 'start_cook_now',
-      icon: 'UtensilsCrossed',
-    },
-  ];
-}
-
-function buildPostApplyOptions(): ChatOption[] {
-  return [
-    {
-      id: 'go_calendar',
-      label: 'Ver en calendario',
-      action: 'go_calendar',
-      icon: 'CalendarDays',
-    },
-    {
-      id: 'cook_again',
-      label: 'Cocinar otra cosa',
-      action: 'start_cook_now',
-      icon: 'UtensilsCrossed',
-    },
-  ];
+function optionsMessage(surface: ChatSurface, ctx?: { mealType?: MealType; hasExistingMeal?: boolean }): ChatMessage {
+  return {
+    id: makeId(),
+    type: 'assistant-options',
+    options: buildActionsForSurface(surface, ctx),
+    timestamp: new Date().toISOString(),
+  };
 }
 
 interface ChatEngineResult {
@@ -287,7 +163,17 @@ interface ChatEngineResult {
   isLoading: boolean;
 }
 
-export function useChatEngine(): ChatEngineResult {
+export type UseChatEngineOptions = {
+  /**
+   * `home` (default): main assistant tab — promotes leftover calendar_slot
+   * surfaces back to home so global actions (incl. week plan) return.
+   * `calendar_overlay`: inline Calendario chat — keeps slot-contextual chips.
+   */
+  mode?: 'home' | 'calendar_overlay';
+};
+
+export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult {
+  const engineMode = options?.mode ?? 'home';
   const profile = useProfileStore((s) => s.profile);
   const justOnboarded = useProfileStore((s) => s.justOnboarded);
   const clearJustOnboarded = useProfileStore((s) => s.clearJustOnboarded);
@@ -303,52 +189,74 @@ export function useChatEngine(): ChatEngineResult {
   const messages = useChatStore((s) => s.messages);
   const isLoading = useChatStore((s) => s.isLoading);
   const hasHydrated = useChatStore((s) => s.hasHydrated);
+  const conversationEpoch = useChatStore((s) => s.conversationEpoch);
   const calendarMealIntent = useChatStore((s) => s.calendarMealIntent);
 
   const prevProfileRef = useRef(profile);
   const progressSurfaceCheckedRef = useRef(false);
-
-  function buildNoProfileWelcomeMessages(): ChatMessage[] {
-    return [
-      {
-        id: makeId(),
-        type: 'assistant-text',
-        text: '¡Bienvenido a NutriKal! Creá tu perfil para empezar.',
-        timestamp: new Date().toISOString(),
-      },
-      {
-        id: makeId(),
-        type: 'assistant-options',
-        options: [
-          { id: 'create_profile', label: 'Crear perfil', action: 'create_profile', icon: 'UserCircle' },
-        ],
-        timestamp: new Date().toISOString(),
-      },
-    ];
-  }
+  const reconciledEpochRef = useRef<number | null>(null);
 
   function addMessages(...msgs: ChatMessage[]) {
     useChatStore.getState().appendMessages(...msgs);
   }
 
-  /** Seed welcome only after hydrate, and never clobber an active chat. */
+  function enterSurface(
+    surface: ChatSurface,
+    ctx?: { mealType?: MealType; hasExistingMeal?: boolean },
+  ) {
+    const chat = useChatStore.getState();
+    chat.setActiveSurface(surface);
+    if (surface === 'home' || surface === 'home_fresh') {
+      chat.setLastMealType(null);
+      chat.setLastMealDate(null);
+      chat.clearPendingAction();
+    }
+    // Avoid consecutive duplicate option rows on reconcile / repeated enterSurface.
+    if (!shouldAppendSurfaceOptions(chat.messages, surface, ctx)) return;
+    addMessages(optionsMessage(surface, ctx));
+  }
+
+  /** Seed welcome or reconcile trailing actions after hydrate / reset / new conversation. */
   useEffect(() => {
     if (!hasHydrated) return;
     const chat = useChatStore.getState();
-    if (chat.messages.length > 0) return;
-    // Calendar slot intent seeds its own intro — skip generic welcome.
-    if (chat.calendarMealIntent) return;
 
-    if (!profile) {
-      chat.replaceMessages(buildNoProfileWelcomeMessages(), 'initial');
+    const plan = planChatLifecycle({
+      hasHydrated,
+      hasCalendarIntent: Boolean(chat.calendarMealIntent),
+      hasProfile: Boolean(profile),
+      messages: chat.messages,
+      engineMode,
+      lastMealType: chat.lastMealType,
+      alreadyReconciledThisEpoch: reconciledEpochRef.current === conversationEpoch,
+    });
+
+    if (plan.action === 'none') return;
+
+    if (plan.action === 'seed') {
+      if (plan.surface === 'no_profile') {
+        chat.setActiveSurface('no_profile');
+        chat.replaceMessages(buildNoProfileWelcomeMessages(), 'initial');
+        return;
+      }
+      if (!profile) return;
+      chat.setActiveSurface('home');
+      chat.replaceMessages(buildWelcomeMessagesForProfile(profile, false), 'initial');
       return;
     }
 
-    chat.replaceMessages(
-      buildWelcomeMessagesForProfile(profile, false),
-      'initial',
-    );
-  }, [profile, hasHydrated]);
+    // reconcile
+    reconciledEpochRef.current = conversationEpoch;
+    chat.setActiveSurface(plan.surface);
+    if (plan.clearMealContext) {
+      chat.setLastMealType(null);
+      chat.setLastMealDate(null);
+      chat.clearPendingAction();
+    }
+    if (plan.appendOptions) {
+      addMessages(optionsMessage(plan.surface, plan.optionsCtx));
+    }
+  }, [profile, hasHydrated, conversationEpoch, engineMode]);
 
   /** Open chat from Calendario meal slot with contextual suggestions. */
   useEffect(() => {
@@ -359,6 +267,7 @@ export function useChatEngine(): ChatEngineResult {
     chat.setCalendarMealIntent(null);
     chat.setLastMealType(intent.mealType);
     chat.setLastMealDate(intent.date);
+    chat.setActiveSurface('calendar_slot');
 
     const dateLabel =
       intent.date === todayKey()
@@ -376,15 +285,10 @@ export function useChatEngine(): ChatEngineResult {
         ),
         timestamp: new Date().toISOString(),
       },
-      {
-        id: makeId(),
-        type: 'assistant-options',
-        options: buildCalendarSlotOptions(
-          intent.mealType,
-          Boolean(intent.existingMealName),
-        ),
-        timestamp: new Date().toISOString(),
-      },
+      optionsMessage('calendar_slot', {
+        mealType: intent.mealType,
+        hasExistingMeal: Boolean(intent.existingMealName),
+      }),
     );
   }, [hasHydrated, calendarMealIntent]);
 
@@ -392,6 +296,8 @@ export function useChatEngine(): ChatEngineResult {
     if (!prevProfileRef.current && profile) {
       const chat = useChatStore.getState();
       chat.resetConversation({ sync: true });
+      const surface: ChatSurface = justOnboarded ? 'home_fresh' : 'home';
+      chat.setActiveSurface(surface);
       chat.replaceMessages(
         buildWelcomeMessagesForProfile(profile, justOnboarded),
         'initial',
@@ -405,6 +311,7 @@ export function useChatEngine(): ChatEngineResult {
       chat.setLastWeekPlan(null);
       chat.setLastMealType(null);
       chat.clearPendingAction();
+      chat.setActiveSurface('home_fresh');
       chat.replaceMessages(buildWelcomeMessagesForProfile(profile, true), 'initial');
       clearJustOnboarded();
     }
@@ -456,13 +363,8 @@ export function useChatEngine(): ChatEngineResult {
     progress.markReadingSeen(reading.insightId);
   }, [profile, progressCheckIns]);
 
-  function appendWelcomeOptions() {
-    addMessages({
-      id: makeId(),
-      type: 'assistant-options',
-      options: buildWelcomeOptions(),
-      timestamp: new Date().toISOString(),
-    });
+  function returnToHome() {
+    enterSurface('home');
   }
 
   async function runWeekPlanGeneration() {
@@ -470,7 +372,8 @@ export function useChatEngine(): ChatEngineResult {
     const activeWeekPlanning = useWeekPlanningStore.getState().weekPlanning;
     if (!activeProfile || !activeWeekPlanning?.completedAt) return;
     const chat = useChatStore.getState();
-    if (!chat.tryBeginSend()) return;
+    const epoch = chat.tryBeginSend();
+    if (epoch == null) return;
 
     addMessages({
       id: makeId(),
@@ -515,6 +418,8 @@ export function useChatEngine(): ChatEngineResult {
         variationSeed: `${ctx.weekId}-${Date.now()}`,
       });
 
+      if (!useChatStore.getState().isEpochCurrent(epoch)) return;
+
       const plan = buildFullWeekPlanFromApiResponse({
         skeleton: apiResult.skeleton,
         rawDishes: apiResult.rawDishes,
@@ -552,7 +457,9 @@ export function useChatEngine(): ChatEngineResult {
         personalizationNote: memoryNote ?? undefined,
         timestamp: new Date().toISOString(),
       });
+      enterSurface('review_plan');
     } catch (err) {
+      if (!useChatStore.getState().isEpochCurrent(epoch)) return;
       useChatStore.getState().removeMessage(loadingId);
       const fallback =
         err instanceof Error && err.message.trim()
@@ -564,9 +471,11 @@ export function useChatEngine(): ChatEngineResult {
         text: fallback,
         timestamp: new Date().toISOString(),
       });
-      appendWelcomeOptions();
+      returnToHome();
     } finally {
-      useChatStore.getState().endSend();
+      if (useChatStore.getState().isEpochCurrent(epoch)) {
+        useChatStore.getState().endSend();
+      }
     }
   }
 
@@ -576,7 +485,8 @@ export function useChatEngine(): ChatEngineResult {
   ) {
     if (!profile) return;
     const chat = useChatStore.getState();
-    if (!chat.tryBeginSend()) return;
+    const epoch = chat.tryBeginSend();
+    if (epoch == null) return;
 
     const dislikedNames = resolveDislikedIngredientNames(profile, customIngredients);
     const avoidNames = usePlanRotationStore.getState().getAvoidDishNames();
@@ -630,6 +540,8 @@ export function useChatEngine(): ChatEngineResult {
         },
       );
 
+      if (!useChatStore.getState().isEpochCurrent(epoch)) return;
+
       useChatStore.getState().removeMessage(loadingId);
       useChatStore.getState().appendConversationTurn(promptForApi, result.text);
 
@@ -651,6 +563,7 @@ export function useChatEngine(): ChatEngineResult {
               timestamp: new Date().toISOString(),
             });
             useChatStore.getState().clearPendingAction();
+            returnToHome();
             return;
           }
         }
@@ -715,6 +628,7 @@ export function useChatEngine(): ChatEngineResult {
             personalizationNote: swapNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
+          enterSurface('review_plan');
         } else if (pendingAction?.kind === 'regenerate' && pendingAction.messageId) {
           const targetId = pendingAction.messageId;
           useChatStore.getState().updateMessages((prev) =>
@@ -731,6 +645,7 @@ export function useChatEngine(): ChatEngineResult {
                 : m,
             ),
           );
+          enterSurface('review_dish');
         } else {
           addMessages({
             id: makeId(),
@@ -742,6 +657,7 @@ export function useChatEngine(): ChatEngineResult {
             personalizationNote: combinedNote ?? undefined,
             timestamp: new Date().toISOString(),
           });
+          enterSurface('review_dish');
         }
       } else {
         const displayText = result.text.trim()
@@ -753,12 +669,11 @@ export function useChatEngine(): ChatEngineResult {
           text: displayText,
           timestamp: new Date().toISOString(),
         });
-        if (mealType) {
-          appendWelcomeOptions();
-        }
+        returnToHome();
         useChatStore.getState().clearPendingAction();
       }
     } catch (err) {
+      if (!useChatStore.getState().isEpochCurrent(epoch)) return;
       useChatStore.getState().removeMessage(loadingId);
 
       const fallback =
@@ -775,11 +690,11 @@ export function useChatEngine(): ChatEngineResult {
         timestamp: new Date().toISOString(),
       });
       useChatStore.getState().clearPendingAction();
-      if (activeMealType) {
-        appendWelcomeOptions();
-      }
+      returnToHome();
     } finally {
-      useChatStore.getState().endSend();
+      if (useChatStore.getState().isEpochCurrent(epoch)) {
+        useChatStore.getState().endSend();
+      }
     }
   }
 
@@ -824,20 +739,13 @@ export function useChatEngine(): ChatEngineResult {
           return;
         }
 
-        addMessages(
-          {
-            id: makeId(),
-            type: 'assistant-text',
-            text: buildMealPickPrompt(),
-            timestamp: new Date().toISOString(),
-          },
-          {
-            id: makeId(),
-            type: 'assistant-options',
-            options: buildMealTypeOptions(),
-            timestamp: new Date().toISOString(),
-          },
-        );
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: buildMealPickPrompt(),
+          timestamp: new Date().toISOString(),
+        });
+        enterSurface('pick_meal');
         return;
       }
 
@@ -873,13 +781,8 @@ export function useChatEngine(): ChatEngineResult {
             text: 'Tranqui, pasa. El plan está para acompañarte, no para juzgarte. ¿Cómo seguimos hoy?',
             timestamp: new Date().toISOString(),
           },
-          {
-            id: makeId(),
-            type: 'assistant-options',
-            options: buildRescueOptions(),
-            timestamp: new Date().toISOString(),
-          },
         );
+        enterSurface('rescue');
         return;
       }
 
@@ -917,7 +820,7 @@ export function useChatEngine(): ChatEngineResult {
           text: 'Perfecto. Seguimos como veníamos — cuando quieras, seguimos con el plan.',
           timestamp: new Date().toISOString(),
         });
-        appendWelcomeOptions();
+        returnToHome();
         return;
       }
 
@@ -935,33 +838,13 @@ export function useChatEngine(): ChatEngineResult {
           useCalendarStore.getState().clearRemainingMeals(date, remaining);
         }
         recordRescueChoice(date, 'mark_flex', getCurrentMealType() ?? 'almuerzo');
-        addMessages(
-          {
-            id: makeId(),
-            type: 'assistant-text',
-            text: 'Listo: marcamos hoy como flexible. Sin menú estricto por el resto del día; mañana retomamos el ritmo.',
-            timestamp: new Date().toISOString(),
-          },
-          {
-            id: makeId(),
-            type: 'assistant-options',
-            options: [
-              {
-                id: 'go_calendar',
-                label: 'Ver en calendario',
-                action: 'go_calendar',
-                icon: 'CalendarDays',
-              },
-              {
-                id: 'cook_again',
-                label: 'Cocinar otra cosa',
-                action: 'start_cook_now',
-                icon: 'UtensilsCrossed',
-              },
-            ],
-            timestamp: new Date().toISOString(),
-          },
-        );
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: 'Listo: marcamos hoy como flexible. Sin menú estricto por el resto del día; mañana retomamos el ritmo.',
+          timestamp: new Date().toISOString(),
+        });
+        enterSurface('post_apply_dish');
         return;
       }
 
@@ -984,7 +867,7 @@ export function useChatEngine(): ChatEngineResult {
             text: 'Ya casi terminó el día, no hay comidas por ajustar. Mañana arrancamos de nuevo sin drama.',
             timestamp: new Date().toISOString(),
           });
-          appendWelcomeOptions();
+          returnToHome();
           return;
         }
 
@@ -995,7 +878,7 @@ export function useChatEngine(): ChatEngineResult {
             text: 'Todavía no hay comidas planificadas para más tarde. Cuando armes el resto, pedime opciones más livianas y listo.',
             timestamp: new Date().toISOString(),
           });
-          appendWelcomeOptions();
+          returnToHome();
           return;
         }
 
@@ -1014,40 +897,20 @@ export function useChatEngine(): ChatEngineResult {
             text: `Las próximas comidas (${labels}) todavía están vacías. Cuando las armes, pedime algo más liviano y absorbemos el día.`,
             timestamp: new Date().toISOString(),
           });
-          appendWelcomeOptions();
+          returnToHome();
           return;
         }
 
         const adjustedList = result.adjusted
           .map((a) => `${mealTypeChipLabel(a.mealType)}: ${a.name}`)
           .join(' · ');
-        addMessages(
-          {
-            id: makeId(),
-            type: 'assistant-text',
-            text: `Ajusté el resto del día con porciones más livianas: ${adjustedList}. Así el día queda cómodo sin tirar el plan.`,
-            timestamp: new Date().toISOString(),
-          },
-          {
-            id: makeId(),
-            type: 'assistant-options',
-            options: [
-              {
-                id: 'go_calendar',
-                label: 'Ver en calendario',
-                action: 'go_calendar',
-                icon: 'CalendarDays',
-              },
-              {
-                id: 'cook_again',
-                label: 'Cocinar otra cosa',
-                action: 'start_cook_now',
-                icon: 'UtensilsCrossed',
-              },
-            ],
-            timestamp: new Date().toISOString(),
-          },
-        );
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: `Ajusté el resto del día con porciones más livianas: ${adjustedList}. Así el día queda cómodo sin tirar el plan.`,
+          timestamp: new Date().toISOString(),
+        });
+        enterSurface('post_apply_dish');
         return;
       }
 
@@ -1117,20 +980,13 @@ export function useChatEngine(): ChatEngineResult {
           ? 'hoy'
           : formatDayFull(parseDate(date));
 
-      addMessages(
-        {
-          id: makeId(),
-          type: 'assistant-text',
-          text: `Listo, agregué ${dish.name} a tu ${mealTypeToPromptLabel(mealType)} de ${when}.`,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          id: makeId(),
-          type: 'assistant-options',
-          options: buildPostApplyOptions(),
-          timestamp: new Date().toISOString(),
-        },
-      );
+      addMessages({
+        id: makeId(),
+        type: 'assistant-text',
+        text: `Listo, agregué ${dish.name} a tu ${mealTypeToPromptLabel(mealType)} de ${when}.`,
+        timestamp: new Date().toISOString(),
+      });
+      enterSurface('post_apply_dish');
     },
     [upsertMeal],
   );
@@ -1183,13 +1039,8 @@ export function useChatEngine(): ChatEngineResult {
           type: 'assistant-applied',
           timestamp: new Date().toISOString(),
         },
-        {
-          id: makeId(),
-          type: 'assistant-options',
-          options: buildPostApplyPlanOptions(),
-          timestamp: new Date().toISOString(),
-        },
       );
+      enterSurface('post_apply_plan');
     },
     [bulkUpsertMeals, customIngredients],
   );

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ChatMessage, MealType, WeekPlan } from '../types';
 import * as api from '../services/apiService';
 import type { ChatConversationSummary } from '../services/apiService';
+import type { ChatSurface } from '../utils/chatLifecycle';
 
 /** Max user+assistant pairs kept for the LLM context (not the UI transcript). */
 export const AI_CONVERSATION_HISTORY_LIMIT = 10;
@@ -45,6 +46,20 @@ interface ChatState {
   lastMealDate: string | null;
   calendarMealIntent: CalendarMealIntent | null;
 
+  /**
+   * Functional chat surface (source of truth for available actions).
+   * Not persisted to the backend — restoring uses deriveSurfaceFromMessages
+   * as a legacy/fallback path (see chatLifecycle.ts persistence note).
+   * Explicit DB persistence would need a schema + API migration.
+   */
+  activeSurface: ChatSurface;
+  /**
+   * Bumped on reset / new conversation / open / hydrate so:
+   * 1) welcome seeding re-runs after an empty reset
+   * 2) in-flight async responses can detect they are stale
+   */
+  conversationEpoch: number;
+
   hasMoreOlder: boolean;
   olderCursor: string | null;
   isLoadingOlder: boolean;
@@ -75,8 +90,12 @@ interface ChatState {
   setLastMealType: (mealType: MealType | null) => void;
   setLastMealDate: (date: string | null) => void;
   setCalendarMealIntent: (intent: CalendarMealIntent | null) => void;
+  setActiveSurface: (surface: ChatSurface) => void;
 
-  tryBeginSend: () => boolean;
+  /** Begin a send; returns the epoch to validate after awaits, or null if busy. */
+  tryBeginSend: () => number | null;
+  /** True if this epoch is still the live conversation (no reset/new/open since). */
+  isEpochCurrent: (epoch: number) => boolean;
   endSend: () => void;
 
   setPendingAction: (action: ChatPendingAction | null) => void;
@@ -101,6 +120,8 @@ const initialConversation = {
   lastMealType: null as MealType | null,
   lastMealDate: null as string | null,
   calendarMealIntent: null as CalendarMealIntent | null,
+  activeSurface: 'home' as ChatSurface,
+  conversationEpoch: 0,
   hasMoreOlder: false,
   olderCursor: null as string | null,
   isLoadingOlder: false,
@@ -172,9 +193,14 @@ async function flushSync(): Promise<void> {
   }
 }
 
+function nextEpoch(current: number): number {
+  return current + 1;
+}
+
 function applyConversationPage(
   snapshot: ChatConversationSnapshot,
   scrollIntent: ChatScrollIntent = 'initial',
+  epoch: number,
 ): Partial<ChatState> {
   const messages = (snapshot.messages ?? []).filter(isPersistable);
   return {
@@ -185,6 +211,8 @@ function applyConversationPage(
     lastMealType: snapshot.lastMealType ?? null,
     lastMealDate: null,
     calendarMealIntent: null,
+    activeSurface: 'home',
+    conversationEpoch: epoch,
     hasMoreOlder: snapshot.hasMoreOlder ?? false,
     olderCursor: snapshot.olderCursor ?? null,
     isLoading: false,
@@ -266,11 +294,16 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   setCalendarMealIntent: (intent) => set({ calendarMealIntent: intent }),
 
+  setActiveSurface: (surface) => set({ activeSurface: surface }),
+
   tryBeginSend: () => {
-    if (get().isLoading) return false;
+    if (get().isLoading) return null;
+    const epoch = get().conversationEpoch;
     set({ isLoading: true });
-    return true;
+    return epoch;
   },
+
+  isEpochCurrent: (epoch) => get().conversationEpoch === epoch,
 
   endSend: () => set({ isLoading: false }),
 
@@ -284,6 +317,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       clearTimeout(syncTimer);
       syncTimer = null;
     }
+    const epoch = nextEpoch(get().conversationEpoch);
     set(applyConversationPage(snapshot ?? {
       conversationId: null,
       messages: [],
@@ -291,7 +325,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       lastMealType: null,
       hasMoreOlder: false,
       olderCursor: null,
-    }));
+    }, 'initial', epoch));
     syncSuspended = false;
   },
 
@@ -355,9 +389,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       clearTimeout(syncTimer);
       syncTimer = null;
     }
-    set({ isLoadingOlder: true });
+    // Invalidate in-flight async work immediately, before the network round-trip.
+    const epoch = nextEpoch(get().conversationEpoch);
+    set({ isLoadingOlder: true, conversationEpoch: epoch, isLoading: false, pendingAction: null });
     try {
       const page = await api.loadChatMessagesPage(conversationId);
+      // Another reset/new/open may have happened while loading.
+      if (!get().isEpochCurrent(epoch)) return;
       set({
         ...applyConversationPage({
           conversationId: page.conversationId,
@@ -366,12 +404,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           lastMealType: page.lastMealType,
           hasMoreOlder: page.hasMoreOlder,
           olderCursor: page.olderCursor,
-        }),
+        }, 'initial', epoch),
         isLoadingOlder: false,
       });
     } catch (e) {
       console.error('openConversation error:', e);
-      set({ isLoadingOlder: false });
+      if (get().isEpochCurrent(epoch)) {
+        set({ isLoadingOlder: false });
+      }
     } finally {
       syncSuspended = false;
     }
@@ -383,21 +423,28 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       clearTimeout(syncTimer);
       syncTimer = null;
     }
+    const epoch = nextEpoch(get().conversationEpoch);
+    // Clear local transcript immediately so a stale async reply cannot land
+    // on the previous conversation while we wait for createChatConversation.
+    set({
+      ...initialConversation,
+      conversationEpoch: epoch,
+      activeSurface: 'home',
+      hasHydrated: true,
+      scrollIntent: 'initial',
+      isLoading: false,
+    });
     try {
       const { conversation } = await api.createChatConversation();
+      if (!get().isEpochCurrent(epoch)) return;
       set({
-        ...initialConversation,
         conversationId: conversation.id,
+        conversationEpoch: epoch,
         hasHydrated: true,
         scrollIntent: 'initial',
       });
     } catch (e) {
       console.error('startNewConversation error:', e);
-      set({
-        ...initialConversation,
-        hasHydrated: get().hasHydrated,
-        scrollIntent: 'initial',
-      });
     } finally {
       syncSuspended = false;
     }
@@ -410,9 +457,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       clearTimeout(syncTimer);
       syncTimer = null;
     }
+    const epoch = nextEpoch(get().conversationEpoch);
     set({
       ...initialConversation,
+      conversationEpoch: epoch,
+      activeSurface: 'home',
       hasHydrated: get().hasHydrated,
+      isLoading: false,
     });
     syncSuspended = false;
     if (shouldSync) scheduleSync();
