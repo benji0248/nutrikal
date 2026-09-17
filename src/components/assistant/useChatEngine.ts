@@ -68,9 +68,8 @@ import {
   buildWelcomeText,
   buildFreshProfileWelcomeText,
   buildNoProfileWelcomeText,
-  deriveSurfaceFromMessages,
-  resolveSurfaceForEngineMode,
-  trailingOptionsMatchSurface,
+  planChatLifecycle,
+  shouldAppendSurfaceOptions,
 } from '../../utils/chatLifecycle';
 
 export { AI_CONVERSATION_HISTORY_LIMIT };
@@ -212,6 +211,8 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
       chat.setLastMealDate(null);
       chat.clearPendingAction();
     }
+    // Avoid consecutive duplicate option rows on reconcile / repeated enterSurface.
+    if (!shouldAppendSurfaceOptions(chat.messages, surface, ctx)) return;
     addMessages(optionsMessage(surface, ctx));
   }
 
@@ -219,39 +220,41 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
   useEffect(() => {
     if (!hasHydrated) return;
     const chat = useChatStore.getState();
-    // Calendar slot intent owns the next transition.
-    if (chat.calendarMealIntent) return;
 
-    if (chat.messages.length === 0) {
-      if (!profile) {
+    const plan = planChatLifecycle({
+      hasHydrated,
+      hasCalendarIntent: Boolean(chat.calendarMealIntent),
+      hasProfile: Boolean(profile),
+      messages: chat.messages,
+      engineMode,
+      lastMealType: chat.lastMealType,
+      alreadyReconciledThisEpoch: reconciledEpochRef.current === conversationEpoch,
+    });
+
+    if (plan.action === 'none') return;
+
+    if (plan.action === 'seed') {
+      if (plan.surface === 'no_profile') {
         chat.setActiveSurface('no_profile');
         chat.replaceMessages(buildNoProfileWelcomeMessages(), 'initial');
         return;
       }
+      if (!profile) return;
       chat.setActiveSurface('home');
       chat.replaceMessages(buildWelcomeMessagesForProfile(profile, false), 'initial');
       return;
     }
 
-    // Rebuild missing/incorrect trailing actions for restored conversations once per epoch.
-    if (reconciledEpochRef.current === conversationEpoch) return;
+    // reconcile
     reconciledEpochRef.current = conversationEpoch;
-
-    const surfaceRaw = deriveSurfaceFromMessages(chat.messages, !!profile);
-    // Main assistant must not stay stuck on Calendario slot chips after overlay closes.
-    const surface = resolveSurfaceForEngineMode(surfaceRaw, engineMode);
-    chat.setActiveSurface(surface);
-    const ctx =
-      surface === 'calendar_slot' && chat.lastMealType
-        ? { mealType: chat.lastMealType }
-        : undefined;
-    if (surface === 'home' && surfaceRaw === 'calendar_slot') {
+    chat.setActiveSurface(plan.surface);
+    if (plan.clearMealContext) {
       chat.setLastMealType(null);
       chat.setLastMealDate(null);
       chat.clearPendingAction();
     }
-    if (!trailingOptionsMatchSurface(chat.messages, surface, ctx)) {
-      addMessages(optionsMessage(surface, ctx));
+    if (plan.appendOptions) {
+      addMessages(optionsMessage(plan.surface, plan.optionsCtx));
     }
   }, [profile, hasHydrated, conversationEpoch, engineMode]);
 

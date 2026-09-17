@@ -11,6 +11,14 @@ import { buildCalendarSlotOptions } from './calendarMealChat';
  * Functional conversational surface — single source of truth for which
  * quick actions belong to the current chat lifecycle stage.
  * Actions are rebuilt from this surface, not from the message sequence.
+ *
+ * Persistence note:
+ * `activeSurface` is intentionally NOT persisted to the backend today.
+ * Persisting it would require a schema/API migration (`chat_conversations`
+ * only stores messages + lastWeekPlan + lastMealType). With robust
+ * `deriveSurfaceFromMessages` + trailing-options semantics, restore is
+ * deterministic for both new and legacy transcripts. Prefer adding an
+ * explicit `active_surface` column later if we want to drop inference.
  */
 export type ChatSurface =
   | 'no_profile'
@@ -219,9 +227,44 @@ export function resolveSurfaceForEngineMode(
   return surface;
 }
 
+function optionKey(o: ChatOption): string {
+  return `${o.action}::${o.id}::${o.payload ?? ''}`;
+}
+
+function optionsMatchExpected(actual: ChatOption[], expected: ChatOption[]): boolean {
+  if (actual.length !== expected.length) return false;
+  const expectedKeys = new Set(expected.map(optionKey));
+  return actual.every((o) => expectedKeys.has(optionKey(o)));
+}
+
 /**
- * Infer surface from a persisted transcript so hydrate/openConversation
- * can rebuild the correct trailing actions without depending on path history.
+ * Options that are truly "current": the transcript must end with
+ * `assistant-options` (ignoring only trailing loading bubbles).
+ * Older options buried under later text/dish/plan/applied/user turns
+ * are NOT trailing and must not satisfy reconcile.
+ */
+export function getTrailingOptionsMessage(messages: ChatMessage[]): ChatMessage | null {
+  let i = messages.length - 1;
+  while (i >= 0 && messages[i]?.type === 'assistant-loading') i -= 1;
+  if (i < 0) return null;
+  const last = messages[i];
+  if (!last || last.type !== 'assistant-options') return null;
+  return last;
+}
+
+export function getTrailingOptions(messages: ChatMessage[]): ChatOption[] | null {
+  const msg = getTrailingOptionsMessage(messages);
+  return msg?.options?.length ? msg.options : null;
+}
+
+/**
+ * Infer surface from a persisted transcript (fallback when `activeSurface`
+ * is not persisted). Walks from the end so later transitions win over
+ * older option rows.
+ *
+ * `assistant-applied` is only created by week-plan apply (`handleApplyPlan`);
+ * dish apply never emits that type — verified repo-wide. Therefore it maps
+ * deterministically to `post_apply_plan`.
  */
 export function deriveSurfaceFromMessages(
   messages: ChatMessage[],
@@ -237,21 +280,24 @@ export function deriveSurfaceFromMessages(
       const actions = new Set(m.options.map((o) => o.action));
       if (actions.has('create_profile')) return 'no_profile';
       if (actions.has('pick_meal_type')) return 'pick_meal';
-      if (actions.has('rescue_rebalance') || actions.has('rescue_mark_flex')) return 'rescue';
-      if (actions.has('generate_for_slot') || actions.has('quick_reply')) return 'calendar_slot';
-      if (actions.has('go_shopping')) return 'post_apply_plan';
-      if (actions.has('go_calendar') && actions.has('start_cook_now')) {
-        return optionsIncludeWeekPlan(m.options) || actions.has('week_plan')
-          ? 'post_apply_dish'
-          : 'post_apply_dish';
+      if (actions.has('rescue_rebalance') || actions.has('rescue_mark_flex') || actions.has('rescue_continue')) {
+        return 'rescue';
       }
-      if (actions.has('week_plan') && actions.has('start_cook_now')) return 'home';
+      if (actions.has('generate_for_slot') || actions.has('quick_reply')) return 'calendar_slot';
+      // Plan post-apply always includes shopping CTA; dish post-apply does not.
+      if (actions.has('go_shopping')) return 'post_apply_plan';
+      if (actions.has('go_calendar') && actions.has('start_cook_now')) return 'post_apply_dish';
+      if (actions.has('week_plan') && actions.has('start_cook_now') && actions.has('rescue')) {
+        return 'home';
+      }
+      if (actions.has('week_plan') && actions.has('start_cook_now')) return 'home_fresh';
       if (actions.has('week_plan')) return 'home_fresh';
       continue;
     }
 
     if (m.type === 'assistant-dish') return 'review_dish';
     if (m.type === 'assistant-plan') return 'review_plan';
+    // Only emitted after applying a week plan — never after a single dish.
     if (m.type === 'assistant-applied') return 'post_apply_plan';
 
     if (m.type === 'assistant-text' || m.type === 'user-text' || m.type === 'user-choice') {
@@ -263,21 +309,84 @@ export function deriveSurfaceFromMessages(
 }
 
 /**
- * True when the latest trailing options already match the expected action set
- * for the surface (order-insensitive by action+id).
+ * True when the transcript *ends* with options that already match the
+ * expected action set for the surface (order-insensitive by action+id+payload).
  */
 export function trailingOptionsMatchSurface(
   messages: ChatMessage[],
   surface: ChatSurface,
   ctx?: { mealType?: MealType; hasExistingMeal?: boolean },
 ): boolean {
-  const expected = buildActionsForSurface(surface, ctx);
-  const last = [...messages].reverse().find((m) => m.type === 'assistant-options');
-  if (!last?.options || last.options.length !== expected.length) return false;
+  const trailing = getTrailingOptions(messages);
+  if (!trailing) return false;
+  return optionsMatchExpected(trailing, buildActionsForSurface(surface, ctx));
+}
 
-  const key = (o: ChatOption) => `${o.action}::${o.id}::${o.payload ?? ''}`;
-  const expectedKeys = new Set(expected.map(key));
-  return last.options.every((o) => expectedKeys.has(key(o)));
+export type ChatLifecycleEngineMode = 'home' | 'calendar_overlay';
+
+export type ChatLifecyclePlan =
+  | { action: 'none' }
+  | { action: 'seed'; surface: 'home' | 'no_profile' }
+  | {
+      action: 'reconcile';
+      surface: ChatSurface;
+      /** When true, append a fresh options row for `surface`. */
+      appendOptions: boolean;
+      /** Clear lastMealType / lastMealDate / pendingAction (home promotion). */
+      clearMealContext: boolean;
+      optionsCtx?: { mealType?: MealType; hasExistingMeal?: boolean };
+    };
+
+/**
+ * Pure planner for the mount/hydrate/reset reconcile effect in useChatEngine.
+ * Keeping this outside React lets us integration-test the real wiring rules
+ * without mounting the full app.
+ */
+export function planChatLifecycle(input: {
+  hasHydrated: boolean;
+  hasCalendarIntent: boolean;
+  hasProfile: boolean;
+  messages: ChatMessage[];
+  engineMode: ChatLifecycleEngineMode;
+  lastMealType: MealType | null;
+  alreadyReconciledThisEpoch: boolean;
+}): ChatLifecyclePlan {
+  if (!input.hasHydrated) return { action: 'none' };
+  if (input.hasCalendarIntent) return { action: 'none' };
+
+  if (input.messages.length === 0) {
+    return {
+      action: 'seed',
+      surface: input.hasProfile ? 'home' : 'no_profile',
+    };
+  }
+
+  if (input.alreadyReconciledThisEpoch) return { action: 'none' };
+
+  const surfaceRaw = deriveSurfaceFromMessages(input.messages, input.hasProfile);
+  const surface = resolveSurfaceForEngineMode(surfaceRaw, input.engineMode);
+  const clearMealContext = surface === 'home' && surfaceRaw === 'calendar_slot';
+  const optionsCtx =
+    surface === 'calendar_slot' && input.lastMealType
+      ? { mealType: input.lastMealType }
+      : undefined;
+
+  return {
+    action: 'reconcile',
+    surface,
+    appendOptions: !trailingOptionsMatchSurface(input.messages, surface, optionsCtx),
+    clearMealContext,
+    optionsCtx,
+  };
+}
+
+/** Whether enterSurface should append chips (skip consecutive duplicates). */
+export function shouldAppendSurfaceOptions(
+  messages: ChatMessage[],
+  surface: ChatSurface,
+  ctx?: { mealType?: MealType; hasExistingMeal?: boolean },
+): boolean {
+  return !trailingOptionsMatchSurface(messages, surface, ctx);
 }
 
 export function buildWelcomeText(name?: string): string {

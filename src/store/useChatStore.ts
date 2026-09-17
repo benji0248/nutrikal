@@ -48,7 +48,9 @@ interface ChatState {
 
   /**
    * Functional chat surface (source of truth for available actions).
-   * Not persisted — rebuilt on hydrate/open via deriveSurfaceFromMessages.
+   * Not persisted to the backend — restoring uses deriveSurfaceFromMessages
+   * as a legacy/fallback path (see chatLifecycle.ts persistence note).
+   * Explicit DB persistence would need a schema + API migration.
    */
   activeSurface: ChatSurface;
   /**
