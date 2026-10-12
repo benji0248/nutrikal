@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "tsx scripts/dev-api-server.ts",
-    "dev:all": "concurrently -n api,vite -c blue,green \"npm run dev:api\" \"npm run dev\"",
+    "dev:all": "concurrently -n api,vite -c blue,green \"npm run dev:api:platform\" \"npm run dev\"",
+    "dev:api:platform": "echo 'Run nutrikal-api from personal-backend-platform: pnpm --filter @platform/nutrikal-api dev'",
     "smoke:db": "node scripts/smoke-db.mjs",
     "smoke:portion": "tsx scripts/smoke-portion-trust.ts",
     "test:scenarios": "node scripts/scenario-week-plan.mjs",
