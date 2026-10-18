@@ -19,6 +19,7 @@ import { getSupabase } from '../_lib/supabase.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../_lib/rateLimit.js';
 import { chatApiLog, chatApiLogError, redactUserId } from '../_lib/chatFlowLog.js';
 import { isGeminiTransientError, withGeminiRetry } from '../_lib/geminiRetry.js';
+import { findDislikedIngredientNames } from '../../src/utils/foodPreferences.js';
 
 interface ChatRequestBody {
   message: string;
@@ -49,13 +50,15 @@ async function fetchProfile(userId: string): Promise<FetchedProfile> {
   try {
     const supabase = getSupabase();
 
-    const { data: row } = await supabase
+    const { data: row, error } = await supabase
       .from('user_profiles')
       .select(
-        'name, nationality, restrictions, birth_date, sex, height_cm, weight_kg, activity_level, goal',
+        'name, nationality, restrictions, disliked_ingredient_ids, disliked_categories, allowed_exceptions, birth_date, sex, height_cm, weight_kg, activity_level, goal',
       )
       .eq('user_id', userId)
       .maybeSingle();
+
+    if (error) throw error;
 
     if (row) {
       const metabolic = hasMetabolicFields(row)
@@ -73,15 +76,20 @@ async function fetchProfile(userId: string): Promise<FetchedProfile> {
         nationality: typeof row.nationality === 'string' ? row.nationality : undefined,
         restrictions: Array.isArray(row.restrictions) ? (row.restrictions as string[]) : undefined,
         name: typeof row.name === 'string' ? row.name : undefined,
+        dislikedIngredientIds: Array.isArray(row.disliked_ingredient_ids) ? row.disliked_ingredient_ids as string[] : [],
+        dislikedCategories: Array.isArray(row.disliked_categories) ? row.disliked_categories as string[] : [],
+        allowedExceptions: Array.isArray(row.allowed_exceptions) ? row.allowed_exceptions as string[] : [],
         metabolic,
       };
     }
 
-    const { data: legacy } = await supabase
+    const { data: legacy, error: legacyError } = await supabase
       .from('user_data')
       .select('data')
       .eq('user_id', userId)
       .maybeSingle();
+
+    if (legacyError) throw legacyError;
 
     const profile = (legacy?.data as Record<string, unknown> | undefined)?.profile as
       | Record<string, unknown>
@@ -102,10 +110,13 @@ async function fetchProfile(userId: string): Promise<FetchedProfile> {
       nationality: typeof profile?.nationality === 'string' ? profile.nationality : undefined,
       restrictions: Array.isArray(profile?.restrictions) ? (profile.restrictions as string[]) : undefined,
       name: typeof profile?.name === 'string' ? profile.name : undefined,
+      dislikedIngredientIds: Array.isArray(profile?.dislikedIngredientIds) ? profile.dislikedIngredientIds as string[] : [],
+      dislikedCategories: Array.isArray(profile?.dislikedCategories) ? profile.dislikedCategories as string[] : [],
+      allowedExceptions: Array.isArray(profile?.allowedExceptions) ? profile.allowedExceptions as string[] : [],
       metabolic,
     };
   } catch {
-    return {};
+    throw new Error('No se pudieron leer las preferencias alimentarias del usuario.');
   }
 }
 
@@ -261,6 +272,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dish = JSON.parse(responseText) as AiDishResponse;
     } catch {
       chatApiLog(reqId, 'gemini_json_parse_fail', { geminiMs, chars: responseText.length });
+    }
+
+    if (dish && Array.isArray(dish.ingredientes)) {
+      const conflicts = findDislikedIngredientNames(dish.ingredientes.map((ingredient) => ingredient.nombre), profile);
+      if (conflicts.length) {
+        return res.status(422).json({
+          error: 'food_preferences',
+          text: 'La sugerencia incluía alimentos que preferís evitar. Pedime otra opción para respetar tus gustos.',
+        });
+      }
     }
 
     chatApiLog(reqId, 'gemini_done', {

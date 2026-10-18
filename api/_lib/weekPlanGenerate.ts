@@ -15,6 +15,7 @@ import {
   type WeekPlanningInput,
 } from './weekPlanPrompts.js';
 import { parseGeminiJson } from './parseGeminiJson.js';
+import { buildFoodPreferencesPrompt, findDislikedIngredientNames } from '../../src/utils/foodPreferences.js';
 
 export interface AiDishIngredient {
   nombre: string;
@@ -53,8 +54,8 @@ const MAX_TEMPLATES = 8;
 const PARSE_ATTEMPTS = 2;
 
 export const WEEK_PLAN_MODEL = 'gemini-2.5-flash';
-export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v3.1-inventory';
-export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v1';
+export const WEEK_PLAN_PROMPT_VERSION = 'week-plan-oneshot-v3.2-food-preferences';
+export const WEEK_PLAN_BUSINESS_RULES_VERSION = 'week-plan-rules-v2-food-preferences';
 export const WEEK_PLAN_ALGORITHM_VERSION = 'week-plan-oneshot-v1';
 
 const WEEK_PLAN_RESPONSE_SCHEMA: JsonSchema = {
@@ -334,7 +335,7 @@ export async function generateWeekPlanOneShot(params: {
     ? computeMaintenanceBudget(metabolic)
     : undefined;
 
-  const system = await tracker.stage('build_prompt', () => buildWeekPlanOneShotPrompt({
+  const system = await tracker.stage('build_prompt', () => [buildWeekPlanOneShotPrompt({
       profileName: params.profile.name,
       nationality: params.profile.nationality,
       restrictions: params.profile.restrictions,
@@ -344,7 +345,7 @@ export async function generateWeekPlanOneShot(params: {
       weekDates: params.weekDates,
       dailyBudgetKcal,
       maintenanceBudgetKcal,
-    }),
+    }), buildFoodPreferencesPrompt(params.profile)].filter(Boolean).join('\n\n'),
     { promptVersion: WEEK_PLAN_PROMPT_VERSION },
   );
 
@@ -381,7 +382,7 @@ export async function generateWeekPlanOneShot(params: {
           model: WEEK_PLAN_MODEL,
           messages: [
             { role: 'system', content: system },
-            { role: 'user', content: userMsg },
+            { role: 'user', content: lastError ? `${userMsg}\nCorregí el intento anterior: ${lastError.message}` : userMsg },
           ],
           output: { type: 'json', schema: WEEK_PLAN_RESPONSE_SCHEMA, strict: true },
           parameters,
@@ -437,6 +438,13 @@ export async function generateWeekPlanOneShot(params: {
         for (const slot of needed) {
           if (!rawDishes[slot.templateId]) {
             throw new SchemaValidationError(`Missing dish for template ${slot.templateId}`);
+          }
+          const conflicts = findDislikedIngredientNames(
+            rawDishes[slot.templateId].ingredientes.map((ingredient) => ingredient.nombre),
+            params.profile,
+          );
+          if (conflicts.length) {
+            throw new SchemaValidationError(`El plato contiene alimentos que el usuario no quiere: ${conflicts.join(', ')}. Reemplazá esos ingredientes y respetá las excepciones permitidas.`);
           }
         }
         return { skeleton, rawDishes };

@@ -3,6 +3,7 @@ import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { DietaryRestriction, Ingredient } from '../../types';
 import { Input } from '../ui/Input';
+import { belongsToFoodCategory } from '../../utils/foodPreferences';
 
 interface DietaryPrefsProps {
   restrictions: DietaryRestriction[];
@@ -247,20 +248,12 @@ export function DietaryPrefs({
   function isCategoryIngredient(cat: string, ingredientId: string): boolean {
     const ing = allIngredients.find((i) => i.id === ingredientId);
     if (!ing) return false;
-    if (cat === 'pescado') {
-      const fishIds = ['ing_013', 'ing_014', 'ing_015', 'ing_016', 'ing_017', 'ing_018', 'ing_035'];
-      return fishIds.includes(ingredientId);
-    }
-    return false;
+    return belongsToFoodCategory(ing, cat);
   }
 
   /** Get all ingredients for a category (for exception selection) */
   function getCategoryIngredients(cat: string): Ingredient[] {
-    if (cat === 'pescado') {
-      const fishIds = ['ing_013', 'ing_014', 'ing_015', 'ing_016', 'ing_017', 'ing_018', 'ing_035'];
-      return allIngredients.filter((i) => fishIds.includes(i.id));
-    }
-    return [];
+    return allIngredients.filter((ingredient) => belongsToFoodCategory(ingredient, cat));
   }
 
   const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

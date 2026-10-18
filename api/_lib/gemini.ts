@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { buildFoodPreferencesPrompt, type FoodPreferences } from '../../src/utils/foodPreferences.js';
 
 let genAI: GoogleGenerativeAI | null = null;
 
@@ -107,7 +108,7 @@ export function normalizeNationality(raw?: string): { code: string; displayName?
   return { code: 'neutral', displayName: trimmed };
 }
 
-export interface GemProfile {
+export interface GemProfile extends FoodPreferences {
   nationality?: string;
   restrictions?: string[];
   name?: string;
@@ -201,6 +202,7 @@ export function buildSystemPrompt(profile: GemProfile, options: BuildPromptOptio
     greeting,
     cuisine,
     restrictions,
+    buildFoodPreferencesPrompt(profile),
     '',
     '## Creatividad y variedad',
     '- Cada respuesta: plato distinto en nombre, técnica y presentación.',

@@ -30,13 +30,15 @@ interface WeekPlanRequestBody {
 
 async function fetchProfile(userId: string): Promise<GemProfile & { metabolic?: MetabolicProfile }> {
   const supabase = getSupabase();
-  const { data: row } = await supabase
+  const { data: row, error } = await supabase
     .from('user_profiles')
     .select(
-      'name, nationality, restrictions, birth_date, sex, height_cm, weight_kg, activity_level, goal',
+      'name, nationality, restrictions, disliked_ingredient_ids, disliked_categories, allowed_exceptions, birth_date, sex, height_cm, weight_kg, activity_level, goal',
     )
     .eq('user_id', userId)
     .maybeSingle();
+
+  if (error) throw error;
 
   if (!row) return { name: undefined, nationality: undefined, restrictions: [] };
 
@@ -53,6 +55,9 @@ async function fetchProfile(userId: string): Promise<GemProfile & { metabolic?: 
     name: typeof row.name === 'string' ? row.name : undefined,
     nationality: typeof row.nationality === 'string' ? row.nationality : undefined,
     restrictions: Array.isArray(row.restrictions) ? (row.restrictions as string[]) : [],
+    dislikedIngredientIds: Array.isArray(row.disliked_ingredient_ids) ? row.disliked_ingredient_ids as string[] : [],
+    dislikedCategories: Array.isArray(row.disliked_categories) ? row.disliked_categories as string[] : [],
+    allowedExceptions: Array.isArray(row.allowed_exceptions) ? row.allowed_exceptions as string[] : [],
     metabolic,
   };
 }

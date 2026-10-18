@@ -5,6 +5,7 @@ import type {
   IngredientCategory,
   CatalogEntry,
 } from '../types';
+import { isIngredientDisliked } from '../utils/foodPreferences';
 
 /**
  * Categories excluded by each dietary restriction.
@@ -80,9 +81,6 @@ export function filterIngredientsForUser(
   allIngredients: Ingredient[],
   profile: UserProfile,
 ): Ingredient[] {
-  const dislikedSet = new Set(profile.dislikedIngredientIds);
-  const dislikedCats = new Set(profile.dislikedCategories ?? []);
-  const allowedExceptions = new Set(profile.allowedExceptions ?? []);
 
   // Build set of excluded categories from dietary restrictions
   const excludedCategories = new Set<IngredientCategory>();
@@ -98,12 +96,7 @@ export function filterIngredientsForUser(
 
   return allIngredients.filter((ing) => {
     // Skip disliked individual ingredients
-    if (dislikedSet.has(ing.id)) return false;
-
-    // Skip disliked categories (unless ingredient is an allowed exception)
-    if (dislikedCats.has(ing.category) && !allowedExceptions.has(ing.id)) {
-      return false;
-    }
+    if (isIngredientDisliked(ing, profile)) return false;
 
     // Skip categories excluded by dietary restrictions
     if (excludedCategories.has(ing.category)) return false;

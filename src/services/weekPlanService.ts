@@ -36,6 +36,7 @@ import {
 import { INGREDIENTS_DB } from '../data/ingredients';
 import { collectDishNamesFromWeekPlan, mergeAvoidDishNames } from './planRotationMemory';
 import type { Ingredient } from '../types';
+import { buildFoodPreferencesPrompt } from '../utils/foodPreferences';
 
 const EXPLICIT_AVOIDS_CAP = 6;
 const RECENT_CONSUMED_CAP = 8;
@@ -201,7 +202,10 @@ export function buildWeekPlanningContext(
     poolGeneration,
     tasteContext,
   });
-  const weeklyPoolPrompt = formatWeeklyPoolForPrompt(pool, allIngredients, !!tasteContext);
+  const weeklyPoolPrompt = [
+    formatWeeklyPoolForPrompt(pool, allIngredients, !!tasteContext),
+    buildFoodPreferencesPrompt(profile),
+  ].filter(Boolean).join('\n\n');
   const forbiddenDishNames = mergeAvoidDishNames(
     buildForbiddenDishNames(dayPlans),
     extraAvoidDishNames,

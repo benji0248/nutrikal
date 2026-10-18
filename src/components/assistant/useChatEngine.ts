@@ -62,6 +62,7 @@ import {
   mealTypeToPromptLabel,
 } from '../../utils/mealTimeHelpers';
 import { buildCalendarSlotIntro } from '../../utils/calendarMealChat';
+import { findDislikedIngredientNames } from '../../utils/foodPreferences';
 import {
   type ChatSurface,
   buildActionsForSurface,
@@ -417,7 +418,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
       );
       const dislikedNames = resolveDislikedIngredientNames(activeProfile, customIngredients);
       const dislikeLine = dislikedNames.length
-        ? `\nEVITÁ estos ingredientes (el usuario no los quiere): ${dislikedNames.slice(0, 8).join(', ')}.`
+        ? `\nEVITÁ estos ingredientes (el usuario no los quiere): ${dislikedNames.join(', ')}.`
         : '';
       const apiResult = await generateWeekPlan({
         weekDates: ctx.weekDates,
@@ -501,7 +502,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
     const memoryPromptBits: string[] = [];
     if (dislikedNames.length > 0) {
       memoryPromptBits.push(
-        `No uses estos ingredientes (no le gustan): ${dislikedNames.slice(0, 8).join(', ')}.`,
+        `No uses estos ingredientes (no le gustan): ${dislikedNames.join(', ')}.`,
       );
     }
     if (options?.variation && avoidNames.length > 0) {
@@ -1012,6 +1013,20 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
       }
       const rows: Array<{ date: string; mealType: MealType; meal: ReturnType<typeof plannedMealToMeal> }> = [];
       const aiMeals: AiMeal[] = [];
+      const preferences = useProfileStore.getState().profile;
+      const conflicts = preferences ? findDislikedIngredientNames(
+        plan.days.flatMap((day) => Object.values(day.meals).flatMap((meal) => meal?.ingredients.map((ingredient) => ingredient.name) ?? [])),
+        preferences,
+      ) : [];
+      if (conflicts.length) {
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: `Este plan incluye alimentos que preferís evitar (${[...new Set(conflicts)].join(', ')}). Regeneralo para respetar tus gustos.`,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
       for (const day of plan.days) {
         for (const mt of MEAL_TYPE_ORDER) {
           const planned = day.meals[mt];
