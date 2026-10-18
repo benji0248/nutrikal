@@ -284,6 +284,14 @@ async function withAuth(
 }
 
 const handlers: Record<string, RouteHandler> = {
+  'GET assistant-beta': async (req, res) => {
+    const { default: handler } = await import('../_lib/assistantBeta/handler.js');
+    return handler(req, res);
+  },
+  'POST assistant-beta': async (req, res) => {
+    const { default: handler } = await import('../_lib/assistantBeta/handler.js');
+    return handler(req, res);
+  },
   'GET data/batch-load': async (req, res, auth) => {
     const supabase = getSupabase();
     const uid = auth.userId;

@@ -33,7 +33,7 @@ import { WeekView } from './components/calendar/WeekView';
 import { MonthView } from './components/calendar/MonthView';
 import { DayView } from './components/calendar/DayView';
 import { HistorialView } from './components/historial/HistorialView';
-import { ChatAssistant } from './components/assistant/ChatAssistant';
+import { AssistantEntry } from './components/assistant/AssistantEntry';
 import { ShoppingListView } from './components/shopping/ShoppingList';
 import { ProfileSetup } from './components/profile/ProfileSetup';
 import { ProfileRecalibrate } from './components/profile/ProfileRecalibrate';
@@ -298,7 +298,7 @@ function AuthenticatedApp() {
             <WeekView onNavigateToAssistant={goToAssistant} onOpenMealChat={openMealChat} />
           )}
           {activeTab === 'calendar' && view === 'month' && <MonthView onNavigateToAssistant={goToAssistant} />}
-          {activeTab === 'assistant' && <ChatAssistant onTabChange={setActiveTab} />}
+          {activeTab === 'assistant' && <AssistantEntry onTabChange={setActiveTab} />}
           {activeTab === 'historial' && <HistorialView />}
           {activeTab === 'estudios' && <MisEstudiosView />}
           {activeTab === 'shopping' && <ShoppingListView />}
