@@ -1,6 +1,6 @@
 import { getDay, parseISO } from 'date-fns';
 import type { Goal, WeekPlanningProfile, WeekdayFlexMode, WeekdayFlexRule } from '../types';
-import { DEFAULT_WEEK_PLANNING } from '../types';
+import { DEFAULT_WEEK_PLANNING } from '../types/index.js';
 
 export const WEEKDAY_LABELS_SHORT = [
   { weekday: 1, label: 'Lun' },

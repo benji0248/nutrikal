@@ -1,8 +1,8 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns';
-import { MEAL_TYPE_ORDER } from '../types';
+import { MEAL_TYPE_ORDER } from '../types/index.js';
 import type { AiMeal, Ingredient, MealType, WeekPlan } from '../types';
 import type { CalendarChangeSummary, CalendarMeal, CalendarOperation, CalendarPlanningState, OverlapPolicy } from './calendarPlanTypes';
-import { createShoppingItemsFromAiMeals } from './shoppingService';
+import { createShoppingItemsFromAiMeals } from './shoppingService.js';
 
 export const planShoppingId = (id: string): string => `calendar-plan:${id}`;
 const dateKey = (date: Date) => format(date, 'yyyy-MM-dd');

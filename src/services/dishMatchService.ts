@@ -11,11 +11,11 @@ import type {
   AiIngredient,
   AiMeal,
 } from '../types';
-import { INGREDIENTS_DB } from '../data/ingredients';
-import { computeTotalMacros } from '../utils/macroHelpers';
-import { gramsToHumanPortion } from '../utils/portionHelpers';
-import { generateId } from '../utils/dateHelpers';
-import { chatClientLog } from '../utils/chatFlowLog';
+import { INGREDIENTS_DB } from '../data/ingredients.js';
+import { computeTotalMacros } from '../utils/macroHelpers.js';
+import { gramsToHumanPortion } from '../utils/portionHelpers.js';
+import { generateId } from '../utils/dateHelpers.js';
+import { chatClientLog } from '../utils/chatFlowLog.js';
 
 /** Gemini a veces usa nombres distintos a la DB local. */
 const INGREDIENT_ALIASES: Record<string, string> = {

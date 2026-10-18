@@ -5,12 +5,12 @@ import type {
   WeeklyIngredientPool,
   Cuisine,
 } from '../types';
-import { filterIngredientsForUser } from './ingredientFilter';
+import { filterIngredientsForUser } from './ingredientFilter.js';
 import {
   buildIngredientTasteScores,
   rankIngredientsByTaste,
   type TasteSelectionContext,
-} from './ingredientTasteModel';
+} from './ingredientTasteModel.js';
 
 /**
  * Cantidades por banda en la canasta semanal (rotación por semana ISO + semilla de historial).

@@ -13,30 +13,30 @@ import type {
   WeekPlanSkeletonSlot,
   WeeklyIngredientPool,
 } from '../types';
-import { MEAL_TYPE_ORDER } from '../types';
+import { MEAL_TYPE_ORDER } from '../types/index.js';
 import {
   hydrateAiDish,
   normalizeHydratedAiDishToBudget,
   hydratedDishToAiMeal,
-} from './dishMatchService';
-import { computeMetabolism } from './metabolicService';
+} from './dishMatchService.js';
+import { computeMetabolism } from './metabolicService.js';
 import {
   buildWeeklyIngredientPool,
   buildPoolPersonalizationSeed,
   formatWeeklyPoolForPrompt,
-} from './ingredientSelectionService';
-import { getActiveMealSlots, getMealSlotBudgetForPattern } from './portionEngine';
-import { getPlanningDayKeys, getDefaultPlanStartDate } from '../utils/dateHelpers';
+} from './ingredientSelectionService.js';
+import { getActiveMealSlots, getMealSlotBudgetForPattern } from './portionEngine.js';
+import { getPlanningDayKeys, getDefaultPlanStartDate } from '../utils/dateHelpers.js';
 import {
   formatWeekdayRulesForPrompt,
   getDayDisplayLabel,
   getFlexModeForDate,
   normalizeWeekPlanningProfile,
-} from '../utils/flexDayHelpers';
-import { INGREDIENTS_DB } from '../data/ingredients';
-import { collectDishNamesFromWeekPlan, mergeAvoidDishNames } from './planRotationMemory';
+} from '../utils/flexDayHelpers.js';
+import { INGREDIENTS_DB } from '../data/ingredients.js';
+import { collectDishNamesFromWeekPlan, mergeAvoidDishNames } from './planRotationMemory.js';
 import type { Ingredient } from '../types';
-import { buildFoodPreferencesPrompt } from '../utils/foodPreferences';
+import { buildFoodPreferencesPrompt } from '../utils/foodPreferences.js';
 
 const EXPLICIT_AVOIDS_CAP = 6;
 const RECENT_CONSUMED_CAP = 8;

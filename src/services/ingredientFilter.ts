@@ -5,7 +5,7 @@ import type {
   IngredientCategory,
   CatalogEntry,
 } from '../types';
-import { isIngredientDisliked } from '../utils/foodPreferences';
+import { isIngredientDisliked } from '../utils/foodPreferences.js';
 
 /**
  * Categories excluded by each dietary restriction.

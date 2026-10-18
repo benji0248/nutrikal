@@ -13,7 +13,8 @@
     "test:scenarios:fixtures": "node scripts/scenario-week-plan.mjs --analyze-fixtures",
     "test:scenarios:list": "node scripts/scenario-week-plan.mjs --list",
     "test:unit": "vitest run",
-    "build": "tsc -b && vite build",
+    "check:server-imports": "node scripts/check-server-imports.mjs",
+    "build": "npm run check:server-imports && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

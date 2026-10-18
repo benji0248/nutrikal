@@ -1,5 +1,5 @@
 import type { DayPlan, Ingredient, IngredientSignalEntry } from '../types';
-import { MEAL_TYPE_ORDER } from '../types';
+import { MEAL_TYPE_ORDER } from '../types/index.js';
 
 const MS_PER_DAY = 86_400_000;
 const SIGNAL_WINDOW_DAYS = 120;

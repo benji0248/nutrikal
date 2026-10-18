@@ -1,5 +1,5 @@
 import type { Dish, EnergyLevel, Ingredient, IngredientPortion } from '../types';
-import { INGREDIENT_PORTIONS, CATEGORY_DEFAULTS } from '../data/ingredientPortions';
+import { INGREDIENT_PORTIONS, CATEGORY_DEFAULTS } from '../data/ingredientPortions.js';
 
 export type MealWeightLabel = 'liviano' | 'balanceado' | 'contundente';
 

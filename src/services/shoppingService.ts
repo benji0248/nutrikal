@@ -9,8 +9,8 @@ import type {
   ShoppingSection,
   IngredientCategory,
 } from '../types';
-import { SHOPPING_SECTION_LABELS } from '../types';
-import { generateId } from '../utils/dateHelpers';
+import { SHOPPING_SECTION_LABELS } from '../types/index.js';
+import { generateId } from '../utils/dateHelpers.js';
 
 const CATEGORY_TO_SECTION: Record<IngredientCategory, ShoppingSection> = {
   carnes: 'carniceria',

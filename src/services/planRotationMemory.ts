@@ -1,5 +1,5 @@
 import type { PlanMemory, WeekPlan } from '../types';
-import { MEAL_TYPE_ORDER } from '../types';
+import { MEAL_TYPE_ORDER } from '../types/index.js';
 
 const MAX_AVOID_NAMES = 96;
 const MAX_REJECTED_NAMES = 32;

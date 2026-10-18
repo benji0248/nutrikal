@@ -13,7 +13,7 @@ import {
   floorGramsToStep,
   floorKcalFromGrams,
   trimHydratedUnderCalorieBudget,
-} from './portionRounding';
+} from './portionRounding.js';
 
 // ── Meal-slot budget distribution (% of dailyBudget) ──
 
