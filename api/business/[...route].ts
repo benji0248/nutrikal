@@ -16,6 +16,7 @@ import {
 import { mapStudySummary } from '../_lib/medicalStudyMapper.js';
 import type { MedicalStudyRow } from '../_lib/medicalStudyTypes.js';
 import { medicalStudyHandlers, normalizeMedicalStudyKey } from '../_lib/medicalStudyHandlers.js';
+import { calendarPlanningHandler } from '../_lib/calendarPlanning.js';
 
 interface AuthenticatedRequest {
   userId: string;
@@ -403,6 +404,9 @@ const handlers: Record<string, RouteHandler> = {
       humanPortion: m.human_portion ?? null,
       preparation: m.preparation ?? null,
       tip: m.tip ?? null,
+      planId: m.plan_id ?? undefined,
+      optionId: m.option_id ?? undefined,
+      isAlternative: m.is_alternative ?? false,
     }));
 
     const dayNotes = (notesRes.data ?? []).map((n) => ({ date: n.date, notes: n.notes }));
@@ -1080,6 +1084,8 @@ const handlers: Record<string, RouteHandler> = {
     return res.status(200).json({ ok: true });
   },
 
+  'GET calendar/plans': async (req, res, auth) => calendarPlanningHandler(req, res, auth.userId),
+  'POST calendar/operations': async (req, res, auth) => calendarPlanningHandler(req, res, auth.userId),
   'GET meals': async (req, res, auth) => {
     const from = req.query.from as string | undefined;
     const to = req.query.to as string | undefined;
@@ -1092,6 +1098,7 @@ const handlers: Record<string, RouteHandler> = {
       meals: (data ?? []).map((m) => ({
         id: m.id, date: m.date, mealType: m.meal_type, name: m.name, calories: m.calories, notes: m.notes,
         linkedRecipeId: m.linked_recipe_id, entries: m.entries ?? [], aiIngredients: m.ai_ingredients ?? [], completed: m.completed ?? false,
+        planId: m.plan_id ?? undefined, optionId: m.option_id ?? undefined, isAlternative: m.is_alternative ?? false,
       })),
     });
   },
@@ -1104,6 +1111,9 @@ const handlers: Record<string, RouteHandler> = {
       entries: meal.entries ?? [], ai_ingredients: meal.aiIngredients ?? [], completed: meal.completed ?? false,
       prep_minutes: meal.prepMinutes ?? null, human_portion: meal.humanPortion ?? null,
       preparation: meal.preparation ?? null, tip: meal.tip ?? null,
+      ...(meal.planId !== undefined ? { plan_id: meal.planId } : {}),
+      ...(meal.optionId !== undefined ? { option_id: meal.optionId } : {}),
+      ...(meal.isAlternative !== undefined ? { is_alternative: meal.isAlternative } : {}),
     });
     if (error) return res.status(500).json({ error: 'Error al guardar comida' });
     return res.status(200).json({ ok: true });

@@ -34,6 +34,7 @@ interface CalendarState {
     entries: unknown[]; aiIngredients: unknown[]; completed: boolean;
     prepMinutes?: number | null; humanPortion?: string | null;
     preparation?: string | null; tip?: string | null;
+    planId?: string; optionId?: string; isAlternative?: boolean;
   }>, dayNotes: Array<{ date: string; notes: string }>) => void;
   hydrateNotifications: (notifications: Notification[]) => void;
 }
@@ -59,6 +60,13 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
   goToToday: () => set({ currentDate: todayKey() }),
 
   upsertMeal: (date, mealType, meal) => {
+    const original = useCalendarStore.getState().dayPlans[date]?.meals[mealType].find((candidate) => candidate.id === meal.id);
+    meal = { ...original, ...meal };
+    if (original?.planId) {
+      const changed = { ...meal, date, mealType };
+      void import('./useCalendarPlanStore').then(({ useCalendarPlanStore }) => useCalendarPlanStore.getState().perform({ kind: 'editMeal', meal: changed }, 'Comida del plan actualizada')).catch(console.error);
+      return;
+    }
     set((s) => {
       const existing = s.dayPlans[date] ?? createEmptyDayPlan(date);
       const slotMeals = existing.meals[mealType];
@@ -116,6 +124,11 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
   },
 
   deleteMeal: (date, mealType, mealId) => {
+    const original = useCalendarStore.getState().dayPlans[date]?.meals[mealType].find((candidate) => candidate.id === mealId);
+    if (original?.planId) {
+      void import('./useCalendarPlanStore').then(({ useCalendarPlanStore }) => useCalendarPlanStore.getState().perform({ kind: 'deleteMeal', mealId }, 'Comida del plan retirada')).catch(console.error);
+      return;
+    }
     set((s) => {
       const existing = s.dayPlans[date];
       if (!existing) return s;
@@ -231,8 +244,20 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
         humanPortion: m.humanPortion ?? undefined,
         preparation: m.preparation ?? undefined,
         tip: m.tip ?? undefined,
+        planId: m.planId,
+        optionId: m.optionId,
+        isAlternative: m.isAlternative,
       };
-      dayPlans[m.date].meals[m.mealType].push(calMeal);
+      if (m.isAlternative) {
+        const day = dayPlans[m.date];
+        day.alternatives ??= {};
+        const options = day.alternatives[m.mealType] ??= [];
+        let option = options.find((candidate) => candidate.id === (m.optionId ?? m.id));
+        if (!option) { option = { id: m.optionId ?? m.id, meals: [] }; options.push(option); }
+        option.meals.push(calMeal);
+      } else {
+        dayPlans[m.date].meals[m.mealType].push(calMeal);
+      }
     }
 
     for (const n of dayNotes) {

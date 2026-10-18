@@ -45,6 +45,9 @@ import { todayKey } from './utils/dateHelpers';
 import { mealTypeChipLabel } from './utils/mealTimeHelpers';
 import { MisEstudiosView } from './components/estudios/MisEstudiosView';
 import { CalendarMealChat } from './components/calendar/CalendarMealChat';
+import { PlanApplyDialog } from './components/planner/PlanApplyDialog';
+import { CalendarPlanManager } from './components/planner/CalendarPlanManager';
+import { useCalendarPlanStore } from './store/useCalendarPlanStore';
 
 import { LoginScreen } from './components/auth/LoginScreen';
 import { RegisterScreen } from './components/auth/RegisterScreen';
@@ -166,6 +169,7 @@ function AuthenticatedApp() {
         useProgressStore.getState().hydrateCheckIns(data.progressCheckIns ?? []);
         useChatStore.getState().hydrate(data.chatConversation ?? null);
         useMedicalStudiesStore.getState().hydrateStudies(data.medicalStudies ?? []);
+        try { await useCalendarPlanStore.getState().refresh(); } catch { /* Existing calendar remains usable if setup is pending. */ }
       } catch (e) {
         console.error('Init data load error:', e);
         useChatStore.getState().hydrate(null);
@@ -285,6 +289,8 @@ function AuthenticatedApp() {
         </header>
 
         <div className="px-4 md:px-10 py-6 pb-24 md:pb-12 max-w-[88rem] mx-auto">
+          <CalendarPlanManager visible={activeTab === 'calendar'} />
+          <PlanApplyDialog />
           {activeTab === 'calendar' && view === 'day' && (
             <DayView onNavigateToAssistant={goToAssistant} onOpenMealChat={openMealChat} />
           )}

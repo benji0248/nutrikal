@@ -21,6 +21,7 @@ export function MealForm({ editingMeal, onSubmit, onCancel }: MealFormProps) {
     e.preventDefault();
     if (!name.trim()) return;
     onSubmit({
+      ...editingMeal,
       id: editingMeal?.id ?? generateId(),
       name: name.trim(),
       calories: calories ? Number(calories) : undefined,

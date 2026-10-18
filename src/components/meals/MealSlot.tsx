@@ -13,6 +13,8 @@ import { INGREDIENTS_DB } from '../../data/ingredients';
 import { useRecipesStore } from '../../store/useRecipesStore';
 import { getMealCalories } from '../../utils/macroHelpers';
 import { getDishHumanIngredients, formatPortionDisplay, formatNamedIngredientPortion } from '../../utils/portionHelpers';
+import { useCalendarPlanStore } from '../../store/useCalendarPlanStore';
+import { todayKey } from '../../utils/dateHelpers';
 
 interface MealSlotProps {
   date: string;
@@ -64,6 +66,11 @@ export function MealSlot({
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
+  const alternatives = useCalendarStore((s) => s.dayPlans[date]?.alternatives?.[mealType]);
+  const planBusy = useCalendarPlanStore((s) => s.busy);
+  const planError = useCalendarPlanStore((s) => s.error);
   const showCalories = useSettingsStore((s) => s.showCalories);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const allIngredients = useMemo(() => [...INGREDIENTS_DB, ...customIngredients], [customIngredients]);
@@ -171,6 +178,30 @@ export function MealSlot({
           )}
         </div>
       </button>
+
+      {meals.length > 1 && date >= todayKey() && !meals.some((meal) => meal.completed) && <div className="px-4 pb-3">
+        <button type="button" className="min-h-[44px] text-sm font-medium text-accent" onClick={() => setOrganizing(!organizing)} aria-expanded={organizing}>¿Son comidas juntas o alternativas?</button>
+        {organizing && <div className="space-y-3 rounded-xl bg-surface2/40 p-3">
+          <p className="text-sm text-text-primary">Ahora se suman todas. Si querés elegir una y guardar el resto como alternativas, seleccioná cuál vas a comer.</p>
+          {meals.map((meal) => <button key={meal.id} type="button" disabled={planBusy} onClick={() => void useCalendarPlanStore.getState().refresh().then(() => useCalendarPlanStore.getState().perform({ kind: 'organize', date, mealType, selectedMealId: meal.id }, 'Comidas organizadas como alternativas')).then(() => setOrganizing(false)).catch(() => {})} className="block min-h-[44px] w-full rounded-xl bg-accent p-3 text-left text-sm text-white disabled:opacity-40">Elegir {meal.name}</button>)}
+          <p className="text-xs text-muted">Las listas de compras anteriores sin vínculo con un plan se conservan.</p>
+          <button type="button" onClick={() => setOrganizing(false)} className="min-h-[44px] text-sm text-text-primary">Se comen juntas · conservar como están</button>
+          {planError && <p role="alert" className="text-sm text-red-600">{planError}</p>}
+        </div>}
+      </div>}
+
+      {!!alternatives?.length && <div className="px-4 pb-3">
+        <button type="button" onClick={() => setShowOptions(!showOptions)} aria-expanded={showOptions} className="min-h-[44px] text-sm font-medium text-accent">Cambiar opción · {alternatives.length} {alternatives.length === 1 ? 'alternativa' : 'alternativas'}</button>
+        {showOptions && <div className="space-y-3 rounded-xl bg-surface2/40 p-3">
+          <p className="text-xs text-muted">Solo la opción elegida cuenta en calorías y compras.</p>
+          <p className="text-sm text-text-primary">Elegida: {assignedMealLabel ?? 'Todavía no elegiste una opción'}</p>
+          {alternatives.map((option) => <div key={option.id} className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm text-text-primary">{option.meals.map((meal) => meal.name).join(' · ')}{showCalories ? ` · ${option.meals.reduce((sum, meal) => sum + (getMealCalories(meal, allIngredients) ?? 0), 0)} kcal` : ''}</span>
+            <button type="button" disabled={planBusy || date < todayKey() || meals.some((meal) => meal.completed)} onClick={() => void useCalendarPlanStore.getState().perform({ kind: 'choose', date, mealType, optionId: option.id }, 'Opción de comida cambiada').then(() => setShowOptions(false)).catch(() => {})} className="min-h-[44px] rounded-xl bg-accent px-3 text-sm text-white disabled:opacity-40">Elegir esta opción</button>
+          </div>)}
+          {planError && <p role="alert" className="text-sm text-red-600">{planError}</p>}
+        </div>}
+      </div>}
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3">

@@ -62,6 +62,7 @@ export const useAuthStore = create<AuthStoreState>()(
         set({ user: null, authState: 'unauthenticated', error: null, errorField: undefined });
 
         // Reset all data stores
+        import('./useCalendarPlanStore').then(({ useCalendarPlanStore }) => useCalendarPlanStore.getState().reset());
         import('./useCalendarStore').then(({ useCalendarStore }) =>
           useCalendarStore.setState({ dayPlans: {}, notifications: [] }),
         );

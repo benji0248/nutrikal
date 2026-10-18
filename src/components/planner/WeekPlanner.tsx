@@ -1,6 +1,7 @@
 import { CalendarCheck, RefreshCw } from 'lucide-react';
 import type { WeekPlan, MealType } from '../../types';
 import { PlanReviewGrid } from './PlanReviewGrid';
+import { useCalendarPlanStore } from '../../store/useCalendarPlanStore';
 
 
 interface WeekPlannerProps {
@@ -13,6 +14,7 @@ interface WeekPlannerProps {
 }
 
 export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal, planAiBusy = false }: WeekPlannerProps) => {
+  const saving = useCalendarPlanStore((s) => s.busy);
   if (plan.applied) {
     return (
       <div className="w-full bg-[#ffffff] rounded-lg overflow-hidden shadow-[0px_20px_40px_rgba(25,28,23,0.06)] animate-fade-in">
@@ -40,7 +42,8 @@ export const WeekPlanner = ({ plan, onApply, onRegenerate, onSwapMeal, planAiBus
         <button
           type="button"
           onClick={() => onApply(plan)}
-          className="w-full mt-6 bg-[#226046] text-[#ffffff] font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          disabled={saving || planAiBusy}
+          className="w-full mt-6 bg-[#226046] text-[#ffffff] font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
         >
           <CalendarCheck size={18} />
           <span>Aplicar al calendario</span>

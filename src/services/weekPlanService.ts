@@ -322,7 +322,7 @@ export function expandSkeletonToWeekPlan(params: {
     });
   }
 
-  return { days: builtDays, applied: false };
+  return { id: crypto.randomUUID(), days: builtDays, applied: false };
 }
 
 export function validateWeekPlan(

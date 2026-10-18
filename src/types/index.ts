@@ -249,6 +249,9 @@ export interface CatalogEntry {
 
 export interface Meal {
   id: string;
+  planId?: string;
+  optionId?: string;
+  isAlternative?: boolean;
   name: string;
   calories?: number;
   notes?: string;
@@ -266,6 +269,7 @@ export interface Meal {
 export interface DayPlan {
   date: string;
   meals: Record<MealType, Meal[]>;
+  alternatives?: Partial<Record<MealType, Array<{ id: string; meals: Meal[] }>>>;
   notes: string;
   /** Override puntual (p.ej. rescue “hoy flexible”); no es la regla semanal. */
   dayMode?: WeekdayFlexMode;
@@ -547,6 +551,7 @@ export interface PlannedDay {
 }
 
 export interface WeekPlan {
+  id?: string;
   days: PlannedDay[];
   applied: boolean;
 }

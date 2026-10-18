@@ -44,8 +44,9 @@ export const useShoppingStore = create<ShoppingState>()((set, get) => ({
 
   addItemsToActiveList: (items: ShoppingItem[]) => {
     const state = get();
+    const activeList = state.lists.find((list) => !list.id.startsWith('calendar-plan:'));
 
-    if (state.lists.length === 0) {
+    if (!activeList) {
       const newList: ShoppingList = {
         id: generateId(),
         name: 'Lista de compras',
@@ -56,12 +57,11 @@ export const useShoppingStore = create<ShoppingState>()((set, get) => ({
         },
         items,
       };
-      set({ lists: [newList] });
+      set({ lists: [newList, ...state.lists] });
       api.createShoppingList(newList).catch(console.error);
       return;
     }
 
-    const activeList = state.lists[0];
     const mergedItems = [...activeList.items];
 
     for (const newItem of items) {
@@ -84,8 +84,8 @@ export const useShoppingStore = create<ShoppingState>()((set, get) => ({
       }
     }
 
-    const updatedLists = state.lists.map((l, idx) =>
-      idx === 0 ? { ...l, items: mergedItems } : l,
+    const updatedLists = state.lists.map((l) =>
+      l.id === activeList.id ? { ...l, items: mergedItems } : l,
     );
     set({ lists: updatedLists });
     api.updateShoppingListItems(activeList.id, mergedItems).catch(console.error);

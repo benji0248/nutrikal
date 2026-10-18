@@ -188,6 +188,7 @@ export interface BatchLoadResponse {
     entries: unknown[]; aiIngredients: unknown[]; completed: boolean;
     prepMinutes?: number | null; humanPortion?: string | null;
     preparation?: string | null; tip?: string | null;
+    planId?: string; optionId?: string; isAlternative?: boolean;
   }>;
   dayNotes: Array<{ date: string; notes: string }>;
   profile: UserProfile | null;
@@ -243,6 +244,13 @@ export async function createMealsBatch(
 
 export async function deleteMeal(id: string): Promise<void> {
   await del(`/api/meals/${encodeURIComponent(id)}`);
+}
+
+export async function loadCalendarPlanning(): Promise<import('./calendarPlanTypes').CalendarPlanningSnapshot> {
+  return get('/api/calendar/plans');
+}
+export async function commitCalendarOperation(operation: import('./calendarPlanTypes').CalendarOperation, expectedVersion: string, requestId: string): Promise<import('./calendarPlanTypes').CalendarOperationResult> {
+  return post('/api/calendar/operations', { operation, expectedVersion, requestId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
 }
 
 // ── Day Notes ──

@@ -5,7 +5,6 @@ import type {
   EnergyLevel,
   HydratedAiDish,
   MealType,
-  AiMeal,
   WeekPlan,
 } from '../../types';
 import { useProfileStore } from '../../store/useProfileStore';
@@ -26,7 +25,6 @@ import {
   hydrateAiDish,
   hydratedDishToMeal,
   hydratedDishToAiMeal,
-  plannedMealToMeal,
   normalizeHydratedAiDishToBudgetDetailed,
   PORTION_ADJUST_COPY,
 } from '../../services/dishMatchService';
@@ -50,10 +48,7 @@ import { formatProgressDetails } from '../../services/progressCopy';
 import { computeMetabolism } from '../../services/metabolicService';
 import { getMealSlotBudget } from '../../services/portionEngine';
 import { useCalendarStore } from '../../store/useCalendarStore';
-import { useShoppingStore } from '../../store/useShoppingStore';
-import { createShoppingItemsFromAiMeals } from '../../services/shoppingService';
-import { INGREDIENTS_DB } from '../../data/ingredients';
-import { MEAL_TYPE_ORDER } from '../../types';
+import { useCalendarPlanStore } from '../../store/useCalendarPlanStore';
 import { todayKey, formatDayFull, parseDate, getDefaultPlanStartDate, isValidPlanStartDate } from '../../utils/dateHelpers';
 import {
   getCurrentMealType,
@@ -186,7 +181,6 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
   const clearJustOnboarded = useProfileStore((s) => s.clearJustOnboarded);
   const hasWeekPlanningProfile = useWeekPlanningStore((s) => !!s.weekPlanning?.completedAt);
   const dayPlans = useCalendarStore((s) => s.dayPlans);
-  const bulkUpsertMeals = useCalendarStore((s) => s.bulkUpsertMeals);
   const upsertMeal = useCalendarStore((s) => s.upsertMeal);
   const customIngredients = useIngredientsStore((s) => s.customIngredients);
   const showCalories = useSettingsStore((s) => s.showCalories);
@@ -1002,7 +996,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
 
   const handleApplyPlan = useCallback(
     (plan: WeekPlan) => {
-      if (plan.days.length === 0 || plan.days.some((day) => !isValidPlanStartDate(day.date))) {
+      if (plan.days.length === 0) {
         addMessages({
           id: makeId(),
           type: 'assistant-text',
@@ -1011,8 +1005,6 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
         });
         return;
       }
-      const rows: Array<{ date: string; mealType: MealType; meal: ReturnType<typeof plannedMealToMeal> }> = [];
-      const aiMeals: AiMeal[] = [];
       const preferences = useProfileStore.getState().profile;
       const conflicts = preferences ? findDislikedIngredientNames(
         plan.days.flatMap((day) => Object.values(day.meals).flatMap((meal) => meal?.ingredients.map((ingredient) => ingredient.name) ?? [])),
@@ -1027,58 +1019,22 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
         });
         return;
       }
-      for (const day of plan.days) {
-        for (const mt of MEAL_TYPE_ORDER) {
-          const planned = day.meals[mt];
-          if (!planned) continue;
-          rows.push({ date: day.date, mealType: mt, meal: plannedMealToMeal(planned) });
-          aiMeals.push(planned);
-        }
-      }
-      if (rows.length > 0) {
-        bulkUpsertMeals(rows);
-      }
-      if (plan.days[0]) {
-        useCalendarStore.getState().setCurrentDate(plan.days[0].date);
-        useCalendarStore.getState().setView('week');
-      }
-
-      if (aiMeals.length > 0) {
-        const allIngredients = [...INGREDIENTS_DB, ...customIngredients];
-        const shoppingItems = createShoppingItemsFromAiMeals(aiMeals, allIngredients);
-        if (shoppingItems.length > 0) {
-          useShoppingStore.getState().addItemsToActiveList(shoppingItems);
-        }
-      }
-
-      recordWeekPlanApplied(plan);
-      const applied: WeekPlan = { ...plan, applied: true };
-      useChatStore.getState().setLastWeekPlan(applied);
-
-      useChatStore.getState().updateMessages((prev) =>
-        prev.map((m) =>
-          m.type === 'assistant-plan' && m.weekPlan && !m.weekPlan.applied
-            ? { ...m, weekPlan: applied }
-            : m,
-        ),
-      );
-
-      addMessages(
-        {
-          id: makeId(),
-          type: 'assistant-text',
-          text: `Tu plan desde el ${formatDayFull(parseDate(plan.days[0].date))} hasta el ${formatDayFull(parseDate(plan.days[plan.days.length - 1].date))} ya quedó en tu calendario y actualicé tu lista de compras.`,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          id: makeId(),
-          type: 'assistant-applied',
-          timestamp: new Date().toISOString(),
-        },
-      );
-      enterSurface('post_apply_plan');
+      const identified = { ...plan, id: plan.id ?? crypto.randomUUID() };
+      useChatStore.getState().updateMessages((messages) => messages.map((message) => message.weekPlan === plan ? { ...message, weekPlan: identified } : message));
+      useCalendarPlanStore.getState().requestApply(identified, (applied, result) => {
+        recordWeekPlanApplied({ ...applied, days: applied.days.map((day) => ({ ...day,
+          meals: Object.fromEntries(Object.entries(day.meals).filter(([type]) => result.meals.some((meal) => meal.planId === applied.id && meal.date === day.date && meal.mealType === type && !meal.isAlternative))),
+        })) });
+        useChatStore.getState().setLastWeekPlan(applied);
+        useChatStore.getState().updateMessages((messages) => messages.map((message) => message.weekPlan?.id === applied.id ? { ...message, weekPlan: applied } : message));
+        const counts = result.summary;
+        addMessages({ id: makeId(), type: 'assistant-text',
+          text: `Listo: ${counts.added} horarios agregados, ${counts.replaced} reemplazados y ${counts.preserved} conservados. ${counts.alternatives ? `Guardé ${counts.alternatives} alternativas sin sumarlas a calorías ni compras. ` : ''}Podés deshacer o administrar el plan desde el calendario.`,
+          timestamp: new Date().toISOString() });
+        enterSurface('post_apply_plan');
+      });
     },
-    [bulkUpsertMeals, customIngredients],
+    [],
   );
 
   const handleRegeneratePlan = useCallback(() => {
