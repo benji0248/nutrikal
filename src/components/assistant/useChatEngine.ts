@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import type {
   ChatMessage,
   ChatOption,
@@ -54,7 +54,7 @@ import { useShoppingStore } from '../../store/useShoppingStore';
 import { createShoppingItemsFromAiMeals } from '../../services/shoppingService';
 import { INGREDIENTS_DB } from '../../data/ingredients';
 import { MEAL_TYPE_ORDER } from '../../types';
-import { todayKey, formatDayFull, parseDate } from '../../utils/dateHelpers';
+import { todayKey, formatDayFull, parseDate, getDefaultPlanStartDate, isValidPlanStartDate } from '../../utils/dateHelpers';
 import {
   getCurrentMealType,
   isMealType,
@@ -156,7 +156,10 @@ interface ChatEngineResult {
   handleRegeneratePlan: () => void;
   handleRegenerateDish: (messageId: string, dish: HydratedAiDish, mealType?: MealType) => void;
   handleSwapMeal: (date: string, mealType: MealType) => void;
-  runWeekPlanGeneration: () => void;
+  runWeekPlanGeneration: (startDate?: string) => void;
+  planStartDate: string | null;
+  requestWeekPlanGeneration: () => void;
+  closePlanDateSelection: () => void;
   energyLevel: EnergyLevel;
   energyRatio: number;
   showCalories: boolean;
@@ -173,6 +176,9 @@ export type UseChatEngineOptions = {
 };
 
 export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult {
+  const [planStartDate, setPlanStartDate] = useState<string | null>(null);
+  const requestWeekPlanGeneration = useCallback(() => setPlanStartDate(getDefaultPlanStartDate()), []);
+  const closePlanDateSelection = useCallback(() => setPlanStartDate(null), []);
   const engineMode = options?.mode ?? 'home';
   const profile = useProfileStore((s) => s.profile);
   const justOnboarded = useProfileStore((s) => s.justOnboarded);
@@ -367,18 +373,20 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
     enterSurface('home');
   }
 
-  async function runWeekPlanGeneration() {
+  async function runWeekPlanGeneration(startDate = getDefaultPlanStartDate()) {
+    if (!isValidPlanStartDate(startDate)) return;
     const activeProfile = useProfileStore.getState().profile;
     const activeWeekPlanning = useWeekPlanningStore.getState().weekPlanning;
     if (!activeProfile || !activeWeekPlanning?.completedAt) return;
     const chat = useChatStore.getState();
     const epoch = chat.tryBeginSend();
     if (epoch == null) return;
+    setPlanStartDate(null);
 
     addMessages({
       id: makeId(),
       type: 'user-choice',
-      text: 'Planificá mi semana',
+      text: `Planificá 7 días desde el ${formatDayFull(parseDate(startDate))}`,
       timestamp: new Date().toISOString(),
     });
 
@@ -391,7 +399,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
     });
 
     try {
-      const weekId = getIsoWeekId(todayKey());
+      const weekId = getIsoWeekId(startDate);
       const poolGeneration = usePlanRotationStore.getState().bumpPoolGeneration(weekId);
 
       const rotation = usePlanRotationStore.getState();
@@ -399,7 +407,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
         activeProfile,
         dayPlans,
         customIngredients,
-        todayKey(),
+        startDate,
         [],
         poolGeneration,
         {
@@ -763,7 +771,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
           });
           return;
         }
-        void runWeekPlanGeneration();
+        requestWeekPlanGeneration();
         return;
       }
 
@@ -967,7 +975,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
         sendToAi(option.payload, mealType ? { mealType } : undefined);
       }
     },
-    [isLoading],
+    [isLoading, requestWeekPlanGeneration],
   );
 
   const handleApplyDish = useCallback(
@@ -993,6 +1001,15 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
 
   const handleApplyPlan = useCallback(
     (plan: WeekPlan) => {
+      if (plan.days.length === 0 || plan.days.some((day) => !isValidPlanStartDate(day.date))) {
+        addMessages({
+          id: makeId(),
+          type: 'assistant-text',
+          text: 'Este plan tiene fechas pasadas. Regeneralo y elegí desde qué día querés empezar.',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
       const rows: Array<{ date: string; mealType: MealType; meal: ReturnType<typeof plannedMealToMeal> }> = [];
       const aiMeals: AiMeal[] = [];
       for (const day of plan.days) {
@@ -1005,6 +1022,10 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
       }
       if (rows.length > 0) {
         bulkUpsertMeals(rows);
+      }
+      if (plan.days[0]) {
+        useCalendarStore.getState().setCurrentDate(plan.days[0].date);
+        useCalendarStore.getState().setView('week');
       }
 
       if (aiMeals.length > 0) {
@@ -1031,7 +1052,7 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
         {
           id: makeId(),
           type: 'assistant-text',
-          text: 'Tu semana está lista. Ya quedó en tu calendario y actualicé tu lista de compras.',
+          text: `Tu plan desde el ${formatDayFull(parseDate(plan.days[0].date))} hasta el ${formatDayFull(parseDate(plan.days[plan.days.length - 1].date))} ya quedó en tu calendario y actualicé tu lista de compras.`,
           timestamp: new Date().toISOString(),
         },
         {
@@ -1047,7 +1068,8 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
 
   const handleRegeneratePlan = useCallback(() => {
     if (isLoading) return;
-    void runWeekPlanGeneration();
+    const start = useChatStore.getState().lastWeekPlan?.days[0]?.date;
+    setPlanStartDate(start && isValidPlanStartDate(start) ? start : getDefaultPlanStartDate());
   }, [isLoading]);
 
   const handleRegenerateDish = useCallback(
@@ -1147,6 +1169,9 @@ export function useChatEngine(options?: UseChatEngineOptions): ChatEngineResult 
     handleRegenerateDish,
     handleSwapMeal,
     runWeekPlanGeneration,
+    planStartDate,
+    requestWeekPlanGeneration,
+    closePlanDateSelection,
     energyLevel: 'green',
     energyRatio: 0.5,
     showCalories,

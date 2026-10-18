@@ -7,6 +7,7 @@ import { useChatEngine } from '../assistant/useChatEngine';
 import { useChatStore } from '../../store/useChatStore';
 import { ProfileSetup } from '../profile/ProfileSetup';
 import { WeekPlanningSetup } from '../profile/WeekPlanningSetup';
+import { WeekPlanDateSelection } from '../planner/WeekPlanDateSelection';
 
 interface CalendarMealChatProps {
   title: string;
@@ -35,6 +36,9 @@ export function CalendarMealChat({ title, onClose, onTabChange }: CalendarMealCh
     isLoading,
     hasWeekPlanningProfile,
     runWeekPlanGeneration,
+    planStartDate,
+    requestWeekPlanGeneration,
+    closePlanDateSelection,
   } = useChatEngine({ mode: 'calendar_overlay' });
 
   const scrollIntent = useChatStore((s) => s.scrollIntent);
@@ -228,9 +232,12 @@ export function CalendarMealChat({ title, onClose, onTabChange }: CalendarMealCh
           onClose={() => setShowWeekPlanningSetup(false)}
           onComplete={() => {
             setShowWeekPlanningSetup(false);
-            runWeekPlanGeneration();
+            requestWeekPlanGeneration();
           }}
         />
+        {planStartDate !== null && (
+          <WeekPlanDateSelection initialDate={planStartDate} onClose={closePlanDateSelection} onConfirm={runWeekPlanGeneration} busy={isLoading} />
+        )}
       </div>
     </div>,
     document.body,

@@ -29,6 +29,19 @@ export const getWeekDays = (date: Date): Date[] => {
 export const getWeekDayKeys = (dateStr: string): string[] =>
   getWeekDays(parseDate(dateStr)).map(formatDateKey);
 
+/** Planning starts on the selected date; calendar weeks still start on Monday. */
+export const getPlanningDayKeys = (startDate: string): string[] =>
+  Array.from({ length: 7 }, (_, i) => formatDateKey(addDays(parseDate(startDate), i)));
+
+export const getDefaultPlanStartDate = (): string =>
+  formatDateKey(addDays(new Date(), 1));
+
+export const isValidPlanStartDate = (dateStr: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const date = parseDate(dateStr);
+  return !Number.isNaN(date.getTime()) && formatDateKey(date) === dateStr && dateStr >= todayKey();
+};
+
 export const getMonthGrid = (date: Date): (Date | null)[][] => {
   const start = startOfMonth(date);
   const end = endOfMonth(date);

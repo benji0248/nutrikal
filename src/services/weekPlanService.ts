@@ -26,7 +26,7 @@ import {
   formatWeeklyPoolForPrompt,
 } from './ingredientSelectionService';
 import { getActiveMealSlots, getMealSlotBudgetForPattern } from './portionEngine';
-import { getWeekDayKeys, todayKey } from '../utils/dateHelpers';
+import { getPlanningDayKeys, getDefaultPlanStartDate } from '../utils/dateHelpers';
 import {
   formatWeekdayRulesForPrompt,
   getDayDisplayLabel,
@@ -164,7 +164,7 @@ export function buildWeekPlanningContext(
   profile: UserProfile,
   dayPlans: Record<string, DayPlan>,
   customIngredients: Ingredient[],
-  startDate = todayKey(),
+  startDate = getDefaultPlanStartDate(),
   extraAvoidDishNames: string[] = [],
   poolGeneration = 0,
   tasteInput?: {
@@ -183,7 +183,7 @@ export function buildWeekPlanningContext(
   weekId: string;
   pool: WeeklyIngredientPool;
 } {
-  const weekDates = getWeekDayKeys(startDate);
+  const weekDates = getPlanningDayKeys(startDate);
   const weekId = getIsoWeekId(startDate);
   const freq = buildDishFrequencyMap(dayPlans);
   const seed = buildPoolPersonalizationSeed(freq, profile.name);

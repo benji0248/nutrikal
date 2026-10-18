@@ -4,6 +4,7 @@ import type { ChatOption, AppTab } from '../../types';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { ProfileSetup } from '../profile/ProfileSetup';
 import { WeekPlanningSetup } from '../profile/WeekPlanningSetup';
+import { WeekPlanDateSelection } from '../planner/WeekPlanDateSelection';
 import { useChatEngine } from './useChatEngine';
 import { useChatStore } from '../../store/useChatStore';
 import { ChatHistoryPanel } from './ChatHistoryPanel';
@@ -29,6 +30,9 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
     isLoading,
     hasWeekPlanningProfile,
     runWeekPlanGeneration,
+    planStartDate,
+    requestWeekPlanGeneration,
+    closePlanDateSelection,
   } = useChatEngine();
 
   const scrollIntent = useChatStore((s) => s.scrollIntent);
@@ -259,9 +263,12 @@ export const ChatAssistant = ({ onTabChange }: ChatAssistantProps) => {
         onClose={() => setShowWeekPlanningSetup(false)}
         onComplete={() => {
           setShowWeekPlanningSetup(false);
-          runWeekPlanGeneration();
+          requestWeekPlanGeneration();
         }}
       />
+      {planStartDate !== null && (
+        <WeekPlanDateSelection initialDate={planStartDate} onClose={closePlanDateSelection} onConfirm={runWeekPlanGeneration} busy={isLoading} />
+      )}
     </div>
   );
 };
