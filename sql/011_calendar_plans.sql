@@ -49,7 +49,7 @@ DROP TRIGGER IF EXISTS calendar_user_lock ON public.shopping_items;
 CREATE TRIGGER calendar_user_lock BEFORE INSERT OR UPDATE OR DELETE ON public.shopping_items FOR EACH ROW EXECUTE FUNCTION public.lock_calendar_user();
 
 CREATE OR REPLACE FUNCTION public.calendar_snapshot(p_user_id uuid) RETURNS jsonb
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY INVOKER SET search_path = public AS $$
   SELECT jsonb_build_object(
     'meals', COALESCE((SELECT jsonb_agg(to_jsonb(m) - 'user_id' - 'created_at' ORDER BY m.id) FROM meals m WHERE m.user_id = p_user_id), '[]'::jsonb),
     'plans', COALESCE((SELECT jsonb_agg(to_jsonb(p) - 'user_id' ORDER BY p.id) FROM calendar_plans p WHERE p.user_id = p_user_id), '[]'::jsonb),
@@ -60,7 +60,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.commit_calendar_operation(
   p_user_id uuid, p_before jsonb, p_after jsonb, p_operation_id text, p_undo_of text DEFAULT NULL
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+) RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
 DECLARE current_state jsonb;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(p_user_id::text, 7204));
@@ -86,19 +86,19 @@ BEGIN
   DELETE FROM meals WHERE user_id = p_user_id AND id NOT IN (SELECT j->>'id' FROM jsonb_array_elements(p_after->'meals') j);
   INSERT INTO meals (id,user_id,date,meal_type,name,calories,notes,linked_recipe_id,entries,ai_ingredients,completed,prep_minutes,human_portion,preparation,tip,plan_id,option_id,is_alternative)
     SELECT id,p_user_id,date,meal_type,name,calories,notes,linked_recipe_id,entries,ai_ingredients,completed,prep_minutes,human_portion,preparation,tip,plan_id,option_id,COALESCE(is_alternative,false)
-    FROM jsonb_populate_recordset(NULL::meals, p_after->'meals')
+    FROM jsonb_populate_recordset(NULL::meals, p_after->'meals') WHERE true
     ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date,meal_type=EXCLUDED.meal_type,name=EXCLUDED.name,calories=EXCLUDED.calories,notes=EXCLUDED.notes,linked_recipe_id=EXCLUDED.linked_recipe_id,entries=EXCLUDED.entries,ai_ingredients=EXCLUDED.ai_ingredients,completed=EXCLUDED.completed,prep_minutes=EXCLUDED.prep_minutes,human_portion=EXCLUDED.human_portion,preparation=EXCLUDED.preparation,tip=EXCLUDED.tip,plan_id=EXCLUDED.plan_id,option_id=EXCLUDED.option_id,is_alternative=EXCLUDED.is_alternative WHERE meals.user_id = p_user_id;
   DELETE FROM calendar_plans WHERE user_id = p_user_id AND id NOT IN (SELECT j->>'id' FROM jsonb_array_elements(p_after->'plans') j);
   INSERT INTO calendar_plans (id,user_id,title,start_date,end_date,created_at,source)
-    SELECT id,p_user_id,title,start_date,end_date,created_at,source FROM jsonb_populate_recordset(NULL::calendar_plans,p_after->'plans')
+    SELECT id,p_user_id,title,start_date,end_date,created_at,source FROM jsonb_populate_recordset(NULL::calendar_plans,p_after->'plans') WHERE true
     ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title,start_date=EXCLUDED.start_date,end_date=EXCLUDED.end_date,source=EXCLUDED.source WHERE calendar_plans.user_id = p_user_id;
   DELETE FROM shopping_items WHERE user_id = p_user_id AND id NOT IN (SELECT j->>'id' FROM jsonb_array_elements(p_after->'items') j);
   DELETE FROM shopping_lists WHERE user_id = p_user_id AND id NOT IN (SELECT j->>'id' FROM jsonb_array_elements(p_after->'lists') j);
   INSERT INTO shopping_lists (id,user_id,name,created_at,date_from,date_to)
-    SELECT id,p_user_id,name,created_at,date_from,date_to FROM jsonb_populate_recordset(NULL::shopping_lists,p_after->'lists')
+    SELECT id,p_user_id,name,created_at,date_from,date_to FROM jsonb_populate_recordset(NULL::shopping_lists,p_after->'lists') WHERE true
     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,date_from=EXCLUDED.date_from,date_to=EXCLUDED.date_to WHERE shopping_lists.user_id = p_user_id;
   INSERT INTO shopping_items (id,user_id,list_id,ingredient_id,name,quantity,section,checked)
-    SELECT id,p_user_id,list_id,ingredient_id,name,quantity,section,checked FROM jsonb_populate_recordset(NULL::shopping_items,p_after->'items')
+    SELECT id,p_user_id,list_id,ingredient_id,name,quantity,section,checked FROM jsonb_populate_recordset(NULL::shopping_items,p_after->'items') WHERE true
     ON CONFLICT (id) DO UPDATE SET list_id=EXCLUDED.list_id,ingredient_id=EXCLUDED.ingredient_id,name=EXCLUDED.name,quantity=EXCLUDED.quantity,section=EXCLUDED.section,checked=EXCLUDED.checked WHERE shopping_items.user_id = p_user_id;
   INSERT INTO calendar_operations(id,user_id,before_state,after_state) VALUES(p_operation_id,p_user_id,p_before,calendar_snapshot(p_user_id));
   RETURN calendar_snapshot(p_user_id);

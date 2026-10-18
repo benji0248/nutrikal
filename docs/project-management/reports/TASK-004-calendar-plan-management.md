@@ -21,6 +21,7 @@ Deshacer revierte entidades de la operación original conservando cambios ajenos
 - Revisión de espacios y conflictos de diff: correcta.
 - No se ejecutaron suites de tests, pruebas funcionales ni revisión visual de la aplicación, por instrucción del usuario.
 - La migración SQL todavía no se ejecutó: no hay conexión PostgreSQL ni acceso administrativo a Supabase configurados. El panel requiere iniciar sesión.
+- Revisión con el complemento Supabase instalado: sus herramientas SQL todavía no están expuestas en esta sesión. Las funciones se ejecutan con privilegios del rol llamador (`SECURITY INVOKER`), limitadas al rol de servicio. Se desambiguaron los `INSERT ... SELECT ... ON CONFLICT` con `WHERE true`.
 
 ## Publicación pendiente
 
