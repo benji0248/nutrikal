@@ -21,7 +21,7 @@ Integración limitada a `src/App.tsx` (entrada del asistente) y `api/business/[.
 - Migración `20261018213654_assistant_beta_conversations` aplicada en el proyecto Supabase de Nutrikal. Archivo local alineado con la versión registrada en el servidor.
 - Verificados columnas, RLS y grants: `anon` y `authenticated` sin lectura; backend con lectura/inserción/actualización. Tabla vacía después de instalarla. No se insertaron conversaciones de prueba ni se modificaron comidas.
 - El asesor informa RLS sin políticas en la tabla nueva, esperado por el acceso exclusivo desde el backend con JWT propio. [Referencia](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy). Los avisos previos de funciones y extensión no se modificaron.
-- Pendiente de registrar: estado del despliegue.
+- Vercel preview del commit de implementación `e0b2a09`: Ready, despliegue `dpl_HtbK4iYiyoLWYyb6g1ki8biVmoGc`. Se verificó el estado de compilación, sin ejecutar flujos de la app.
 - No se ejecutaron pruebas funcionales, suites de tests ni llamadas al modelo con datos del usuario, por pedido del usuario.
 
 ## Límites
@@ -30,4 +30,4 @@ El piloto comparte calendario y cuota diaria con el chat actual. No permite al m
 
 ## Estado
 
-Entregada: implementación y migración listas; pendiente publicación y revisión de uso por el usuario.
+Entregada: implementación, migración y build de Vercel listos. Publicación en `master` autorizada por el usuario; las pruebas funcionales y la revisión de uso quedan a su cargo. El reporte se actualiza antes del push de publicación; el estado final de producción se comunica en el chat.
