@@ -2,6 +2,7 @@
 
 | ID | Tarea | Estado | Archivo de tarea | Reporte | Revisión |
 |----|-------|--------|------------------|---------|----------|
+| TASK-009 | MCP de Nutrikal | entregada | [TASK-009-nutrikal-mcp.md](./tasks/TASK-009-nutrikal-mcp.md) | [TASK-009-nutrikal-mcp.md](./reports/TASK-009-nutrikal-mcp.md) | Build, TypeScript, ESLint e imports ESM; migración aplicada; pruebas de uso del usuario |
 | TASK-008 | Propuestas y comandos reutilizables | entregada | [TASK-008-proposal-functions.md](./tasks/TASK-008-proposal-functions.md) | [TASK-008-proposal-functions.md](./reports/TASK-008-proposal-functions.md) | Build, TypeScript, ESLint y arranque ESM correctos; migración aplicada; pruebas de uso del usuario |
 | TASK-007 | Funciones reutilizables de Nutrikal | entregada | [TASK-007-reusable-functions.md](./tasks/TASK-007-reusable-functions.md) | [TASK-007-reusable-functions.md](./reports/TASK-007-reusable-functions.md) | Build y arranque nativo correctos; publicación autorizada, pruebas de uso a cargo del usuario |
 | TASK-006 | Reparación de imports ESM del backend | entregada | [TASK-006-server-esm-imports.md](./tasks/TASK-006-server-esm-imports.md) | [TASK-006-server-esm-imports.md](./reports/TASK-006-server-esm-imports.md) | Arranque nativo y build correctos; publicación directa autorizada |

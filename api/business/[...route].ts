@@ -284,6 +284,14 @@ async function withAuth(
 }
 
 const handlers: Record<string, RouteHandler> = {
+  'GET mcp/manage': async (req, res, auth) => {
+    const { default: handler } = await import('../_lib/mcp/manage.js');
+    return handler(req, res, auth.userId);
+  },
+  'POST mcp/manage': async (req, res, auth) => {
+    const { default: handler } = await import('../_lib/mcp/manage.js');
+    return handler(req, res, auth.userId);
+  },
   'GET assistant-beta': async (req, res) => {
     const { default: handler } = await import('../_lib/assistantBeta/handler.js');
     return handler(req, res);
@@ -1714,6 +1722,11 @@ function normalizeKey(method: string | undefined, segments: string[]): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const segments = getSegments(req);
+  if (segments.length === 1 && segments[0] === 'mcp') {
+    const { default: mcpHandler } = await import('../_lib/mcp/handler.js');
+    return mcpHandler(req, res);
+  }
   return withAuth(req, res, async (auth, segments) => {
     const key = normalizeKey(req.method, segments);
     console.log('[business] route_resolved', JSON.stringify({

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Sun, CalendarDays, LayoutGrid, UserCircle, RotateCcw, Scale, Bell, Smartphone, Calculator } from 'lucide-react';
 import { WeekPlanningSetup } from './components/profile/WeekPlanningSetup';
 import { GOAL_LABELS, MEAL_PATTERN_LABELS } from './types';
@@ -57,6 +57,7 @@ import { ObservabilityAdminApp } from './admin/ObservabilityAdminApp';
 
 import { usePersistedAppTab } from './hooks/usePersistedAppTab';
 import type { MealType } from './types';
+const McpPortal = lazy(() => import('./components/assistant/McpPortal.js'));
 
 function App() {
   useTheme();
@@ -80,6 +81,7 @@ function App() {
   if (window.location.pathname.startsWith('/admin/observability')) {
     return <ObservabilityAdminApp />;
   }
+  if (window.location.pathname === '/mcp') return <Suspense fallback={<LoadingScreen />}><McpPortal /></Suspense>;
 
   return <AuthenticatedApp />;
 }

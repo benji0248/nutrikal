@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "mcp": "node scripts/nutrikal-mcp.mjs",
     "dev:api": "tsx scripts/dev-api-server.ts",
     "dev:all": "concurrently -n api,vite -c blue,green \"npm run dev:api\" \"npm run dev\"",
     "smoke:db": "node scripts/smoke-db.mjs",
@@ -22,6 +23,7 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@opentelemetry/api": "^1.9.1",
     "@supabase/supabase-js": "^2.100.1",
     "@vercel/otel": "^2.1.3",

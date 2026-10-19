@@ -32,6 +32,7 @@ function AssistantForUser({ onTabChange }: { onTabChange: (tab: AppTab) => void 
   }, []);
   return <>
     {enabled && <div className="mx-auto mb-5 max-w-4xl">
+      <a href="/mcp" className="mb-2 block min-h-11 text-sm text-[#226046] underline">Conectar otro asistente con Nutrikal</a>
       <div aria-label="Elegir asistente" className="inline-flex flex-wrap gap-1 rounded-2xl bg-[#e8ebe3] p-1">
         {([['classic', 'Chat actual'], ['beta', 'Asistente experimental']] as const).map(([value, label]) => <button
           key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}
