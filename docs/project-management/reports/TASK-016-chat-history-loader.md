@@ -6,4 +6,4 @@ Controles deshabilitados durante la operación, anuncio accesible con `role="sta
 
 Verificación: build/TypeScript y ESLint dirigido. Sin pruebas funcionales por indicación del usuario. Sin cambios al backend, al chat clásico ni a los datos.
 
-**Solo local, sin push ni deploy.** Conserva como base los cambios locales pendientes de TASK-014 y TASK-015.
+La entrega inicial se conservó local, incluyendo como base TASK-014 y TASK-015. El 19/10/2026 el usuario autoriza subir los tres cambios pendientes en conjunto. Las pruebas de uso continúan a su cargo.

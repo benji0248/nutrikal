@@ -19,4 +19,4 @@ Build, comprobación de imports ESM, TypeScript estricto del backend y ESLint di
 
 No se cambió de modelo. El resultado culinario y la cantidad de preguntas deben evaluarse con uso real: el cambio garantiza que la carga de contexto se intente antes de cada respuesta, no una calidad determinada del texto. Si falla la lectura, el modelo recibe el error explícito. Persiste el límite para guardar productos desconocidos con nutrientes parciales; no se implementa aquí otro modelo de alimentos. No se modifican mensajes previos ni el chat clásico.
 
-**Sin push, PR ni despliegue por indicación vigente del usuario.** Incluye como base el commit local de TASK-014, todavía sin publicar.
+La entrega inicial se conservó local. El 19/10/2026 el usuario autoriza subir los cambios pendientes de TASK-014, TASK-015 y TASK-016 en conjunto. Las pruebas de uso continúan a su cargo.

@@ -14,4 +14,4 @@
 
 Build, comprobación de imports ESM, TypeScript estricto y ESLint dirigidos. Sin pruebas funcionales ni generaciones del modelo, según indicación del usuario. La prevención incluye separación del historial e instrucciones al modelo; no es una garantía determinista sobre texto generado.
 
-**Solo local, sin push, PR ni deploy, por pedido expreso del usuario.** La respuesta existente en producción no se modifica con este trabajo. Sin migraciones ni cambios de dependencias.
+La entrega inicial se conservó local por pedido expreso del usuario. El 19/10/2026 autoriza subir los cambios pendientes junto con TASK-015 y TASK-016. No se modifican respuestas ya guardadas. Sin migraciones ni cambios de dependencias.
