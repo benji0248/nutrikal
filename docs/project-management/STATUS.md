@@ -2,6 +2,7 @@
 
 | ID | Tarea | Estado | Archivo de tarea | Reporte | Revisión |
 |----|-------|--------|------------------|---------|----------|
+| TASK-011 | Selector personalizado del asistente | entregada | [TASK-011-assistant-selector.md](./tasks/TASK-011-assistant-selector.md) | [TASK-011-assistant-selector.md](./reports/TASK-011-assistant-selector.md) | Build y ESLint; pruebas de uso del usuario |
 | TASK-010 | Interfaz conversacional del asistente | entregada | [TASK-010-assistant-interface.md](./tasks/TASK-010-assistant-interface.md) | [TASK-010-assistant-interface.md](./reports/TASK-010-assistant-interface.md) | Build, TypeScript y ESLint; evaluación visual/funcional a cargo del usuario |
 | TASK-009 | MCP de Nutrikal | entregada | [TASK-009-nutrikal-mcp.md](./tasks/TASK-009-nutrikal-mcp.md) | [TASK-009-nutrikal-mcp.md](./reports/TASK-009-nutrikal-mcp.md) | Build, TypeScript, ESLint e imports ESM; migración aplicada; pruebas de uso del usuario |
 | TASK-008 | Propuestas y comandos reutilizables | entregada | [TASK-008-proposal-functions.md](./tasks/TASK-008-proposal-functions.md) | [TASK-008-proposal-functions.md](./reports/TASK-008-proposal-functions.md) | Build, TypeScript, ESLint y arranque ESM correctos; migración aplicada; pruebas de uso del usuario |
