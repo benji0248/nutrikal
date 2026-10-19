@@ -54,5 +54,13 @@ export function createToolContext(userId: string, today: string, requestId: stri
       return e instanceof ErrorFuncionesNutrikal ? { error: e.message, codigo: e.codigo } : { error: 'No pude completar esta operación. El calendario sigue igual.' };
     }
   }
-  return { execute, drafts, activities };
+  // These reads share crearFuncionesNutrikal's request-scoped profile cache.
+  // Record actual results, including failures, without requiring a model tool round trip.
+  async function loadPersonalContext() {
+    const [objetivo, preferencias, rutina] = await Promise.all([
+      execute('obtener_objetivo', {}), execute('obtener_preferencias', {}), execute('obtener_rutina', {}),
+    ]);
+    return { objetivo, preferencias, rutina };
+  }
+  return { execute, drafts, activities, loadPersonalContext };
 }

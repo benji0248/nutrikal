@@ -22,6 +22,7 @@ function fallback(diagnostics: AssistantTurnDiagnostics, activities: AssistantTo
   const calendar = activities.filter((a) => a.name === 'obtener_comidas');
   if (calendar.some((a) => !a.ok)) return 'No pude completar la consulta del calendario. No tengo un resultado confiable para decirte qué está planificado; eso no significa que esté vacío.';
   if (calendar.some((a) => a.ok)) return 'Pude consultar el calendario, pero el asistente no terminó de preparar la respuesta. No apliqué cambios. Podés pedirme que continúe con la consulta.';
+  if (!activities.some((a) => a.ok)) return 'No pude completar las consultas ni preparar una respuesta utilizable. No tengo datos confirmados para responder a tu pedido.';
   if (diagnostics.outcome === 'tool_limit' || diagnostics.outcome === 'time_limit') return 'El asistente alcanzó el límite de este intento antes de terminar. Algunas consultas se completaron, pero no apliqué cambios al calendario.';
   return 'No pude terminar de preparar la respuesta. Algunas consultas se completaron; no apliqué cambios al calendario.';
 }
