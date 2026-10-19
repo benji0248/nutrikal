@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Content, Part } from '@google/generative-ai';
+import type { Content } from '@google/generative-ai';
 import { verifyToken } from '../jwt.js';
 import { getSupabase } from '../supabase.js';
 import { getGeminiClient } from '../gemini.js';
@@ -8,6 +8,8 @@ import { assistantBetaEnabled } from './access.js';
 import { crearFuncionesPropuestas } from '../nutrikal/proposalFunctions.js';
 import { ErrorFuncionesNutrikal } from '../../../src/domain/nutrikal/validation.js';
 import { createToolContext, TOOL_DECLARATIONS } from './tools.js';
+import { runAssistantTurn, toolEvidenceContext } from './runTurn.js';
+import { ASSISTANT_INTERACTION_POLICY } from '../../../src/domain/nutrikal/assistantPolicy.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../rateLimit.js';
 import type { AssistantBetaConversation, AssistantBetaMessage } from '../../../src/types/assistantBeta.js';
 
@@ -31,14 +33,14 @@ No inventes información del perfil, comidas existentes ni resultados de herrami
 Vos diseñás los platos y elegís ingredientes del catálogo. No hay un segundo generador de IA: resolvé ingredientes, consultá presupuestos por fecha, calculá o ajustá cantidades y usá validar_propuesta o guardar_propuesta con el contenido real.
 Las propuestas pueden contener una receta sin fechas, un plato, días sueltos o hasta 31 días; no hace falta una semana completa. Cantidades en gramos para TODA la receta y porciones que rinde. Cada asignación representa UNA porción para el usuario. Respetá estado crudo/cocido, tiempo y técnica culinaria. No afirmes validación clínica ni inventario verificado.
 Para cambiar algunas comidas de un borrador, usá leer_propuesta con su ID y guardá una propuesta nueva completa conservando el resto. No dependas de un resumen de nombres para reconstruir cantidades.
-Si no indicó fecha, proponé empezar mañana y preguntá si le sirve antes de generar. Si fecha y alcance están claros, avanzá sin pedir permisos repetidos.
 Las restricciones y alimentos excluidos guardados se respetan aunque el usuario mencione existencias incompatibles. Explicá el conflicto y ofrecé otra opción; no cambies el perfil.
 Los alimentos del freezer son contexto declarado en esta conversación: priorizalos, preguntá cantidades si son necesarias y distinguí estimaciones. No hay inventario persistente ni descuento automático de existencias o compras. No prometas que una cantidad alcanza sin comprobarla.
 Podés previsualizar_cambios de un borrador guardado si te lo piden. Nunca podés aplicar cambios mediante conversación. La persona revisa la tarjeta, elige conservar/reemplazar/alternativas y confirma Agregar al calendario; también puede deshacer desde allí.
 No podés mover, borrar ni marcar comidas, ni cambiar preferencias. Explicá ese límite y orientá a la pantalla existente cuando te lo pidan. Nunca simules éxito.
 No des consejos sobre fármacos ni cambies tratamientos o indicaciones profesionales. No necesitás datos clínicos para usar estas herramientas.
 Máximo una generación de propuesta por mensaje. Si una herramienta falla, explicalo con honestidad y conservá lo que estaba guardado. No repitas automáticamente una generación fallida.
-Cuando una tarjeta esté lista, resumí brevemente qué preparaste y qué debe revisar. No repitas la tarjeta completa ni digas que está aplicada.`;
+Cuando una tarjeta esté lista, resumí brevemente qué preparaste y qué debe revisar. No repitas la tarjeta completa ni digas que está aplicada.
+${ASSISTANT_INTERACTION_POLICY}`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -112,41 +114,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const tools = createToolContext(userId, today, body.requestId);
     const contents: Content[] = current.messages.slice(-20).map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: `${message.text}${referenceContext(message.draftReference)}${message.drafts?.length ? `\nBorradores (usar leer_propuesta para ver cantidades): ${JSON.stringify(message.drafts.map((p) => ({ id: p.id, titulo: p.contenido.titulo, asignaciones: p.contenido.asignaciones })))}` : ''}` }],
+      parts: [{ text: `${message.text}${referenceContext(message.draftReference)}${toolEvidenceContext(message)}${message.drafts?.length ? `\nBorradores (usar leer_propuesta para ver cantidades): ${JSON.stringify(message.drafts.map((p) => ({ id: p.id, titulo: p.contenido.titulo, asignaciones: p.contenido.asignaciones })))}` : ''}` }],
     }));
     // Always start a Gemini history on a user turn when truncating.
     while (contents.length && contents[0].role !== 'user') contents.shift();
     contents.push({ role: 'user', parts: [{ text: body.text.trim() + referenceContext(draftReference) }] });
-    const model = getGeminiClient().getGenerativeModel({ model: MODEL, systemInstruction: systemPrompt(today, timeZone),
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } }, { timeout: 55_000 });
-    let reply = '';
-    let callCount = 0;
-    const deadline = Date.now() + 220_000;
-    for (let round = 0; round < 7 && Date.now() < deadline; round++) {
-      const response = (await model.generateContent({ contents })).response;
-      const calls = response.functionCalls() ?? [];
-      if (!calls.length) { reply = response.text().trim(); break; }
-      const candidate = response.candidates?.[0]?.content;
-      if (!candidate) throw new Error('Missing function call content');
-      contents.push(candidate);
-      const results: Part[] = [];
-      for (const call of calls) {
-        callCount++;
-        const output = callCount <= 16 ? await tools.execute(call.name, call.args as Record<string, unknown>) : { error: 'Límite de herramientas alcanzado. Respondé con lo que ya consultaste.' };
-        results.push({ functionResponse: { name: call.name, response: output } });
-      }
-      contents.push({ role: 'function', parts: results });
-      if (tools.drafts.length) {
-        // A valid draft is already useful; don't lose it to a subsequent provider failure.
-        reply = 'Preparé esta propuesta con tus preferencias y el pedido que me hiciste. Revisá las comidas y las fechas; todavía no cambié tu calendario.';
-        break;
-      }
-    }
-    if (!reply) reply = 'No pude completar el pedido en este intento. Tu calendario sigue igual. Podemos continuar desde lo que conversamos.';
+    const { reply, diagnostics } = await runAssistantTurn({ model: MODEL, contents, tools,
+      generate: async (history, recovery, timeoutMs) => {
+        const instruction = systemPrompt(today, timeZone) + (recovery ? '\nRECUPERACIÓN: la salida anterior del modelo quedó vacía o inválida y no se ejecutaron sus llamadas parciales. Retomá el pedido con las funciones declaradas y sus parámetros exactos. Usá los resultados válidos previos si existen. No vuelvas a pedir permiso para lecturas, cálculos o borradores ya solicitados, y no atribuyas esta falla del modelo a una herramienta.' : '');
+        const model = getGeminiClient().getGenerativeModel({ model: MODEL, systemInstruction: instruction,
+          tools: [{ functionDeclarations: TOOL_DECLARATIONS }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } });
+        return (await model.generateContent({ contents: history }, { timeout: timeoutMs })).response;
+      },
+    });
+    console.info('[assistant-beta-turn]', JSON.stringify({ requestId: body.requestId, conversationId: current.id, ...diagnostics, tools: tools.activities }));
     const timestamp = new Date().toISOString();
     const messages: AssistantBetaMessage[] = [...current.messages,
       { id: body.requestId, role: 'user', text: body.text.trim(), createdAt: timestamp, draftReference },
-      { id: randomUUID(), role: 'assistant', text: reply, createdAt: timestamp, tools: tools.activities, drafts: tools.drafts },
+      { id: randomUUID(), role: 'assistant', text: reply, createdAt: timestamp, tools: tools.activities, drafts: tools.drafts, diagnostics },
     ];
     const saved = await db.from('assistant_beta_conversations').update({
       messages, title: current.messages.length ? current.title : body.text.trim().slice(0, 64), revision: current.revision + 1, updated_at: timestamp,

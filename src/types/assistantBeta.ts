@@ -5,6 +5,24 @@ export interface AssistantToolActivity {
   name: string;
   label: string;
   ok: boolean;
+  code?: string;
+  durationMs?: number;
+  calendarQuery?: { desde: string; hasta: string; total?: number; returned?: number; hasMore?: boolean };
+}
+
+export interface AssistantTurnDiagnostics {
+  model: string;
+  outcome: 'answered' | 'draft_saved' | 'empty_response' | 'provider_error' | 'blocked_response' | 'tool_limit' | 'time_limit';
+  recoveries: number;
+  rounds: Array<{
+    durationMs: number;
+    finishReason?: string;
+    blockReason?: string;
+    errorType?: string;
+    calls: string[];
+    inputTokens?: number;
+    outputTokens?: number;
+  }>;
 }
 
 export interface AssistantBetaMessage {
@@ -16,6 +34,7 @@ export interface AssistantBetaMessage {
   drafts?: PropuestaGuardada[];
   draftReference?: { id: string; title: string };
   tools?: AssistantToolActivity[];
+  diagnostics?: AssistantTurnDiagnostics;
 }
 
 export interface AssistantBetaConversation {
