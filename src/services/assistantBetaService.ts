@@ -29,8 +29,8 @@ export const applyAssistantPreview = (previsualizacionId: string) => request<Cal
 export const undoAssistantOperation = (operacionId: string, versionCalendario: string, requestId: string) => request<CalendarOperationResult>('', { action: 'undoProposal', operacionId, versionCalendario, requestId, timeZone: timeZone() });
 export const loadAssistantBeta = (id?: string) => request<AssistantBetaState>(id ? `?id=${encodeURIComponent(id)}` : '');
 export const createAssistantBetaConversation = () => request<{ conversation: AssistantBetaConversation }>('', { action: 'create' });
-export const sendAssistantBetaMessage = (conversation: AssistantBetaConversation, text: string, requestId: string) =>
+export const sendAssistantBetaMessage = (conversation: AssistantBetaConversation, text: string, requestId: string, draftReferenceId?: string) =>
   request<{ conversation: AssistantBetaConversation }>('', {
     action: 'message', conversationId: conversation.id, revision: conversation.revision,
-    requestId, text, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    requestId, text, draftReferenceId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });

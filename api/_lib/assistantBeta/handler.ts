@@ -14,6 +14,7 @@ import type { AssistantBetaConversation, AssistantBetaMessage } from '../../../s
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MODEL = 'gemini-2.5-flash';
 const columns = 'id,title,revision,messages';
+const referenceContext = (reference?: AssistantBetaMessage['draftReference']) => reference ? `\nBorrador al que se refiere este pedido (usar leer_propuesta para recuperar su contenido): ${JSON.stringify(reference)}` : '';
 
 function conversation(row: Record<string, unknown>): AssistantBetaConversation {
   return { id: String(row.id), title: String(row.title), revision: Number(row.revision), messages: row.messages as AssistantBetaMessage[] };
@@ -87,7 +88,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (body.action !== 'message' || typeof body.conversationId !== 'string' || !UUID.test(body.conversationId)
       || typeof body.requestId !== 'string' || !UUID.test(body.requestId)
-      || !Number.isInteger(body.revision) || typeof body.text !== 'string' || !body.text.trim() || body.text.length > 6000) {
+      || !Number.isInteger(body.revision) || typeof body.text !== 'string' || !body.text.trim() || body.text.length > 6000
+      || (body.draftReferenceId !== undefined && (typeof body.draftReferenceId !== 'string' || !UUID.test(body.draftReferenceId)))) {
       return res.status(400).json({ error: 'El mensaje debe tener hasta 6000 caracteres y una conversación válida.' });
     }
     const loaded = await db.from('assistant_beta_conversations').select(columns).eq('id', body.conversationId).eq('user_id', userId).maybeSingle();
@@ -105,14 +107,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let today: string;
     try { today = new Intl.DateTimeFormat('sv-SE', { timeZone }).format(new Date()); }
     catch { return res.status(400).json({ error: 'Zona horaria inválida.' }); }
+    const referencedDraft = body.draftReferenceId ? await crearFuncionesPropuestas(userId, today).leerPropuesta(body.draftReferenceId) : null;
+    const draftReference = referencedDraft ? { id: referencedDraft.id, title: referencedDraft.contenido.titulo } : undefined;
     const tools = createToolContext(userId, today, body.requestId);
     const contents: Content[] = current.messages.slice(-20).map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: `${message.text}${message.drafts?.length ? `\nBorradores (usar leer_propuesta para ver cantidades): ${JSON.stringify(message.drafts.map((p) => ({ id: p.id, titulo: p.contenido.titulo, asignaciones: p.contenido.asignaciones })))}` : ''}` }],
+      parts: [{ text: `${message.text}${referenceContext(message.draftReference)}${message.drafts?.length ? `\nBorradores (usar leer_propuesta para ver cantidades): ${JSON.stringify(message.drafts.map((p) => ({ id: p.id, titulo: p.contenido.titulo, asignaciones: p.contenido.asignaciones })))}` : ''}` }],
     }));
     // Always start a Gemini history on a user turn when truncating.
     while (contents.length && contents[0].role !== 'user') contents.shift();
-    contents.push({ role: 'user', parts: [{ text: body.text.trim() }] });
+    contents.push({ role: 'user', parts: [{ text: body.text.trim() + referenceContext(draftReference) }] });
     const model = getGeminiClient().getGenerativeModel({ model: MODEL, systemInstruction: systemPrompt(today, timeZone),
       tools: [{ functionDeclarations: TOOL_DECLARATIONS }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } }, { timeout: 55_000 });
     let reply = '';
@@ -141,7 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!reply) reply = 'No pude completar el pedido en este intento. Tu calendario sigue igual. Podemos continuar desde lo que conversamos.';
     const timestamp = new Date().toISOString();
     const messages: AssistantBetaMessage[] = [...current.messages,
-      { id: body.requestId, role: 'user', text: body.text.trim(), createdAt: timestamp },
+      { id: body.requestId, role: 'user', text: body.text.trim(), createdAt: timestamp, draftReference },
       { id: randomUUID(), role: 'assistant', text: reply, createdAt: timestamp, tools: tools.activities, drafts: tools.drafts },
     ];
     const saved = await db.from('assistant_beta_conversations').update({

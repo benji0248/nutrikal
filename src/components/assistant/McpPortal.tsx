@@ -67,7 +67,7 @@ export default function McpPortal() {
       <a href="/" className="ml-3 inline-block min-h-11 text-sm underline">Cerrar sin cambiar nada</a>
     </section>}
     <section className="space-y-3 rounded-2xl bg-white p-5"><h2 className="font-semibold">Borradores recientes</h2><select aria-label="Elegir borrador" value={proposal?.id ?? ''} disabled={busy} onChange={(e) => { const id = e.target.value; if (id) void run(async () => setProposal(await loadMcpProposal(id))); }} className="min-h-11 w-full rounded-xl border-[#c1c9bb]"><option value="">Elegí un borrador</option>{proposals.map((p) => <option key={p.id} value={p.id}>{p.titulo}</option>)}</select>
-      {proposal && <ProposalCard propuesta={proposal} onAdjust={() => setFeedback(`Pedile al asistente que lea la propuesta ${proposal.id} y guarde una nueva con los cambios que quieras.`)} />}
+      {proposal && <ProposalCard propuesta={proposal} onAdjust={() => setFeedback(`Pedile a tu asistente que ajuste «${proposal.contenido.titulo}» y guarde una nueva propuesta con los cambios que quieras.`)} />}
     </section>
     <section className="space-y-4 rounded-2xl bg-white p-5"><h2 className="font-semibold">Crear un acceso</h2>
       <label className="block text-sm">Nombre<input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} disabled={busy} className="mt-1 min-h-11 w-full rounded-xl border-[#c1c9bb]" /></label>

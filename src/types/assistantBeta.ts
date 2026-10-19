@@ -14,6 +14,7 @@ export interface AssistantBetaMessage {
   createdAt: string;
   proposals?: Array<{ id: string; title: string; plan: WeekPlan }>;
   drafts?: PropuestaGuardada[];
+  draftReference?: { id: string; title: string };
   tools?: AssistantToolActivity[];
 }
 
