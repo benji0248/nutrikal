@@ -2,6 +2,8 @@ import { SchemaType, type FunctionDeclaration, type Schema } from '@google/gener
 import type { FuncionesNutrikal } from '../../../src/domain/nutrikal/createFunctions.js';
 import type { ConsultaComidas, CriteriosSeleccion, FiltrosIngredientes, Intervalo } from '../../../src/domain/nutrikal/types.js';
 import type { CalculatorEntry } from '../../../src/types/index.js';
+import type { MealType } from '../../../src/types/index.js';
+import type { AjusteCantidades } from '../../../src/domain/nutrikal/proposals.js';
 import { exigir } from '../../../src/domain/nutrikal/validation.js';
 
 const stringList: Schema = { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } };
@@ -13,6 +15,13 @@ const filterProperties: Record<string, Schema> = {
   cocinas: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING, format: 'enum', enum: ['ar', 'asian', 'mediterranean', 'latin', 'international'] } },
 };
 export const FUNCTION_TOOL_DECLARATIONS: FunctionDeclaration[] = [
+  { name: 'resolver_ingrediente', description: 'Resuelve un nombre o ID contra el catálogo real. Devuelve candidatos ambiguos sin inventar nutrientes. No convierte unidades ni confirma existencias.', parameters: { type: SchemaType.OBJECT, properties: { nombre: { type: SchemaType.STRING } }, required: ['nombre'] } },
+  { name: 'obtener_presupuesto_comida', description: 'Objetivo calórico de una fecha y horario concretos, considerando mantenimiento, día libre y rutina. No es el saldo de calorías consumidas.', parameters: { type: SchemaType.OBJECT, properties: { fecha: date, tipo: { type: SchemaType.STRING, format: 'enum', enum: ['desayuno', 'almuerzo', 'cena', 'snack'] } }, required: ['fecha', 'tipo'] } },
+  { name: 'ajustar_cantidades', description: 'Escala una receta proporcionalmente por porciones o calorías por porción (elegir solo una). Devuelve gramos y nutrientes reales, límites alcanzados y diferencia respecto del objetivo. No optimiza macros ni garantiza cocción o sabor.', parameters: { type: SchemaType.OBJECT, properties: {
+    ingredientes: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { ingredientId: { type: SchemaType.STRING }, grams: { type: SchemaType.NUMBER } }, required: ['ingredientId', 'grams'] } },
+    porcionesActuales: { type: SchemaType.NUMBER }, porcionesDeseadas: { type: SchemaType.NUMBER }, objetivoKcal: { type: SchemaType.NUMBER },
+    limites: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { ingredientId: { type: SchemaType.STRING }, minimoGramos: { type: SchemaType.NUMBER }, maximoGramos: { type: SchemaType.NUMBER } }, required: ['ingredientId', 'minimoGramos', 'maximoGramos'] } },
+  }, required: ['ingredientes', 'porcionesActuales'] } },
   { name: 'obtener_objetivo', description: 'Lee el objetivo guardado y, si el perfil está completo, los presupuestos y macros calculados por Nutrikal. No inventa valores cuando falta el perfil. Solo lectura.' },
   { name: 'obtener_preferencias', description: 'Lee restricciones, ingredientes y grupos excluidos y excepciones explícitas. Son condiciones obligatorias para proponer comida. No infiere gustos por el uso ni modifica el perfil.' },
   { name: 'obtener_rutina', description: 'Lee la rutina guardada: horarios, variedad/repetición, días libres, tiempo y presupuesto. Indica si no está configurada; no crea una rutina por defecto.' },
@@ -39,11 +48,12 @@ export const FUNCTION_TOOL_DECLARATIONS: FunctionDeclaration[] = [
 
 export const FUNCTION_TOOL_LABELS: Record<string, string> = {
   obtener_objetivo: 'Consulté tu objetivo', obtener_preferencias: 'Consulté tus preferencias', obtener_rutina: 'Consulté tu rutina', obtener_comidas: 'Consulté tus comidas',
+  resolver_ingrediente: 'Busqué coincidencias en el catálogo', obtener_presupuesto_comida: 'Consulté el objetivo de esa comida', ajustar_cantidades: 'Ajusté las cantidades de la receta',
   buscar_ingredientes: 'Busqué ingredientes del catálogo', obtener_afinidad_ingredientes: 'Consulté afinidades y exclusiones', obtener_uso_reciente_ingredientes: 'Consulté el uso reciente de ingredientes',
   seleccionar_ingredientes: 'Seleccioné candidatos con afinidad y rotación', calcular_nutrientes: 'Calculé nutrientes con las cantidades indicadas',
 };
 
-function solo(raw: unknown, campos: string[]): Record<string, unknown> {
+export function solo(raw: unknown, campos: string[]): Record<string, unknown> {
   exigir(raw !== null && typeof raw === 'object' && !Array.isArray(raw), 'Los parámetros deben ser un objeto.');
   const params = raw as Record<string, unknown>;
   exigir(Object.keys(params).every((key) => campos.includes(key)), 'Hay parámetros no admitidos. La identidad del usuario la determina el servidor.');
@@ -53,6 +63,9 @@ function solo(raw: unknown, campos: string[]): Record<string, unknown> {
 /** This adapter only validates transport fields and delegates. It contains no dietary or rotation rules. */
 export async function ejecutarFuncionNutrikal(funciones: FuncionesNutrikal, nombre: string, raw: unknown, fechaReferencia: string): Promise<Record<string, unknown>> {
   switch (nombre) {
+    case 'resolver_ingrediente': { const p = solo(raw, ['nombre']); return funciones.resolverIngrediente(p.nombre as string); }
+    case 'obtener_presupuesto_comida': { const p = solo(raw, ['fecha', 'tipo']); return funciones.obtenerPresupuestoComida(p.fecha as string, p.tipo as MealType); }
+    case 'ajustar_cantidades': { const p = solo(raw, ['ingredientes', 'porcionesActuales', 'porcionesDeseadas', 'objetivoKcal', 'limites']); return funciones.ajustarCantidades(p as unknown as AjusteCantidades); }
     case 'obtener_objetivo': solo(raw, []); return funciones.obtenerObjetivo();
     case 'obtener_preferencias': solo(raw, []); return funciones.obtenerPreferencias();
     case 'obtener_rutina': solo(raw, []); return funciones.obtenerRutina();

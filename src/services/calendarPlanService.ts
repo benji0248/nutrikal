@@ -69,12 +69,13 @@ export function changeCalendarPlan(input: CalendarPlanningState, operation: Excl
       state.meals.push(...incoming);
     }
   };
-  if (operation.kind === 'apply') {
+  if (operation.kind === 'apply' || operation.kind === 'applyMeals') {
     if (state.plans.some((plan) => plan.id === operation.planId)) throw new Error('Este plan ya está en tu calendario. Podés administrarlo desde allí.');
-    const source = shiftWeekPlan(operation.plan, operation.startDate);
-    if (!isWholeWeekShift(operation.plan, operation.startDate)) throw new Error('Para conservar la rutina del plan, elegí el mismo día de inicio en otra semana. Para cambiar el día de inicio, generá un plan nuevo.');
-    if (source.days.length !== 7 || new Set(source.days.map((day) => day.date)).size !== 7
-      || source.days.some((day, index) => day.date !== dateKey(addDays(parseISO(source.days[0].date), index)))) throw new Error('El plan debe cubrir siete días consecutivos.');
+    const source = operation.kind === 'apply' ? shiftWeekPlan(operation.plan, operation.startDate) : structuredClone(operation.plan);
+    if (operation.kind === 'apply' && !isWholeWeekShift(operation.plan, operation.startDate)) throw new Error('Para conservar la rutina del plan, elegí el mismo día de inicio en otra semana. Para cambiar el día de inicio, generá un plan nuevo.');
+    if (operation.kind === 'apply' && (source.days.length !== 7 || new Set(source.days.map((day) => day.date)).size !== 7
+      || source.days.some((day, index) => day.date !== dateKey(addDays(parseISO(source.days[0].date), index))))) throw new Error('El plan debe cubrir siete días consecutivos.');
+    if (!source.days.length) throw new Error('La propuesta no tiene fechas para agregar.');
     if (source.days[0].date < context.today) throw new Error('Elegí hoy o una fecha futura.');
     const rows: CalendarMeal[] = [];
     for (const day of source.days) for (const mealType of MEAL_TYPE_ORDER) {
@@ -82,14 +83,15 @@ export function changeCalendarPlan(input: CalendarPlanningState, operation: Excl
       if (meal) rows.push({
         id: makeId(), planId: operation.planId, optionId: makeId(), date: day.date, mealType,
         name: meal.name, calories: meal.totalKcal, aiIngredients: meal.ingredients,
+        ...(operation.kind === 'applyMeals' ? { entries: operation.entries[`${day.date}:${mealType}`] ?? [] } : {}),
         prepMinutes: meal.prepMinutes, humanPortion: meal.humanPortion, preparation: meal.preparation, tip: meal.tip,
         completed: false, isAlternative: false,
       });
     }
     place(rows, operation.policy);
     if (!state.meals.some((meal) => meal.planId === operation.planId)) throw new Error('No hay horarios disponibles para agregar. Elegí reemplazar, guardar alternativas u otras fechas.');
-    state.plans.push({ id: operation.planId, title: 'Plan semanal', startDate: source.days[0].date,
-      endDate: source.days[6].date, createdAt: context.now, source: { ...source, id: operation.planId, applied: true } });
+    state.plans.push({ id: operation.planId, title: operation.kind === 'applyMeals' ? operation.title : 'Plan semanal', startDate: source.days[0].date,
+      endDate: source.days[source.days.length - 1].date, createdAt: context.now, source: { ...source, id: operation.planId, applied: true } });
   } else if (operation.kind === 'remove' || operation.kind === 'move') {
     const plan = state.plans.find((candidate) => candidate.id === operation.planId);
     if (!plan) throw new Error('No encontré ese plan. Actualizá el calendario.');

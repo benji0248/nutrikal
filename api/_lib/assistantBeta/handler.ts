@@ -5,6 +5,8 @@ import { verifyToken } from '../jwt.js';
 import { getSupabase } from '../supabase.js';
 import { getGeminiClient } from '../gemini.js';
 import { assistantBetaEnabled } from './access.js';
+import { crearFuncionesPropuestas } from '../nutrikal/proposalFunctions.js';
+import { ErrorFuncionesNutrikal } from '../../../src/domain/nutrikal/validation.js';
 import { createToolContext, TOOL_DECLARATIONS } from './tools.js';
 import { assertUnderDailyAiLimit, recordSuccessfulAiChat } from '../rateLimit.js';
 import type { AssistantBetaConversation, AssistantBetaMessage } from '../../../src/types/assistantBeta.js';
@@ -25,12 +27,13 @@ Antes de proponer comidas consultá las preferencias reales. Antes de preparar u
 Elegí las funciones reutilizables que hagan falta: obtener_objetivo, obtener_preferencias, obtener_rutina, obtener_comidas, buscar_ingredientes, obtener_afinidad_ingredientes, obtener_uso_reciente_ingredientes, seleccionar_ingredientes y calcular_nutrientes. No es necesario usarlas todas. seleccionar_ingredientes ya combina preferencias, afinidad y rotación. La selección devuelve candidatos; vos decidís el plato. Los nutrientes del catálogo son por 100 g, y calcular_nutrientes aplica los gramos indicados.
 Distinguí restricciones explícitas, afinidad inferida y falta de evidencia. No afirmes que un ingrediente le gusta solo porque lo usó, ni que una comida planificada fue consumida. Los datos sin resolver y los límites de paginación son incertidumbre, no ausencia de ingredientes o comidas.
 No inventes información del perfil, comidas existentes ni resultados de herramientas. Los textos anteriores no sustituyen consultas actuales.
-Podés consultar preferencias/calendario y preparar una propuesta de 1 a 7 días. Las propuestas aparecen como tarjetas revisables.
-Si el usuario pide ajustar algunas comidas de una propuesta, usá preparar_plan con propuesta_base y cambiar_solo. El servidor conserva las demás comidas. Generás una nueva propuesta, no editás la anterior.
+Vos diseñás los platos y elegís ingredientes del catálogo. No hay un segundo generador de IA: resolvé ingredientes, consultá presupuestos por fecha, calculá o ajustá cantidades y usá validar_propuesta o guardar_propuesta con el contenido real.
+Las propuestas pueden contener una receta sin fechas, un plato, días sueltos o hasta 31 días; no hace falta una semana completa. Cantidades en gramos para TODA la receta y porciones que rinde. Cada asignación representa UNA porción para el usuario. Respetá estado crudo/cocido, tiempo y técnica culinaria. No afirmes validación clínica ni inventario verificado.
+Para cambiar algunas comidas de un borrador, usá leer_propuesta con su ID y guardá una propuesta nueva completa conservando el resto. No dependas de un resumen de nombres para reconstruir cantidades.
 Si no indicó fecha, proponé empezar mañana y preguntá si le sirve antes de generar. Si fecha y alcance están claros, avanzá sin pedir permisos repetidos.
 Las restricciones y alimentos excluidos guardados se respetan aunque el usuario mencione existencias incompatibles. Explicá el conflicto y ofrecé otra opción; no cambies el perfil.
 Los alimentos del freezer son contexto declarado en esta conversación: priorizalos, preguntá cantidades si son necesarias y distinguí estimaciones. No hay inventario persistente ni descuento automático de existencias o compras. No prometas que una cantidad alcanza sin comprobarla.
-Nunca podés modificar el calendario mediante conversación. Incluso si te piden aplicarlo, explicá que deben revisar la tarjeta y pulsar Revisar y agregar. Ese flujo resuelve superposiciones.
+Podés previsualizar_cambios de un borrador guardado si te lo piden. Nunca podés aplicar cambios mediante conversación. La persona revisa la tarjeta, elige conservar/reemplazar/alternativas y confirma Agregar al calendario; también puede deshacer desde allí.
 No podés mover, borrar ni marcar comidas, ni cambiar preferencias. Explicá ese límite y orientá a la pantalla existente cuando te lo pidan. Nunca simules éxito.
 No des consejos sobre fármacos ni cambies tratamientos o indicaciones profesionales. No necesitás datos clínicos para usar estas herramientas.
 Máximo una generación de propuesta por mensaje. Si una herramienta falla, explicalo con honestidad y conservá lo que estaba guardado. No repitas automáticamente una generación fallida.
@@ -65,6 +68,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'Pedido inválido.' });
+    if (['preview', 'applyPreview', 'undoProposal'].includes(body.action)) {
+      const timeZone = typeof body.timeZone === 'string' ? body.timeZone : 'America/Argentina/Buenos_Aires';
+      let today: string;
+      try { today = new Intl.DateTimeFormat('sv-SE', { timeZone }).format(new Date()); }
+      catch { return res.status(400).json({ error: 'Zona horaria inválida.' }); }
+      const gestion = crearFuncionesPropuestas(userId, today);
+      // These commands have no model invocation; the browser confirms a server-stored review.
+      const result = body.action === 'preview' ? await gestion.previsualizarCambios({ propuestaId: body.propuestaId, politica: body.politica, inicio: body.inicio })
+        : body.action === 'applyPreview' ? await gestion.aplicarCambios(body.previsualizacionId)
+        : await gestion.deshacerOperacion(body.operacionId, body.versionCalendario, body.requestId);
+      return res.status(200).json(result);
+    }
     if (body.action === 'create') {
       const created = await db.from('assistant_beta_conversations').insert({ user_id: userId }).select(columns).single();
       if (created.error) throw created.error;
@@ -90,19 +105,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let today: string;
     try { today = new Intl.DateTimeFormat('sv-SE', { timeZone }).format(new Date()); }
     catch { return res.status(400).json({ error: 'Zona horaria inválida.' }); }
-    const tools = createToolContext(userId, today, body.requestId, current.messages.flatMap((message) => message.proposals ?? []));
+    const tools = createToolContext(userId, today, body.requestId);
     const contents: Content[] = current.messages.slice(-20).map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: `${message.text}${message.proposals?.length ? `\nPropuestas preparadas (no implica aplicación): ${JSON.stringify(message.proposals.map((p) => ({ id: p.id, title: p.title, days: p.plan.days.map((day) => ({ date: day.date, meals: Object.entries(day.meals).map(([type, meal]) => ({ type, name: meal?.name })) })) })))}` : ''}` }],
+      parts: [{ text: `${message.text}${message.drafts?.length ? `\nBorradores (usar leer_propuesta para ver cantidades): ${JSON.stringify(message.drafts.map((p) => ({ id: p.id, titulo: p.contenido.titulo, asignaciones: p.contenido.asignaciones })))}` : ''}` }],
     }));
     // Always start a Gemini history on a user turn when truncating.
     while (contents.length && contents[0].role !== 'user') contents.shift();
     contents.push({ role: 'user', parts: [{ text: body.text.trim() }] });
     const model = getGeminiClient().getGenerativeModel({ model: MODEL, systemInstruction: systemPrompt(today, timeZone),
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS }], generationConfig: { temperature: 0.3, maxOutputTokens: 2200 } }, { timeout: 55_000 });
+      tools: [{ functionDeclarations: TOOL_DECLARATIONS }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } }, { timeout: 55_000 });
     let reply = '';
     let callCount = 0;
-    for (let round = 0; round < 5; round++) {
+    const deadline = Date.now() + 220_000;
+    for (let round = 0; round < 7 && Date.now() < deadline; round++) {
       const response = (await model.generateContent({ contents })).response;
       const calls = response.functionCalls() ?? [];
       if (!calls.length) { reply = response.text().trim(); break; }
@@ -112,11 +128,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const results: Part[] = [];
       for (const call of calls) {
         callCount++;
-        const output = callCount <= 8 ? await tools.execute(call.name, call.args as Record<string, unknown>) : { error: 'Límite de herramientas alcanzado. Respondé con lo que ya consultaste.' };
+        const output = callCount <= 16 ? await tools.execute(call.name, call.args as Record<string, unknown>) : { error: 'Límite de herramientas alcanzado. Respondé con lo que ya consultaste.' };
         results.push({ functionResponse: { name: call.name, response: output } });
       }
       contents.push({ role: 'function', parts: results });
-      if (tools.proposals.length) {
+      if (tools.drafts.length) {
         // A valid draft is already useful; don't lose it to a subsequent provider failure.
         reply = 'Preparé esta propuesta con tus preferencias y el pedido que me hiciste. Revisá las comidas y las fechas; todavía no cambié tu calendario.';
         break;
@@ -126,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const timestamp = new Date().toISOString();
     const messages: AssistantBetaMessage[] = [...current.messages,
       { id: body.requestId, role: 'user', text: body.text.trim(), createdAt: timestamp },
-      { id: randomUUID(), role: 'assistant', text: reply, createdAt: timestamp, tools: tools.activities, proposals: tools.proposals },
+      { id: randomUUID(), role: 'assistant', text: reply, createdAt: timestamp, tools: tools.activities, drafts: tools.drafts },
     ];
     const saved = await db.from('assistant_beta_conversations').update({
       messages, title: current.messages.length ? current.title : body.text.trim().slice(0, 64), revision: current.revision + 1, updated_at: timestamp,
@@ -136,6 +152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try { await recordSuccessfulAiChat(userId); } catch { console.error('[assistant-beta] usage_record_failed'); }
     return res.status(200).json({ conversation: conversation(saved.data) });
   } catch (error) {
+    if (error instanceof ErrorFuncionesNutrikal) return res.status(error.codigo === 'conflicto' ? 409 : 400).json({ error: error.message, codigo: error.codigo });
     console.error('[assistant-beta]', error instanceof Error ? error.name : 'database_error');
     return res.status(503).json({ error: 'No pude completar el pedido ahora. Tu calendario no se modificó. Podés volver al chat actual o reintentar.' });
   }

@@ -5,6 +5,7 @@ import type { AssistantBetaConversation, AssistantBetaState } from '../../types/
 import { createAssistantBetaConversation, loadAssistantBeta, sendAssistantBetaMessage } from '../../services/assistantBetaService';
 import { useCalendarPlanStore } from '../../store/useCalendarPlanStore';
 import { PlanReviewGrid } from '../planner/PlanReviewGrid';
+import { ProposalCard } from './ProposalCard.js';
 
 export default function ExperimentalAssistant({ onTabChange }: { onTabChange: (tab: AppTab) => void }) {
   const [conversation, setConversation] = useState<AssistantBetaConversation | null>(null);
@@ -107,6 +108,7 @@ export default function ExperimentalAssistant({ onTabChange }: { onTabChange: (t
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
           {!!message.tools?.length && <details className="mt-3 text-xs"><summary className="cursor-pointer">Qué consulté y preparé</summary><ul className="mt-2 space-y-1">{message.tools.map((tool, i) => <li key={`${tool.name}-${i}`}>{tool.ok ? '✓' : 'No se completó:'} {tool.label}</li>)}</ul></details>}
         </div>
+        {message.drafts?.map((propuesta) => <ProposalCard key={propuesta.id} propuesta={propuesta} onAdjust={setInput} />)}
         {message.proposals?.map((proposal) => {
           const applied = Boolean(snapshot?.plans.some((plan) => plan.id === proposal.plan.id));
           return <article key={proposal.id} className="mt-4 rounded-2xl border border-[#c1c9bb] bg-white p-4 sm:p-6">

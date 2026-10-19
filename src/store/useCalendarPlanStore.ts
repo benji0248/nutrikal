@@ -31,6 +31,7 @@ interface PlanState {
   requestApply: (plan: WeekPlan, onApplied: (plan: WeekPlan, result: CalendarOperationResult) => void) => void;
   closeApply: () => void;
   refresh: () => Promise<CalendarPlanningSnapshot>;
+  acceptResult: (result: CalendarOperationResult, label: string, undone?: boolean) => void;
   perform: (operation: CalendarOperation, label: string) => Promise<CalendarOperationResult>;
   undo: () => Promise<void>;
   reset: () => void;
@@ -40,6 +41,7 @@ export const useCalendarPlanStore = create<PlanState>()((set, get) => ({
   requestApply: (plan, onApplied) => { if (!get().busy) set({ pendingPlan: { plan, onApplied }, error: null }); },
   closeApply: () => { if (!get().busy) set({ pendingPlan: null }); },
   reset: () => set({ snapshot: null, busy: false, error: null, lastOperation: null, pendingPlan: null }),
+  acceptResult: (result, label, undone = false) => { hydrate(result); set({ snapshot: result, lastOperation: undone ? null : { id: result.operationId, label }, error: null }); },
   refresh: async () => {
     const userId = useAuthStore.getState().user?.id;
     try {

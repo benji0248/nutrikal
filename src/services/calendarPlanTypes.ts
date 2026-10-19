@@ -1,4 +1,4 @@
-import type { Meal, MealType, ShoppingList, WeekPlan } from '../types';
+import type { CalculatorEntry, Meal, MealType, ShoppingList, WeekPlan } from '../types/index.js';
 
 export type CalendarMeal = Meal & { date: string; mealType: MealType };
 export type OverlapPolicy = 'fill' | 'replace' | 'alternatives';
@@ -19,6 +19,7 @@ export interface CalendarPlanningSnapshot extends CalendarPlanningState {
   version: string;
 }
 export type CalendarOperation =
+  | { kind: 'applyMeals'; plan: WeekPlan; planId: string; title: string; policy: OverlapPolicy; entries: Record<string, CalculatorEntry[]> }
   | { kind: 'apply'; plan: WeekPlan; planId: string; policy: OverlapPolicy; startDate: string }
   | { kind: 'move'; planId: string; startDate: string; policy: OverlapPolicy }
   | { kind: 'remove'; planId: string }

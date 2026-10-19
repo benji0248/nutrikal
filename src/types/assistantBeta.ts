@@ -1,4 +1,5 @@
 import type { WeekPlan } from './index';
+import type { PropuestaGuardada } from '../domain/nutrikal/proposals.js';
 
 export interface AssistantToolActivity {
   name: string;
@@ -12,6 +13,7 @@ export interface AssistantBetaMessage {
   text: string;
   createdAt: string;
   proposals?: Array<{ id: string; title: string; plan: WeekPlan }>;
+  drafts?: PropuestaGuardada[];
   tools?: AssistantToolActivity[];
 }
 

@@ -1,6 +1,8 @@
 import { addDays, format, parseISO } from 'date-fns';
 import type { CalculatorEntry, Ingredient } from '../../types/index.js';
 import * as dominio from './functions.js';
+import * as propuestas from './proposals.js';
+import type { MealType } from '../../types/index.js';
 import type { ConsultaComidas, CriteriosSeleccion, FiltrosIngredientes, Intervalo, RepositorioNutrikal } from './types.js';
 import { ErrorFuncionesNutrikal, exigir, fechaValida, validarIds, validarIntervalo } from './validation.js';
 
@@ -60,6 +62,10 @@ export function crearFuncionesNutrikal(deps: { usuarioId: string; repositorio: R
       return dominio.seleccionarIngredientes(catalogo, prefs, afinidades, recientes, criterios, perfil.historialCanastas);
     },
     calcularNutrientes: async (entradas: CalculatorEntry[], porciones = 1) => dominio.calcularNutrientes(await ingredientes(), entradas, porciones),
+    resolverIngrediente: async (nombre: string) => propuestas.resolverIngrediente(await ingredientes(), nombre),
+    obtenerPresupuestoComida: async (fecha: string, tipo: MealType) => propuestas.obtenerPresupuestoComida(await contexto(), fecha, tipo),
+    ajustarCantidades: async (ajuste: propuestas.AjusteCantidades) => propuestas.ajustarCantidades(await ingredientes(), ajuste),
+    validarPropuesta: async (propuesta: unknown) => propuestas.validarPropuesta(await ingredientes(), await contexto(), propuesta, fechaReferencia),
   };
 }
 

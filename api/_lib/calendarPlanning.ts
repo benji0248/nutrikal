@@ -8,11 +8,11 @@ import type { MealType, ShoppingItem, Ingredient, WeekPlan } from '../../src/typ
 import { findDislikedIngredientNames } from '../../src/utils/foodPreferences.js';
 
 type Row = Record<string, unknown>;
-interface Snapshot { meals: Row[]; plans: Row[]; lists: Row[]; items: Row[] }
+export interface Snapshot { meals: Row[]; plans: Row[]; lists: Row[]; items: Row[] }
 const stable = (value: unknown): string => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
   ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
-const version = (snapshot: Snapshot) => createHash('sha256').update(stable(snapshot)).digest('hex');
-function toClient(raw: Snapshot): CalendarPlanningSnapshot {
+export const version = (snapshot: Snapshot) => createHash('sha256').update(stable(snapshot)).digest('hex');
+export function toClient(raw: Snapshot): CalendarPlanningSnapshot {
   return {
     version: version(raw),
     meals: raw.meals.map((m) => ({
@@ -30,7 +30,7 @@ function toClient(raw: Snapshot): CalendarPlanningSnapshot {
     })),
   };
 }
-function toDatabase(state: CalendarPlanningState, old: Snapshot): Snapshot {
+export function toDatabase(state: CalendarPlanningState, old: Snapshot): Snapshot {
   const original = toClient(old);
   return {
     meals: state.meals.map((m) => stable(m) === stable(original.meals.find((row) => row.id === m.id))
@@ -47,7 +47,7 @@ function toDatabase(state: CalendarPlanningState, old: Snapshot): Snapshot {
     items: state.shoppingLists.flatMap((l) => l.items.map((i) => ({ id: i.id, list_id: l.id, ingredient_id: i.ingredientId, name: i.name, quantity: i.quantity, section: i.section, checked: i.checked }))),
   };
 }
-function undoChanges(current: Snapshot, before: Snapshot, after: Snapshot): Snapshot {
+export function undoChanges(current: Snapshot, before: Snapshot, after: Snapshot): Snapshot {
   const result = structuredClone(current);
   // Revert only touched entities; unrelated edits are preserved. Touched slots are protected as a whole.
   const changedSlots = new Set<string>();
@@ -78,7 +78,7 @@ function undoChanges(current: Snapshot, before: Snapshot, after: Snapshot): Snap
   return result;
 }
 
-async function readSnapshot(userId: string): Promise<Snapshot> {
+export async function readSnapshot(userId: string): Promise<Snapshot> {
   const { data, error } = await getSupabase().rpc('calendar_snapshot', { p_user_id: userId });
   if (error) {
     if (error.code === 'PGRST202' || error.code === '42883') throw new Error('CALENDAR_SETUP_REQUIRED');

@@ -2,6 +2,7 @@
 
 | ID | Tarea | Estado | Archivo de tarea | Reporte | Revisión |
 |----|-------|--------|------------------|---------|----------|
+| TASK-008 | Propuestas y comandos reutilizables | entregada | [TASK-008-proposal-functions.md](./tasks/TASK-008-proposal-functions.md) | [TASK-008-proposal-functions.md](./reports/TASK-008-proposal-functions.md) | Build, TypeScript, ESLint y arranque ESM correctos; migración aplicada; pruebas de uso del usuario |
 | TASK-007 | Funciones reutilizables de Nutrikal | entregada | [TASK-007-reusable-functions.md](./tasks/TASK-007-reusable-functions.md) | [TASK-007-reusable-functions.md](./reports/TASK-007-reusable-functions.md) | Build y arranque nativo correctos; publicación autorizada, pruebas de uso a cargo del usuario |
 | TASK-006 | Reparación de imports ESM del backend | entregada | [TASK-006-server-esm-imports.md](./tasks/TASK-006-server-esm-imports.md) | [TASK-006-server-esm-imports.md](./reports/TASK-006-server-esm-imports.md) | Arranque nativo y build correctos; publicación directa autorizada |
 | TASK-001 | Navegación móvil | entregada | [TASK-001-mobile-navigation.md](./tasks/TASK-001-mobile-navigation.md) | [TASK-001-mobile-navigation.md](./reports/TASK-001-mobile-navigation.md) | — (pendiente nueva auditoría) |

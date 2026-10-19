@@ -1,4 +1,6 @@
 import type { AssistantBetaConversation, AssistantBetaState } from '../types/assistantBeta';
+import type { ConsultaPrevisualizacion, PrevisualizacionPropuesta } from '../domain/nutrikal/proposalOperations.js';
+import type { CalendarOperationResult } from './calendarPlanTypes.js';
 
 async function request<T>(path = '', body?: unknown): Promise<T> {
   const token = localStorage.getItem('nutrikal-jwt');
@@ -21,6 +23,10 @@ async function request<T>(path = '', body?: unknown): Promise<T> {
 }
 
 export const getAssistantBetaAccess = () => request<{ enabled: boolean }>('?capability=1');
+const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+export const previewAssistantProposal = (consulta: ConsultaPrevisualizacion) => request<PrevisualizacionPropuesta>('', { action: 'preview', ...consulta, timeZone: timeZone() });
+export const applyAssistantPreview = (previsualizacionId: string) => request<CalendarOperationResult>('', { action: 'applyPreview', previsualizacionId, timeZone: timeZone() });
+export const undoAssistantOperation = (operacionId: string, versionCalendario: string, requestId: string) => request<CalendarOperationResult>('', { action: 'undoProposal', operacionId, versionCalendario, requestId, timeZone: timeZone() });
 export const loadAssistantBeta = (id?: string) => request<AssistantBetaState>(id ? `?id=${encodeURIComponent(id)}` : '');
 export const createAssistantBetaConversation = () => request<{ conversation: AssistantBetaConversation }>('', { action: 'create' });
 export const sendAssistantBetaMessage = (conversation: AssistantBetaConversation, text: string, requestId: string) =>
