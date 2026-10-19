@@ -2,6 +2,7 @@
 
 | ID | Tarea | Estado | Archivo de tarea | Reporte | Revisión |
 |----|-------|--------|------------------|---------|----------|
+| TASK-014 | Separación del contexto interno | entregada | [TASK-014-internal-context.md](./tasks/TASK-014-internal-context.md) | [TASK-014-internal-context.md](./reports/TASK-014-internal-context.md) | Solo local, sin publicar por pedido del usuario; build, TypeScript y ESLint |
 | TASK-013 | Criterio culinario del asistente | entregada | [TASK-013-recipe-quality.md](./tasks/TASK-013-recipe-quality.md) | [TASK-013-recipe-quality.md](./reports/TASK-013-recipe-quality.md) | Build, TypeScript y ESLint; evaluación de recetas a cargo del usuario |
 | TASK-012 | Recuperación y autonomía del asistente | entregada | [TASK-012-assistant-tool-recovery.md](./tasks/TASK-012-assistant-tool-recovery.md) | [TASK-012-assistant-tool-recovery.md](./reports/TASK-012-assistant-tool-recovery.md) | Build, TypeScript, ESLint e imports ESM; diagnóstico de datos existentes, uso real del usuario |
 | TASK-011 | Selector personalizado del asistente | entregada | [TASK-011-assistant-selector.md](./tasks/TASK-011-assistant-selector.md) | [TASK-011-assistant-selector.md](./reports/TASK-011-assistant-selector.md) | Build y ESLint; pruebas de uso del usuario |

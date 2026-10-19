@@ -5,14 +5,16 @@ export const LEGACY_FALLBACK = 'No pude completar el pedido en este intento. Tu 
 const blockedReasons = new Set(['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'LANGUAGE']);
 const malformedReasons = new Set(['MALFORMED_FUNCTION_CALL', 'MALFORMED_RESPONSE', 'UNEXPECTED_TOOL_CALL']);
 
-/** Evidence for subsequent turns: a generic fallback never proves that the calendar tool failed. */
-export function toolEvidenceContext(message: AssistantBetaMessage): string {
+/** Server evidence for the private model context, never part of a conversational reply. */
+export function toolEvidenceContext(message: AssistantBetaMessage, historyPosition: number): string {
   if (message.role !== 'assistant') return '';
   if (!message.diagnostics && message.tools === undefined && message.text !== LEGACY_FALLBACK) return '';
-  return `\nRegistro técnico de este turno (datos del servidor, no inferir otras ejecuciones): ${JSON.stringify({
+  return JSON.stringify({
+    mensajeEnHistorial: historyPosition,
+    fecha: message.createdAt,
     resultado: message.diagnostics?.outcome ?? (message.text === LEGACY_FALLBACK ? 'sin_respuesta_utilizable_causa_no_registrada' : 'sin_diagnostico'),
     herramientasEjecutadas: (message.tools ?? []).map((tool) => ({ nombre: tool.name, ok: tool.ok, codigo: tool.code, consultaCalendario: tool.calendarQuery })),
-  })}`;
+  });
 }
 
 function fallback(diagnostics: AssistantTurnDiagnostics, activities: AssistantToolActivity[]): string {
