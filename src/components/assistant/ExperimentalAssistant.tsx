@@ -15,6 +15,7 @@ export default function ExperimentalAssistant({ onTabChange, modeControl }: { on
   const [history, setHistory] = useState<AssistantBetaState['conversations']>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(true);
+  const [conversationStatus, setConversationStatus] = useState<string | null>('Cargando conversación…');
   const [error, setError] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -36,35 +37,35 @@ export default function ExperimentalAssistant({ onTabChange, modeControl }: { on
       setConversation(result.conversation); setHistory(result.conversations);
       if (!result.enabled) setError('El nuevo asistente no está habilitado para esta cuenta.');
     }).catch((err: unknown) => { if (alive.current) setError(err instanceof Error ? err.message : 'No pude cargar la conversación.'); })
-      .finally(() => { if (alive.current) setBusy(false); });
+      .finally(() => { if (alive.current) { setBusy(false); setConversationStatus(null); } });
     void useCalendarPlanStore.getState().refresh().catch(() => {});
     return () => { alive.current = false; };
   }, []);
   useEffect(() => {
     if (viewport.current && (followBottom.current || pendingText)) viewport.current.scrollTop = viewport.current.scrollHeight;
-  }, [conversation?.messages.length, pendingText]);
+  }, [conversation?.id, conversation?.messages.length, pendingText, conversationStatus]);
   useEffect(() => {
     const node = textarea.current;
     if (node) { node.style.height = '0px'; node.style.height = `${Math.min(node.scrollHeight, 176)}px`; }
-  }, [input, empty]);
+  }, [input, empty, conversationStatus]);
 
   const reload = async (id?: string) => {
-    if (sending.current) return;
-    setShowHistory(false); setBusy(true); setError(null); followBottom.current = true;
+    if (sending.current || busy) return;
+    setShowHistory(false); setBusy(true); setConversationStatus('Cargando conversación…'); setError(null); followBottom.current = true;
     try {
       const result = await loadAssistantBeta(id);
       if (alive.current) { setConversation(result.conversation); setHistory(result.conversations); setInput(''); setDraftReference(null); }
     } catch (err) { if (alive.current) setError(err instanceof Error ? err.message : 'No pude cargar el historial.'); }
-    finally { if (alive.current) setBusy(false); }
+    finally { if (alive.current) { setBusy(false); setConversationStatus(null); } }
   };
   const startNew = async () => {
     if (sending.current || busy) return;
-    setShowHistory(false); setBusy(true); setError(null); followBottom.current = true;
+    setShowHistory(false); setBusy(true); setConversationStatus('Creando conversación…'); setError(null); followBottom.current = true;
     try {
       const result = await createAssistantBetaConversation();
       if (alive.current) { setConversation(result.conversation); setInput(''); setDraftReference(null); setHistory((items) => [{ id: result.conversation.id, title: result.conversation.title, updatedAt: new Date().toISOString() }, ...items].slice(0, 30)); }
     } catch (err) { if (alive.current) setError(err instanceof Error ? err.message : 'No pude crear la conversación.'); }
-    finally { if (alive.current) { setBusy(false); requestAnimationFrame(() => textarea.current?.focus()); } }
+    finally { if (alive.current) { setBusy(false); setConversationStatus(null); requestAnimationFrame(() => textarea.current?.focus()); } }
   };
   const send = async () => {
     const text = input.trim();
@@ -113,10 +114,14 @@ export default function ExperimentalAssistant({ onTabChange, modeControl }: { on
         <AssistantOptions onReload={() => void reload(conversation?.id)} disabled={busy} />
       </div>
     </header>
-    {empty ? <div className="min-h-0 flex-1 overflow-y-auto px-5">
+    {conversationStatus ? <div className="flex min-h-0 flex-1 items-center justify-center px-5">
+      <div role="status" className="flex flex-col items-center gap-4 py-12 text-center text-sm text-muted">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent"><LoaderCircle size={26} strokeWidth={1.75} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /></span>
+        <p>{conversationStatus}</p>
+      </div>
+    </div> : empty ? <div className="min-h-0 flex-1 overflow-y-auto px-5">
       <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center pb-8 pt-6 sm:pb-20">
         <div className="mb-8 text-center sm:mb-10"><div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-accent/10 text-accent"><Leaf size={28} strokeWidth={1.5} aria-hidden="true" /></div><h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">¿Qué tenés en mente?</h1><p className="mx-auto mt-4 max-w-md text-sm leading-6 text-muted">Podemos pensar una comida o acomodar tu semana.</p></div>
-        {busy && <p role="status" className="mb-4 text-center text-sm text-muted">Abriendo tu conversación…</p>}
         {composer}
       </div>
     </div> : <>

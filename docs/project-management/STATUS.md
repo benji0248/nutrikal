@@ -2,6 +2,7 @@
 
 | ID | Tarea | Estado | Archivo de tarea | Reporte | Revisión |
 |----|-------|--------|------------------|---------|----------|
+| TASK-016 | Loader de conversaciones | entregada | [TASK-016-chat-history-loader.md](./tasks/TASK-016-chat-history-loader.md) | [TASK-016-chat-history-loader.md](./reports/TASK-016-chat-history-loader.md) | Solo local, sin publicar; build y ESLint; uso a cargo del usuario |
 | TASK-015 | Contexto personal y simplificación del asistente | entregada | [TASK-015-personal-context.md](./tasks/TASK-015-personal-context.md) | [TASK-015-personal-context.md](./reports/TASK-015-personal-context.md) | Solo local, sin publicar; build, TypeScript y ESLint; uso real a cargo del usuario |
 | TASK-014 | Separación del contexto interno | entregada | [TASK-014-internal-context.md](./tasks/TASK-014-internal-context.md) | [TASK-014-internal-context.md](./reports/TASK-014-internal-context.md) | Solo local, sin publicar por pedido del usuario; build, TypeScript y ESLint |
 | TASK-013 | Criterio culinario del asistente | entregada | [TASK-013-recipe-quality.md](./tasks/TASK-013-recipe-quality.md) | [TASK-013-recipe-quality.md](./reports/TASK-013-recipe-quality.md) | Build, TypeScript y ESLint; evaluación de recetas a cargo del usuario |
