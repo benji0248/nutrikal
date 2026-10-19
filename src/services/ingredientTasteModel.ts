@@ -10,12 +10,15 @@ export interface TasteSelectionContext {
   signals: IngredientSignalEntry[];
   recentPoolHistory: string[][];
   dayPlans?: Record<string, DayPlan>;
+  /** Optional clock for deterministic reusable services; legacy callers use the current time. */
+  referenceDate?: string;
 }
 
-function daysSince(isoDate: string): number {
+function daysSince(isoDate: string, referenceDate?: string): number {
   const t = new Date(`${isoDate}T12:00:00`).getTime();
   if (Number.isNaN(t)) return 999;
-  return Math.max(0, (Date.now() - t) / MS_PER_DAY);
+  const now = referenceDate ? new Date(`${referenceDate}T12:00:00`).getTime() : Date.now();
+  return Math.max(0, (now - t) / MS_PER_DAY);
 }
 
 function decay(days: number): number {
@@ -81,7 +84,7 @@ export function buildIngredientTasteScores(
   };
 
   for (const entry of ctx.signals) {
-    const d = daysSince(entry.fecha);
+    const d = daysSince(entry.fecha, ctx.referenceDate);
     if (d > SIGNAL_WINDOW_DAYS) continue;
     const w = decay(d);
 
@@ -121,7 +124,7 @@ export function buildIngredientTasteScores(
   }
 
   if (ctx.dayPlans) {
-    const today = new Date();
+    const today = ctx.referenceDate ? new Date(`${ctx.referenceDate}T12:00:00`) : new Date();
     for (let i = 0; i < CALENDAR_WINDOW_DAYS; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);

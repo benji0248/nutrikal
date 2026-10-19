@@ -79,7 +79,7 @@ const DIABETIC_EXCLUDE_IDS = new Set([
  */
 export function filterIngredientsForUser(
   allIngredients: Ingredient[],
-  profile: UserProfile,
+  profile: Pick<UserProfile, 'restrictions' | 'dislikedIngredientIds' | 'dislikedCategories' | 'allowedExceptions'>,
 ): Ingredient[] {
 
   // Build set of excluded categories from dietary restrictions

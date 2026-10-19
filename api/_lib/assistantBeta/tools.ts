@@ -8,15 +8,20 @@ import { getGenerationTelemetry } from '../observability/bootstrap.js';
 import { generateWeekPlanOneShot, WEEK_PLAN_MODEL, WEEK_PLAN_PROMPT_VERSION, WEEK_PLAN_BUSINESS_RULES_VERSION, WEEK_PLAN_ALGORITHM_VERSION } from '../weekPlanGenerate.js';
 import { getActiveMealSlots } from '../metabolic.js';
 import type { GemProfile } from '../gemini.js';
-import { buildFoodPreferencesPrompt, findDislikedIngredientNames } from '../../../src/utils/foodPreferences.js';
+import { findDislikedIngredientNames } from '../../../src/utils/foodPreferences.js';
 import { buildFullWeekPlanFromApiResponse, buildWeekPlanningContext, weekPlanningForApi } from '../../../src/services/weekPlanService.js';
 import { normalizeWeekPlanningProfile } from '../../../src/utils/flexDayHelpers.js';
 import { DEFAULT_WEEK_PLANNING, MEAL_TYPE_ORDER } from '../../../src/types/index.js';
 import type { AiDishResponse, CulinaryRole, DayPlan, MealType, UserProfile, WeekPlanSkeleton, WeekPlanningProfile } from '../../../src/types/index.js';
 import type { WeekPlanningInput } from '../weekPlanPrompts.js';
 import type { AssistantBetaMessage, AssistantToolActivity } from '../../../src/types/assistantBeta.js';
+import { INGREDIENTS_DB } from '../../../src/data/ingredients.js';
+import { crearFuncionesNutrikal } from '../../../src/domain/nutrikal/createFunctions.js';
+import { ErrorFuncionesNutrikal } from '../../../src/domain/nutrikal/validation.js';
+import { crearRepositorioSupabase } from '../nutrikal/repository.js';
+import { FUNCTION_TOOL_DECLARATIONS, FUNCTION_TOOL_LABELS, ejecutarFuncionNutrikal } from './functionTools.js';
 
-export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
+const LEGACY_TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultar_preferencias',
     description: 'Lee las preferencias, restricciones, objetivo y rutina guardados del usuario autenticado. Consultar antes de aconsejar o planificar. No modifica el perfil.',
@@ -45,7 +50,12 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   },
 ];
 
+// Keep the existing proposal flow while exposing reusable capabilities independently.
+// The two old read names remain supported below for compatibility, but are not advertised twice.
+export const TOOL_DECLARATIONS: FunctionDeclaration[] = [...FUNCTION_TOOL_DECLARATIONS, ...LEGACY_TOOL_DECLARATIONS.filter((tool) => tool.name === 'preparar_plan')];
+
 export const TOOL_LABELS: Record<string, string> = {
+  ...FUNCTION_TOOL_LABELS,
   consultar_preferencias: 'Consulté tus preferencias y tu rutina',
   consultar_calendario: 'Consulté tu calendario',
   preparar_plan: 'Preparé una propuesta para revisar',
@@ -95,6 +105,7 @@ function planningFor(row: ProfileRow): WeekPlanningProfile {
 }
 
 export function createToolContext(userId: string, today: string, requestId: string, previousProposals: NonNullable<AssistantBetaMessage['proposals']> = []) {
+  const funciones = crearFuncionesNutrikal({ usuarioId: userId, repositorio: crearRepositorioSupabase(getSupabase()), catalogoBase: INGREDIENTS_DB, fechaReferencia: today });
   const proposals: NonNullable<AssistantBetaMessage['proposals']> = [];
   const activities: AssistantToolActivity[] = [];
   let generationAttempted = false;
@@ -102,27 +113,18 @@ export function createToolContext(userId: string, today: string, requestId: stri
   const profile = () => profilePromise ??= loadProfile(userId);
 
   async function execute(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    if (!TOOL_LABELS[name]) return { error: 'Herramienta desconocida. Usá solo las herramientas declaradas.' };
+    if (!Object.hasOwn(TOOL_LABELS, name)) return { error: 'Herramienta desconocida. Usá solo las herramientas declaradas.' };
     try {
       let result: Record<string, unknown>;
-      if (name === 'consultar_preferencias') {
+      if (Object.hasOwn(FUNCTION_TOOL_LABELS, name)) {
+        result = await ejecutarFuncionNutrikal(funciones, name, args, today);
+      } else if (name === 'consultar_preferencias') {
         if (Object.keys(args).length) throw new Error('Esta herramienta no recibe parámetros.');
-        const row = await profile();
-        result = row ? {
-          name: row.name, goal: row.goal, nationality: row.nationality,
-          restrictions: row.restrictions,
-          foodPreferences: buildFoodPreferencesPrompt({ dislikedIngredientIds: strings(row.disliked_ingredient_ids), dislikedCategories: strings(row.disliked_categories), allowedExceptions: strings(row.allowed_exceptions) }),
-          routine: planningFor(row), hasSavedRoutine: Boolean(row.week_planning),
-        } : { profileMissing: true, instruction: 'Pedí completar el perfil en Ajustes para calcular porciones.' };
+        const [objetivo, preferencias, rutina] = await Promise.all([funciones.obtenerObjetivo(), funciones.obtenerPreferencias(), funciones.obtenerRutina()]);
+        result = { objetivo, preferencias, rutina };
       } else if (name === 'consultar_calendario') {
         if (!validDate(args.desde) || !validDate(args.hasta)) throw new Error('Las fechas deben ser YYYY-MM-DD válidas.');
-        const span = differenceInCalendarDays(parseISO(args.hasta), parseISO(args.desde));
-        if (span < 0 || span > 30) throw new Error('Elegí un intervalo de entre 1 y 31 días.');
-        const { data, error } = await getSupabase().from('meals')
-          .select('date,meal_type,name,completed,is_alternative').eq('user_id', userId)
-          .gte('date', args.desde).lte('date', args.hasta).order('date').limit(500);
-        if (error) throw error;
-        result = { desde: args.desde, hasta: args.hasta, meals: data, possiblyTruncated: data.length === 500 };
+        result = { ...await funciones.obtenerComidas({ desde: args.desde, hasta: args.hasta, limite: 200 }) };
       } else {
         if (generationAttempted) throw new Error('Ya se intentó preparar una propuesta en este mensaje. Continuá conversando o pedí otro intento.');
         if (!validDate(args.desde) || args.desde < today || differenceInCalendarDays(parseISO(args.desde), parseISO(today)) > 366) throw new Error('Elegí un inicio válido entre hoy y los próximos 366 días.');
@@ -211,6 +213,7 @@ export function createToolContext(userId: string, today: string, requestId: stri
       activities.push({ name, label: TOOL_LABELS[name], ok: false });
       // Provider/DB details stay on the server; only intentional validation errors go to the model.
       console.error('[assistant-beta-tool]', name, error instanceof Error ? error.name : 'database_error');
+      if (error instanceof ErrorFuncionesNutrikal) return { error: error.message, codigo: error.codigo };
       return { error: error instanceof Error && !error.name.includes('Provider') ? error.message.slice(0, 400) : 'No pude completar esta consulta. No se modificó el calendario.' };
     }
   }
